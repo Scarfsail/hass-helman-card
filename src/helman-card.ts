@@ -169,6 +169,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 }
 
+// Register the custom card in Home Assistant
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
     type: 'helman-card',
