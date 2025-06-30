@@ -67,24 +67,36 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 powerDisplay = html`<span>${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
             }
 
+            const sortedChildren = [...device.children].sort((a, b) => {
+                const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
+                const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
+                return stateB - stateA;
+            });
+
             return html`
                 <div class="device">
                     <span>${device.name}:</span>
                     ${powerDisplay}
-                    ${device.children.length > 0 ? html`
+                    ${sortedChildren.length > 0 ? html`
                         <div class="children">
-                            ${device.children.map(child => renderDevice(child))}
+                            ${sortedChildren.map(child => renderDevice(child))}
                         </div>
                     ` : nothing}
                 </div>
             `;
         }
 
+        const sortedRoot = [...this._deviceTree].sort((a, b) => {
+            const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
+            const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
+            return stateB - stateA;
+        });
+
         return html`
             <ha-card>
                 <h1>House Electricity Manager</h1>
                 <div class="card-content">
-                    ${this._deviceTree.map(renderDevice)}
+                    ${sortedRoot.map(renderDevice)}
                 </div>
             </ha-card>
         `;
