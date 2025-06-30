@@ -45,8 +45,8 @@
         {
           "assets": [
             {
-              "path": "dist/helman-prod.js",
-              "label": "helman-prod.js"
+              "path": "dist/helman-card-prod.js",
+              "label": "helman-card-prod.js"
             }
           ]
         }
