@@ -1,4 +1,3 @@
-
 import type { HomeAssistant } from "../hass-frontend/src/types";
 
 export interface DeviceNode {
@@ -22,7 +21,7 @@ interface EntityRegistryEntry {
     device_id: string | null;
 }
 
-export async function fetchDeviceTree(hass: HomeAssistant): Promise<DeviceNode[]> {
+export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -77,6 +76,15 @@ export async function fetchDeviceTree(hass: HomeAssistant): Promise<DeviceNode[]
         } else {
             tree.push(deviceNode);
         }
+    }
+
+    if (housePowerEntityId) {
+        const houseNode: DeviceNode = {
+            name: hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId,
+            powerSensorId: housePowerEntityId,
+            children: tree
+        };
+        return [houseNode];
     }
 
     return tree;

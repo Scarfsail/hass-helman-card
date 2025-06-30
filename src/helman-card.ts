@@ -6,7 +6,7 @@ import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/conf
 import { DeviceNode, fetchDeviceTree } from "./energy-data-helper";
 
 interface HelmanCardConfig extends LovelaceCardConfig {
-
+    house_power_entity?: string;
 }
 
 @customElement("helman-card")
@@ -29,7 +29,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 padding-left: 20px;
             }
             .children {
-                padding-left: 20px;
+                padding-left: 0px;
             }
         `;
     }
@@ -51,7 +51,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     private async _fetchData() {
-        this._deviceTree = await fetchDeviceTree(this._hass!)
+        this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity)
     }
     
     render() {
