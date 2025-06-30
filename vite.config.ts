@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
             lib: {
                 entry: "./src/helman-card.ts",
                 formats: ["es"],
-                fileName: () => `helman-${isProduction ? "prod" : "dev"}.js`, // Update file name
+                fileName: () => `helman-card-${isProduction ? "prod" : "dev"}.js`, // Update file name
             },
             rollupOptions: {
                 output: {
