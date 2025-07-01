@@ -59,29 +59,43 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             return html``;
         }
 
-        const renderDevice = (device: DeviceNode): TemplateResult => {
+        const renderDevice = (device: DeviceNode, parentPower?: number): TemplateResult => {
             let powerDisplay = html`<span>No power sensor found</span>`;
 
             if (device.powerSensorId) {
                 const powerState = this._hass!.states[device.powerSensorId];
-                powerDisplay = html`<span>${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
-            }
+                const currentPower = parseFloat(powerState.state) || 0;
+                let percentageDisplay = "";
+                if (parentPower && parentPower > 0) {
+                    const percentage = (currentPower / parentPower) * 100;
+                    percentageDisplay = ` (${percentage.toFixed(1)}%)`;
+                }
 
-            const sortedChildren = [...device.children].sort((a, b) => {
-                const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
-                const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
-                return stateB - stateA;
-            });
+                powerDisplay = html`<span>${powerState.state} ${powerState.attributes.unit_of_measurement || ""}${percentageDisplay}</span>`;
+            
+                const sortedChildren = [...device.children].sort((a, b) => {
+                    const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
+                    const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
+                    return stateB - stateA;
+                });
+
+                return html`
+                    <div class="device">
+                        <span>${device.name}:</span>
+                        ${powerDisplay}
+                        ${sortedChildren.length > 0 ? html`
+                            <div class="children">
+                                ${sortedChildren.map(child => renderDevice(child, currentPower))}
+                            </div>
+                        ` : nothing}
+                    </div>
+                `;
+            }
 
             return html`
                 <div class="device">
                     <span>${device.name}:</span>
                     ${powerDisplay}
-                    ${sortedChildren.length > 0 ? html`
-                        <div class="children">
-                            ${sortedChildren.map(child => renderDevice(child))}
-                        </div>
-                    ` : nothing}
                 </div>
             `;
         }
@@ -96,7 +110,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             <ha-card>
                 <h1>House Electricity Manager</h1>
                 <div class="card-content">
-                    ${sortedRoot.map(renderDevice)}
+                    ${sortedRoot.map(device => renderDevice(device))}
                 </div>
             </ha-card>
         `;
