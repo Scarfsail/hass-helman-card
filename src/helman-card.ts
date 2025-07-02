@@ -1,9 +1,10 @@
-import { LitElement, TemplateResult, css, html, nothing } from "lit-element"
+import { LitElement, css, html } from "lit-element"
 import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
 import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/config/card";
 import { DeviceNode, fetchDeviceTree } from "./energy-data-helper";
+import "./power-device";
 
 interface HelmanCardConfig extends LovelaceCardConfig {
     house_power_entity?: string;
@@ -29,46 +30,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 padding-right: 16px;
                 padding-left: 0px
             }
-            .switchIIconPlaceholder {
-                width: 40px;
-                height: 40px;
-                flex-shrink: 0;
-            }
-            .device {
-                display: flex;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-            .deviceContent {
-                display: flex;
-                align-items: center;
-                flex-basis: 100%;
-                min-width: 0; /* Prevents text overflow issues */
-            }
-            .deviceName {
-                flex-grow: 1;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                margin-left: 0px;
-            }
-            .powerDisplay {
-                flex-shrink: 0;
-                margin-left: auto; /* Aligns to the right */
-                padding-left: 8px; /* Adds space between name and power */
-                cursor: pointer;
-            }
-            .deviceChildren {
-                flex-basis: 100%;
-                padding-left: 20px; /* Aligns with the device name */
-            }
-            .powerPercentages{
-                font-size: 0.7em;
-                margin-right: 4px; /* Adds space between percentage and power value */
-            }
-            state-badge {
-                cursor: pointer;
-                flex-shrink: 0;
-            }
         `;
     }
     public static async getStubConfig(hass: HomeAssistant): Promise<Partial<HelmanCardConfig>> {
@@ -91,82 +52,10 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private async _fetchData() {
         this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity)
     }
-
-    private _showMoreInfo(entityId: string) {
-        const event = new CustomEvent("hass-more-info", {
-            bubbles: true,
-            composed: true,
-            detail: { entityId },
-        });
-        this.dispatchEvent(event);
-    }
     
     render() {
         if (!this._hass || this._deviceTree.length === 0) {
             return html``;
-        }
-
-        const renderDevice = (device: DeviceNode, parentPower?: number): TemplateResult => {
-            let powerDisplay = html`<span class="powerDisplay">No power sensor found</span>`;
-            let switchIcon: TemplateResult | typeof nothing = nothing;
-
-            if (device.switchEntityId) {
-                switchIcon = html`
-                    <state-badge
-                        .hass=${this._hass}                                                
-                        .stateObj=${this._hass!.states[device.switchEntityId]}
-                        @click=${() => this._showMoreInfo(device.switchEntityId!)}
-                    ></state-badge>
-                `;
-            } else {
-                switchIcon = html`<div class="switchIIconPlaceholder"></div>`;
-            }
-
-            if (device.powerSensorId) {
-                const powerState = this._hass!.states[device.powerSensorId];
-                const currentPower = parseFloat(powerState.state) || 0;
-                let percentageDisplay:TemplateResult | typeof nothing = nothing;
-                let percentage = 0;
-                if (parentPower && parentPower > 0) {
-                    percentage = (currentPower / parentPower) * 100;
-                    percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
-                }
-
-                const backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
-
-                powerDisplay = html`<span class="powerDisplay" @click=${() => this._showMoreInfo(device.powerSensorId!)}>${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
-            
-                const sortedChildren = [...device.children].sort((a, b) => {
-                    const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
-                    const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
-                    return stateB - stateA;
-                });
-
-                return html`
-                    <div class="device">
-                        <div class="deviceContent" style="${backgroundStyle}">
-                            ${switchIcon}
-                            <span class="deviceName">${device.name}:</span>
-                            ${powerDisplay}
-                        </div>                        
-                        ${sortedChildren.length > 0 ? html`
-                            <div class="deviceChildren">
-                                ${sortedChildren.map(child => renderDevice(child, currentPower))}
-                            </div>
-                        ` : nothing}
-                    </div>
-                `;
-            }
-
-            return html`
-                <div class="device">
-                    <div class="deviceContent">
-                        ${switchIcon}
-                        <span class="deviceName">${device.name}:</span>
-                        ${powerDisplay}
-                    </div>
-                </div>
-            `;
         }
 
         const sortedRoot = [...this._deviceTree].sort((a, b) => {
@@ -179,7 +68,12 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             <ha-card>
                 <h1>House Electricity Manager</h1>
                 <div class="card-content">
-                    ${sortedRoot.map(device => renderDevice(device))}
+                    ${sortedRoot.map(device => html`
+                        <power-device
+                            .hass=${this._hass}
+                            .device=${device}
+                        ></power-device>
+                    `)}
                 </div>
             </ha-card>
         `;
