@@ -125,10 +125,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 const powerState = this._hass!.states[device.powerSensorId];
                 const currentPower = parseFloat(powerState.state) || 0;
                 let percentageDisplay:TemplateResult | typeof nothing = nothing;
+                let percentage = 0;
                 if (parentPower && parentPower > 0) {
-                    const percentage = (currentPower / parentPower) * 100;
+                    percentage = (currentPower / parentPower) * 100;
                     percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
                 }
+
+                const backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
 
                 powerDisplay = html`<span class="powerDisplay">${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
             
@@ -140,7 +143,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
                 return html`
                     <div class="device">
-                        <div class="deviceContent">
+                        <div class="deviceContent" style="${backgroundStyle}">
                             ${switchIcon}
                             <span class="deviceName">${device.name}:</span>
                             ${powerDisplay}
