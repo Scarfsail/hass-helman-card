@@ -55,6 +55,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 flex-shrink: 0;
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
+                cursor: pointer;
             }
             .deviceChildren {
                 flex-basis: 100%;
@@ -133,7 +134,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
                 const backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
 
-                powerDisplay = html`<span class="powerDisplay">${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
+                powerDisplay = html`<span class="powerDisplay" @click=${() => this._showMoreInfo(device.powerSensorId!)}>${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
             
                 const sortedChildren = [...device.children].sort((a, b) => {
                     const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
