@@ -9,6 +9,7 @@ import "./power-device";
 interface HelmanCardConfig extends LovelaceCardConfig {
     house_power_entity?: string;
     power_sensor_label?: string;
+    power_switch_label?: string;
 }
 
 @customElement("helman-card")
@@ -50,8 +51,16 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         }
     }
 
-    private async _fetchData() {
-        this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity, this.config?.power_sensor_label)
+    private async _fetchData(): Promise<void> {
+        try {
+            const housePowerEntityId = this.config?.house_power_entity;
+            const powerSensorLabel = this.config?.power_sensor_label;
+            const powerSwitchLabel = this.config?.power_switch_label;
+            this._deviceTree = await fetchDeviceTree(this._hass!, housePowerEntityId, powerSensorLabel, powerSwitchLabel);
+            this.requestUpdate();
+        } catch (error) {
+            console.error('Error fetching device tree:', error);
+        }
     }
     
     render() {

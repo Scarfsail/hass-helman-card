@@ -33,7 +33,7 @@ interface LabelRegistryEntry {
     name: string;
 }
 
-export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string, powerSensorLabel?: string): Promise<DeviceNode[]> {
+export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -84,11 +84,22 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
                 powerSensorId = powerEntity.entity_id;
             }
 
-            const switchEntity = deviceEntities.find(e => {
-                if (!e.entity_id.startsWith('switch.')) return false;
-                const state = hass.states[e.entity_id];
-                return state && state.attributes.friendly_name === device.name;
-            });
+            const switchEntities = deviceEntities.filter(e => e.entity_id.startsWith('switch.'));
+            let switchEntity: EntityRegistryEntry | undefined;
+
+            if (switchEntities.length > 0 && powerSwitchLabel) {
+                const targetLabel = labelRegistry.find(l => l.name === powerSwitchLabel);
+                if (targetLabel) {
+                    switchEntity = switchEntities.find(e => e.labels.includes(targetLabel.label_id));
+                }
+            }
+
+            if (!switchEntity && switchEntities.length > 0) {
+                switchEntity = switchEntities.find(e => {
+                    const state = hass.states[e.entity_id];
+                    return state && state.attributes.friendly_name === device.name;
+                });
+            }
 
             if (switchEntity) {
                 switchEntityId = switchEntity.entity_id;
