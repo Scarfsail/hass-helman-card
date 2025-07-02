@@ -20,6 +20,7 @@ interface DeviceConsumption {
 interface EntityRegistryEntry {
     entity_id: string;
     device_id: string | null;
+    labels: string[];
 }
 
 interface DeviceRegistryEntry {
@@ -27,8 +28,13 @@ interface DeviceRegistryEntry {
     name: string;
 }
 
-export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string): Promise<DeviceNode[]> {
-    const [energyPrefs, entityRegistry, deviceRegistry] = await Promise.all([
+interface LabelRegistryEntry {
+    id: string;
+    name: string;
+}
+
+export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string, powerSensorLabel?: string): Promise<DeviceNode[]> {
+    const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
         ),
@@ -37,6 +43,9 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
         ),
         hass.connection.sendMessagePromise<DeviceRegistryEntry[]>(
             { type: "config/device_registry/list" }
+        ),
+        hass.connection.sendMessagePromise<LabelRegistryEntry[]>(
+            { type: "config/label_registry/list" }
         ),
     ]);
 
@@ -53,10 +62,24 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
             if (!device) continue;
 
             const deviceEntities = entityRegistry.filter(e => e.device_id === energyEntity.device_id);
-            const powerEntity = deviceEntities.find(e => {
+            const powerEntities = deviceEntities.filter(e => {
                 const state = hass.states[e.entity_id];
                 return state && state.attributes.device_class === 'power';
             });
+
+            let powerEntity: EntityRegistryEntry | undefined;
+
+            if (powerEntities.length > 1 && powerSensorLabel) {
+                const targetLabel = labelRegistry.find(l => l.name === powerSensorLabel);
+                if (targetLabel) {
+                    powerEntity = powerEntities.find(e => e.labels.includes(targetLabel.id));
+                }
+            }
+
+            if (!powerEntity && powerEntities.length > 0) {
+                powerEntity = powerEntities[0];
+            }
+
             if (powerEntity) {
                 powerSensorId = powerEntity.entity_id;
             }

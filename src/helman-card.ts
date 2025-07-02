@@ -8,6 +8,7 @@ import "./power-device";
 
 interface HelmanCardConfig extends LovelaceCardConfig {
     house_power_entity?: string;
+    power_sensor_label?: string;
 }
 
 @customElement("helman-card")
@@ -50,7 +51,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     private async _fetchData() {
-        this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity)
+        this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity, this.config?.power_sensor_label)
     }
     
     render() {
