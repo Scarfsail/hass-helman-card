@@ -29,7 +29,7 @@ interface DeviceRegistryEntry {
 }
 
 interface LabelRegistryEntry {
-    id: string;
+    label_id: string;
     name: string;
 }
 
@@ -72,7 +72,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
             if (powerEntities.length > 1 && powerSensorLabel) {
                 const targetLabel = labelRegistry.find(l => l.name === powerSensorLabel);
                 if (targetLabel) {
-                    powerEntity = powerEntities.find(e => e.labels.includes(targetLabel.id));
+                    powerEntity = powerEntities.find(e => e.labels.includes(targetLabel.label_id));
                 }
             }
 
