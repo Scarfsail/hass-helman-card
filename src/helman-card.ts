@@ -25,11 +25,21 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
     static get styles() {
         return css`
+            .switchIIconPlaceholder {
+                width: 40px;
+                height: 40px;
+            }
             .device {
-                padding-left: 20px;
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
             }
             .children {
-                padding-left: 0px;
+                flex-basis: 100%;
+                padding-left: 20px;
+            }
+            state-badge {
+                cursor: pointer;
             }
         `;
     }
@@ -53,6 +63,15 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private async _fetchData() {
         this._deviceTree = await fetchDeviceTree(this._hass!, this.config?.house_power_entity)
     }
+
+    private _showMoreInfo(entityId: string) {
+        const event = new CustomEvent("hass-more-info", {
+            bubbles: true,
+            composed: true,
+            detail: { entityId },
+        });
+        this.dispatchEvent(event);
+    }
     
     render() {
         if (!this._hass || this._deviceTree.length === 0) {
@@ -61,6 +80,19 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
         const renderDevice = (device: DeviceNode, parentPower?: number): TemplateResult => {
             let powerDisplay = html`<span>No power sensor found</span>`;
+            let switchIcon: TemplateResult | typeof nothing = nothing;
+
+            if (device.switchEntityId) {
+                switchIcon = html`
+                    <state-badge
+                        .hass=${this._hass}                                                
+                        .stateObj=${this._hass!.states[device.switchEntityId]}
+                        @click=${() => this._showMoreInfo(device.switchEntityId!)}
+                    ></state-badge>
+                `;
+            } else {
+                switchIcon = html`<div class="switchIIconPlaceholder"></div>`;
+            }
 
             if (device.powerSensorId) {
                 const powerState = this._hass!.states[device.powerSensorId];
@@ -81,6 +113,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
                 return html`
                     <div class="device">
+                        ${switchIcon}
                         <span>${device.name}:</span>
                         ${powerDisplay}
                         ${sortedChildren.length > 0 ? html`
@@ -94,6 +127,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
             return html`
                 <div class="device">
+                    ${switchIcon}
                     <span>${device.name}:</span>
                     ${powerDisplay}
                 </div>

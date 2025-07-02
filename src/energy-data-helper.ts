@@ -3,6 +3,7 @@ import type { HomeAssistant } from "../hass-frontend/src/types";
 export interface DeviceNode {
     name: string;
     powerSensorId: string | null;
+    switchEntityId: string | null;
     children: DeviceNode[];
 }
 
@@ -21,13 +22,21 @@ interface EntityRegistryEntry {
     device_id: string | null;
 }
 
+interface DeviceRegistryEntry {
+    id: string;
+    name: string;
+}
+
 export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string): Promise<DeviceNode[]> {
-    const [energyPrefs, entityRegistry] = await Promise.all([
+    const [energyPrefs, entityRegistry, deviceRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
         ),
         hass.connection.sendMessagePromise<EntityRegistryEntry[]>(
             { type: "config/entity_registry/list" }
+        ),
+        hass.connection.sendMessagePromise<DeviceRegistryEntry[]>(
+            { type: "config/device_registry/list" }
         ),
     ]);
 
@@ -37,8 +46,12 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
     for (const source of energyPrefs.device_consumption) {
         const energyEntity = entityRegistry.find(e => e.entity_id === source.stat_consumption);
         let powerSensorId: string | null = null;
+        let switchEntityId: string | null = null;
 
         if (energyEntity && energyEntity.device_id) {
+            const device = deviceRegistry.find(d => d.id === energyEntity.device_id);
+            if (!device) continue;
+
             const deviceEntities = entityRegistry.filter(e => e.device_id === energyEntity.device_id);
             const powerEntity = deviceEntities.find(e => {
                 const state = hass.states[e.entity_id];
@@ -46,6 +59,16 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
             });
             if (powerEntity) {
                 powerSensorId = powerEntity.entity_id;
+            }
+
+            const switchEntity = deviceEntities.find(e => {
+                if (!e.entity_id.startsWith('switch.')) return false;
+                const state = hass.states[e.entity_id];
+                return state && state.attributes.friendly_name === device.name;
+            });
+
+            if (switchEntity) {
+                switchEntityId = switchEntity.entity_id;
             }
         }
         
@@ -59,6 +82,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
         deviceMap.set(source.stat_consumption, {
             name: name,
             powerSensorId: powerSensorId,
+            switchEntityId: switchEntityId,
             children: []
         });
     }
@@ -82,6 +106,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
         const houseNode: DeviceNode = {
             name: hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId,
             powerSensorId: housePowerEntityId,
+            switchEntityId: null,
             children: tree
         };
         return [houseNode];
