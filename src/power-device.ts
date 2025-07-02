@@ -1,5 +1,5 @@
 import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./energy-data-helper";
 import "./power-device";
@@ -9,6 +9,13 @@ export class PowerDevice extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
     @property({ type: Number }) public parentPower?: number;
+    @property({ type: Boolean }) public childrenHiddenByDefault = true;
+
+    @state() private _childrenHidden = true;
+
+    firstUpdated() {
+        this._childrenHidden = this.childrenHiddenByDefault;
+    }
 
     private _showMoreInfo(entityId: string) {
         const event = new CustomEvent("hass-more-info", {
@@ -17,6 +24,12 @@ export class PowerDevice extends LitElement {
             detail: { entityId },
         });
         this.dispatchEvent(event);
+    }
+
+    private _toggleChildren() {
+        if (this.device.children.length > 0) {
+            this._childrenHidden = !this._childrenHidden;
+        }
     }
 
     static get styles() {
@@ -42,6 +55,9 @@ export class PowerDevice extends LitElement {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 margin-left: 0px;
+            }
+            .deviceName.has-children {
+                cursor: pointer;
             }
             .powerDisplay {
                 flex-shrink: 0;
@@ -82,6 +98,9 @@ export class PowerDevice extends LitElement {
             switchIcon = html`<div class="switchIIconPlaceholder"></div>`;
         }
 
+        const hasChildren = device.children.length > 0;
+        const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
+
         if (device.powerSensorId) {
             const powerState = this.hass!.states[device.powerSensorId];
             const currentPower = parseFloat(powerState.state) || 0;
@@ -106,10 +125,10 @@ export class PowerDevice extends LitElement {
                 <div class="device">
                     <div class="deviceContent" style="${backgroundStyle}">
                         ${switchIcon}
-                        <span class="deviceName">${device.name}:</span>
+                        <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
                         ${powerDisplay}
                     </div>
-                    ${sortedChildren.length > 0 ? html`
+                    ${!this._childrenHidden && sortedChildren.length > 0 ? html`
                         <div class="deviceChildren">
                             ${sortedChildren.map(child => html`
                                 <power-device

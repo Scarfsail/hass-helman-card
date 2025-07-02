@@ -66,11 +66,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
         return html`
             <ha-card>
-                <h1>House Electricity Manager</h1>
                 <div class="card-content">
                     ${sortedRoot.map(device => html`
                         <power-device
-                            .hass=${this._hass}
+                            .childrenHiddenByDefault=${false}
+                            .hass=${this._hass!}
                             .device=${device}
                         ></power-device>
                     `)}
