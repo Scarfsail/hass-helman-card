@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit-element"
+import {keyed} from 'lit/directives/keyed.js';
 import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
@@ -77,13 +78,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return html`
             <ha-card>
                 <div class="card-content">
-                    ${sortedRoot.map(device => html`
+                    ${sortedRoot.map(device => keyed(device.name, html`
                         <power-device
                             .childrenHiddenByDefault=${false}
                             .hass=${this._hass!}
                             .device=${device}
                         ></power-device>
-                    `)}
+                    `))}
                 </div>
             </ha-card>
         `;

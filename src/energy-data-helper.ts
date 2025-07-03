@@ -5,6 +5,7 @@ export interface DeviceNode {
     powerSensorId: string | null;
     switchEntityId: string | null;
     children: DeviceNode[];
+    powerValue?: number;
 }
 
 interface EnergyPrefs {

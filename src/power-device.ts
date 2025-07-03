@@ -1,4 +1,5 @@
 import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
+import {keyed} from 'lit/directives/keyed.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./energy-data-helper";
@@ -101,55 +102,78 @@ export class PowerDevice extends LitElement {
         const hasChildren = device.children.length > 0;
         const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
 
-        if (device.powerSensorId) {
-            const powerState = this.hass!.states[device.powerSensorId];
-            const currentPower = parseFloat(powerState.state) || 0;
-            let percentageDisplay: TemplateResult | typeof nothing = nothing;
-            let percentage = 0;
+        let currentPower: number;
+        let percentageDisplay: TemplateResult | typeof nothing = nothing;
+        let percentage = 0;
+        let backgroundStyle = '';
+
+        if (device.powerValue !== undefined) {
+            currentPower = device.powerValue;
             if (parentPower && parentPower > 0) {
                 percentage = (currentPower / parentPower) * 100;
                 percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
             }
-
-            const backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
-
+            powerDisplay = html`<span class="powerDisplay">${percentageDisplay}${currentPower.toFixed(1)} W</span>`;
+        } else if (device.powerSensorId) {
+            const powerState = this.hass!.states[device.powerSensorId];
+            currentPower = parseFloat(powerState.state) || 0;
+            if (parentPower && parentPower > 0) {
+                percentage = (currentPower / parentPower) * 100;
+                percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
+            }
             powerDisplay = html`<span class="powerDisplay" @click=${() => this._showMoreInfo(device.powerSensorId!)}>${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
-
-            const sortedChildren = [...device.children].sort((a, b) => {
-                const stateA = a.powerSensorId ? parseFloat(this.hass!.states[a.powerSensorId]?.state) || 0 : 0;
-                const stateB = b.powerSensorId ? parseFloat(this.hass!.states[b.powerSensorId]?.state) || 0 : 0;
-                return stateB - stateA;
-            });
-
-            return html`
-                <div class="device">
-                    <div class="deviceContent" style="${backgroundStyle}">
-                        ${switchIcon}
-                        <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
-                        ${powerDisplay}
-                    </div>
-                    ${!this._childrenHidden && sortedChildren.length > 0 ? html`
-                        <div class="deviceChildren">
-                            ${sortedChildren.map(child => html`
-                                <power-device
-                                    .hass=${this.hass}
-                                    .device=${child}
-                                    .parentPower=${currentPower}
-                                ></power-device>
-                            `)}
-                        </div>
-                    ` : nothing}
-                </div>
-            `;
+        } else {
+            currentPower = 0;
         }
+
+        if (percentage > 0) {
+            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
+        }
+
+        const getPower = (d: DeviceNode) => {
+            try {
+                return d.powerValue !== undefined ? d.powerValue : (d.powerSensorId ? parseFloat(this.hass.states[d.powerSensorId]?.state) || 0 : 0);
+            }
+            catch {
+                return 0;
+            }
+        }
+        const childrenWithUnmeasured = [...device.children];
+        const sumOfChildrenPower = device.children.reduce((acc, child) => acc + getPower(child), 0);
+
+        const unmeasuredPower = currentPower - sumOfChildrenPower;
+
+        if (unmeasuredPower > 1) { // Only show if greater than 1W
+            const unmeasuredNode: DeviceNode = {
+                name: 'Unmeasured power',
+                powerSensorId: null,
+                switchEntityId: null,
+                children: [],
+                powerValue: unmeasuredPower,
+            };
+            childrenWithUnmeasured.push(unmeasuredNode);
+        }
+
+        const childrenToRender = childrenWithUnmeasured.sort((a, b) => getPower(b) - getPower(a));
 
         return html`
             <div class="device">
-                <div class="deviceContent">
+                <div class="deviceContent" style="${backgroundStyle}">
                     ${switchIcon}
-                    <span class="deviceName">${device.name}:</span>
+                    <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
                     ${powerDisplay}
                 </div>
+                ${!this._childrenHidden && childrenToRender.length > 0 ? html`
+                    <div class="deviceChildren">
+                        ${childrenToRender.map(child => keyed(child.name, html`
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${child}
+                                .parentPower=${currentPower}
+                            ></power-device>
+                        `))}
+                    </div>
+                ` : nothing}
             </div>
         `;
     }
