@@ -6,6 +6,7 @@ export interface DeviceNode {
     switchEntityId: string | null;
     children: DeviceNode[];
     powerValue?: number;
+    childrenHidden?: boolean;
 }
 
 interface EnergyPrefs {
@@ -142,6 +143,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
             name: hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId,
             powerSensorId: housePowerEntityId,
             switchEntityId: null,
+            childrenHidden: false,
             children: tree
         };
         return [houseNode];

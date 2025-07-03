@@ -1,5 +1,5 @@
 import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
-import {keyed} from 'lit/directives/keyed.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./energy-data-helper";
@@ -10,12 +10,11 @@ export class PowerDevice extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
     @property({ type: Number }) public parentPower?: number;
-    @property({ type: Boolean }) public childrenHiddenByDefault = true;
 
     @state() private _childrenHidden = true;
 
     firstUpdated() {
-        this._childrenHidden = this.childrenHiddenByDefault;
+        this._childrenHidden = this.device.childrenHidden ?? true; // Default to true if not set
     }
 
     private _showMoreInfo(entityId: string) {
@@ -30,6 +29,7 @@ export class PowerDevice extends LitElement {
     private _toggleChildren() {
         if (this.device.children.length > 0) {
             this._childrenHidden = !this._childrenHidden;
+            this.device.childrenHidden = this._childrenHidden; // Update the device state to reflect the visibility
         }
     }
 
@@ -145,7 +145,7 @@ export class PowerDevice extends LitElement {
 
         if (unmeasuredPower > 1) { // Only show if greater than 1W
             const unmeasuredNode: DeviceNode = {
-                name: 'Unmeasured power',
+                name: 'Neměřený výkon',
                 powerSensorId: null,
                 switchEntityId: null,
                 children: [],
@@ -165,7 +165,7 @@ export class PowerDevice extends LitElement {
                 </div>
                 ${!this._childrenHidden && childrenToRender.length > 0 ? html`
                     <div class="deviceChildren">
-                        ${childrenToRender.map(child => keyed(child.name, html`
+                        ${childrenToRender.map((child, idx) => keyed(`${device.name}-${child.name}`, html`
                             <power-device
                                 .hass=${this.hass}
                                 .device=${child}

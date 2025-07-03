@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit-element"
-import {keyed} from 'lit/directives/keyed.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
@@ -63,7 +63,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             console.error('Error fetching device tree:', error);
         }
     }
-    
+
     render() {
         if (!this._hass || this._deviceTree.length === 0) {
             return html``;
@@ -80,7 +80,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 <div class="card-content">
                     ${sortedRoot.map(device => keyed(device.name, html`
                         <power-device
-                            .childrenHiddenByDefault=${false}
                             .hass=${this._hass!}
                             .device=${device}
                         ></power-device>
