@@ -35,7 +35,19 @@ interface LabelRegistryEntry {
     name: string;
 }
 
-export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string): Promise<DeviceNode[]> {
+function cleanDeviceName(name: string, cleanerRegex?: string): string {
+    if (!cleanerRegex) return name;
+    
+    try {
+        const regex = new RegExp(cleanerRegex, 'g');
+        return name.replace(regex, '').trim();
+    } catch (error) {
+        console.warn('Invalid regex pattern for power_sensor_name_cleaner_regex:', cleanerRegex);
+        return name;
+    }
+}
+
+export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -114,9 +126,10 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
         }
 
         const name = hass.states[powerSensorId]?.attributes.friendly_name || powerSensorId;
+        const cleanedName = cleanDeviceName(name, powerSensorNameCleanerRegex);
 
         deviceMap.set(source.stat_consumption, {
-            name: name,
+            name: cleanedName,
             powerSensorId: powerSensorId,
             switchEntityId: switchEntityId,
             children: []
@@ -139,8 +152,10 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
     }
 
     if (housePowerEntityId) {
+        const housePowerSensorName = hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId;
+        const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode: DeviceNode = {
-            name: hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId,
+            name: cleanedHousePowerSensorName,
             powerSensorId: housePowerEntityId,
             switchEntityId: null,
             childrenHidden: false,

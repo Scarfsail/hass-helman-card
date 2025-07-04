@@ -11,6 +11,7 @@ interface HelmanCardConfig extends LovelaceCardConfig {
     house_power_entity?: string;
     power_sensor_label?: string;
     power_switch_label?: string;
+    power_sensor_name_cleaner_regex?: string;
 }
 
 @customElement("helman-card")
@@ -57,7 +58,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             const housePowerEntityId = this.config?.house_power_entity;
             const powerSensorLabel = this.config?.power_sensor_label;
             const powerSwitchLabel = this.config?.power_switch_label;
-            this._deviceTree = await fetchDeviceTree(this._hass!, housePowerEntityId, powerSensorLabel, powerSwitchLabel);
+            const powerSensorNameCleanerRegex = this.config?.power_sensor_name_cleaner_regex;
+            this._deviceTree = await fetchDeviceTree(this._hass!, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
             this.requestUpdate();
         } catch (error) {
             console.error('Error fetching device tree:', error);
