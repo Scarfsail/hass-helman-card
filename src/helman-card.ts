@@ -12,6 +12,7 @@ interface HelmanCardConfig extends LovelaceCardConfig {
     power_sensor_label?: string;
     power_switch_label?: string;
     power_sensor_name_cleaner_regex?: string;
+    unmeasured_power_title?: string;
 }
 
 @customElement("helman-card")
@@ -80,6 +81,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         <power-device
                             .hass=${this._hass!}
                             .device=${device}
+                            .unmeasuredPowerTitle=${this.config?.unmeasured_power_title}
                         ></power-device>
                     `))}
                 </div>

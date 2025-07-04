@@ -10,6 +10,7 @@ export class PowerDevice extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
     @property({ type: Number }) public parentPower?: number;
+    @property({ type: String }) public unmeasuredPowerTitle?: string;;
 
     @state() private _childrenHidden = true;
 
@@ -137,7 +138,7 @@ export class PowerDevice extends LitElement {
 
         if (unmeasuredPower > 1) { // Only show if greater than 1W
             const unmeasuredNode: DeviceNode = {
-                name: 'Neměřený výkon',
+                name: this.unmeasuredPowerTitle ?? 'Unmeasured power',
                 powerSensorId: null,
                 switchEntityId: null,
                 children: [],
@@ -162,6 +163,7 @@ export class PowerDevice extends LitElement {
                                 .hass=${this.hass}
                                 .device=${child}
                                 .parentPower=${currentPower}
+                                .unmeasuredPowerTitle=${this.unmeasuredPowerTitle}
                             ></power-device>
                         `))}
                     </div>
