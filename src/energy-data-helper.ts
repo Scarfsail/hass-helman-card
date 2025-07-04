@@ -166,3 +166,32 @@ export async function fetchDeviceTree(hass: HomeAssistant, housePowerEntityId?: 
 
     return tree;
 }
+
+export function getPower(device: DeviceNode, hass: HomeAssistant): number {
+    try {
+        if (device.powerValue !== undefined) {
+            return device.powerValue;
+        }
+        if (device.powerSensorId) {
+            return parseFloat(hass.states[device.powerSensorId]?.state) || 0;
+        }
+        return 0;
+    } catch {
+        return 0;
+    }
+}
+
+export function sortDevicesByPowerAndName(devices: DeviceNode[], hass: HomeAssistant): DeviceNode[] {
+    return [...devices].sort((a, b) => {
+        const powerA = getPower(a, hass);
+        const powerB = getPower(b, hass);
+        
+        // First sort by power (descending)
+        if (powerB !== powerA) {
+            return powerB - powerA;
+        }
+        
+        // If power is the same, sort alphabetically by name (ascending)
+        return a.name.localeCompare(b.name);
+    });
+}

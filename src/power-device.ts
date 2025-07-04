@@ -2,7 +2,7 @@ import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { keyed } from 'lit/directives/keyed.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
-import { DeviceNode } from "./energy-data-helper";
+import { DeviceNode, sortDevicesByPowerAndName, getPower } from "./energy-data-helper";
 import "./power-device";
 
 @customElement("power-device")
@@ -130,16 +130,8 @@ export class PowerDevice extends LitElement {
             backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
         }
 
-        const getPower = (d: DeviceNode) => {
-            try {
-                return d.powerValue !== undefined ? d.powerValue : (d.powerSensorId ? parseFloat(this.hass.states[d.powerSensorId]?.state) || 0 : 0);
-            }
-            catch {
-                return 0;
-            }
-        }
         const childrenWithUnmeasured = [...device.children];
-        const sumOfChildrenPower = device.children.reduce((acc, child) => acc + getPower(child), 0);
+        const sumOfChildrenPower = device.children.reduce((acc, child) => acc + getPower(child, this.hass), 0);
 
         const unmeasuredPower = currentPower - sumOfChildrenPower;
 
@@ -154,7 +146,7 @@ export class PowerDevice extends LitElement {
             childrenWithUnmeasured.push(unmeasuredNode);
         }
 
-        const childrenToRender = childrenWithUnmeasured.sort((a, b) => getPower(b) - getPower(a));
+        const childrenToRender = sortDevicesByPowerAndName(childrenWithUnmeasured, this.hass);
 
         return html`
             <div class="device">

@@ -4,7 +4,7 @@ import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
 import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/config/card";
-import { DeviceNode, fetchDeviceTree } from "./energy-data-helper";
+import { DeviceNode, fetchDeviceTree, sortDevicesByPowerAndName } from "./energy-data-helper";
 import "./power-device";
 
 interface HelmanCardConfig extends LovelaceCardConfig {
@@ -71,11 +71,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             return html``;
         }
 
-        const sortedRoot = [...this._deviceTree].sort((a, b) => {
-            const stateA = a.powerSensorId ? parseFloat(this._hass!.states[a.powerSensorId]?.state) || 0 : 0;
-            const stateB = b.powerSensorId ? parseFloat(this._hass!.states[b.powerSensorId]?.state) || 0 : 0;
-            return stateB - stateA;
-        });
+        const sortedRoot = sortDevicesByPowerAndName(this._deviceTree, this._hass);
 
         return html`
             <ha-card>
