@@ -65,6 +65,8 @@ export class PowerDevice extends LitElement {
                 flex-shrink: 0;
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
+            }
+            .powerDisplay.has-sensor{
                 cursor: pointer;
             }
             .deviceChildren {
@@ -107,25 +109,23 @@ export class PowerDevice extends LitElement {
         let percentageDisplay: TemplateResult | typeof nothing = nothing;
         let percentage = 0;
         let backgroundStyle = '';
+        let onPowerClick: () => void = () => false;
 
         if (device.powerValue !== undefined) {
             currentPower = device.powerValue;
-            if (parentPower && parentPower > 0) {
-                percentage = (currentPower / parentPower) * 100;
-                percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
-            }
-            powerDisplay = html`<span class="powerDisplay">${percentageDisplay}${currentPower.toFixed(1)} W</span>`;
         } else if (device.powerSensorId) {
-            const powerState = this.hass!.states[device.powerSensorId];
-            currentPower = parseFloat(powerState.state) || 0;
-            if (parentPower && parentPower > 0) {
-                percentage = (currentPower / parentPower) * 100;
-                percentageDisplay = html`<span class=powerPercentages> (${percentage.toFixed(1)}%)</span>`;
-            }
-            powerDisplay = html`<span class="powerDisplay" @click=${() => this._showMoreInfo(device.powerSensorId!)}>${percentageDisplay}${powerState.state} ${powerState.attributes.unit_of_measurement || ""}</span>`;
+            currentPower = parseFloat(this.hass!.states[device.powerSensorId].state) || 0;
+            onPowerClick = () => this._showMoreInfo(device.powerSensorId!)
         } else {
             currentPower = 0;
         }
+
+        if (parentPower && parentPower > 0) {
+            percentage = (currentPower / parentPower) * 100;
+            percentageDisplay = html`<span class=powerPercentages> (${Math.round(percentage).toFixed(0)}%)</span>`;
+        }
+
+        powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
 
         if (percentage > 0) {
             backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
@@ -142,7 +142,7 @@ export class PowerDevice extends LitElement {
                 powerSensorId: null,
                 switchEntityId: null,
                 children: [],
-                powerValue: unmeasuredPower,
+                powerValue: Math.round(unmeasuredPower),
             };
             childrenWithUnmeasured.push(unmeasuredNode);
         }
