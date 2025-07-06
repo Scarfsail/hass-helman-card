@@ -86,7 +86,7 @@ export class PowerDevice extends LitElement {
 
     render() {
         const device = this.device;
-        const parentPower = this.parentPower;
+        let parentPower = this.parentPower;
         let powerDisplay = html`<span class="powerDisplay">No power sensor found</span>`;
         let switchIcon: TemplateResult | typeof nothing = nothing;
 
@@ -120,16 +120,17 @@ export class PowerDevice extends LitElement {
         } else {
             currentPower = 0;
         }
-
-        if (parentPower && parentPower > 0) {
-            percentage = (currentPower / parentPower) * 100;
-            percentageDisplay = html`<span class=powerPercentages> (${Math.round(percentage).toFixed(0)}%)</span>`;
+        if (!parentPower || parentPower == 0) {
+            parentPower = currentPower; // If no parent power, use current power as reference
         }
+
+        percentage = (currentPower / parentPower) * 100;
+        percentageDisplay = html`<span class=powerPercentages> (${Math.round(percentage).toFixed(0)}%)</span>`;
 
         powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
 
         if (percentage > 0) {
-            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
+            backgroundStyle = `background: linear-gradient(to left, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
         }
 
         const childrenWithUnmeasured = [...device.children];
