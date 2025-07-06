@@ -130,7 +130,7 @@ export class PowerDevice extends LitElement {
         powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
 
         if (percentage > 0) {
-            backgroundStyle = `background: linear-gradient(to left, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
+            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
         }
 
         const childrenWithUnmeasured = [...device.children];
