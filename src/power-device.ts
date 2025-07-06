@@ -95,6 +95,7 @@ export class PowerDevice extends LitElement {
                 <state-badge
                     .hass=${this.hass}
                     .stateObj=${this.hass!.states[device.switchEntityId]}
+                    .stateColor=${true}
                     @click=${() => this._showMoreInfo(device.switchEntityId!)}
                 ></state-badge>
             `;
