@@ -36,10 +36,13 @@ export class PowerDevice extends LitElement {
 
     static get styles() {
         return css`
-            .switchIIconPlaceholder {
+            .switchIconPlaceholder {
                 width: 40px;
                 height: 40px;
                 flex-shrink: 0;
+                display:inline-flex;
+                align-items: center;
+                justify-content: center;
             }
             .device {
                 display: flex;
@@ -113,7 +116,7 @@ export class PowerDevice extends LitElement {
                 ></state-badge>
             `;
         } else {
-            switchIcon = html`<div class="switchIIconPlaceholder"></div>`;
+            switchIcon = html`<div class="switchIconPlaceholder"><ha-icon icon="mdi:border-none-variant" style=" color: var(--disabled-text-color);"></ha-icon></div>`;
         }
 
         const hasChildren = device.children.length > 0;
