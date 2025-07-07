@@ -45,12 +45,24 @@ export class PowerDevice extends LitElement {
                 display: flex;
                 align-items: center;
                 flex-wrap: wrap;
+                margin-top: 3px;
+
             }
             .deviceContent {
                 display: flex;
                 align-items: center;
                 flex-basis: 100%;
                 min-width: 0; /* Prevents text overflow issues */
+                box-shadow: 0 2px 7px rgba(0,0,0,0.8);
+                border-radius: 10px;
+                transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+                position: relative;
+                z-index: 1;
+            }
+            .deviceContent:hover {
+                box-shadow: 0 4px 14px rgba(0,0,0,0.8);
+                transform: scale(1.01);
+                z-index: 2;
             }
             .deviceName {
                 flex-grow: 1;
@@ -65,6 +77,7 @@ export class PowerDevice extends LitElement {
                 flex-shrink: 0;
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
+                padding-right: 8px; /* Adds space between power and right edge */
             }
             .powerDisplay.has-sensor{
                 cursor: pointer;
@@ -130,7 +143,7 @@ export class PowerDevice extends LitElement {
         powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
 
         if (percentage > 0) {
-            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.15) ${percentage}%, transparent ${percentage}%);`;
+            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.13) ${percentage}%, transparent ${percentage}%);`;
         }
 
         const childrenWithUnmeasured = [...device.children];
