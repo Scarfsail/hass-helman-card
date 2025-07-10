@@ -277,25 +277,11 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
 }
 
 
-export function getPower(device: DeviceNode, hass: HomeAssistant): number {
-    try {
-        if (device.powerSensorId) {
-            return parseFloat(hass.states[device.powerSensorId]?.state) || 0;
-        }
-        if (device.powerValue !== undefined) {
-            return device.powerValue;
-        }
 
-        return 0;
-    } catch {
-        return 0;
-    }
-}
-
-export function sortDevicesByPowerAndName(devices: DeviceNode[], hass: HomeAssistant): DeviceNode[] {
+export function sortDevicesByPowerAndName(devices: DeviceNode[]): DeviceNode[] {
     return [...devices].sort((a, b) => {
-        const powerA = getPower(a, hass);
-        const powerB = getPower(b, hass);
+        const powerA = a.powerValue ?? 0;
+        const powerB = b.powerValue ?? 0;
 
         // First sort by power (descending)
         if (powerB !== powerA) {

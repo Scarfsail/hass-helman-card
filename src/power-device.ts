@@ -177,7 +177,7 @@ export class PowerDevice extends LitElement {
 
         const historyToRender = this.device.powerHistory;
         const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
-        const childrenToRender = device.children.length > 0 ? sortDevicesByPowerAndName(device.children, this.hass) : [];
+        const childrenToRender = device.children.length > 0 ? sortDevicesByPowerAndName(device.children) : [];
 
 
         return html`

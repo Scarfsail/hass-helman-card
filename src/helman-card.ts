@@ -104,7 +104,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             return html``;
         }
 
-        const sortedRoot = sortDevicesByPowerAndName(this._deviceTree, this._hass);
+        const sortedRoot = sortDevicesByPowerAndName(this._deviceTree);
 
         return html`
             <ha-card>
