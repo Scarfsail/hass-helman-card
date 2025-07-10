@@ -155,22 +155,15 @@ export class PowerDevice extends LitElement {
         const hasChildren = device.children.length > 0;
         const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
 
-        let currentPower: number;
+        const currentPower = this.device.powerValue ?? 0;
         let percentageDisplay: TemplateResult | typeof nothing = nothing;
         let currentPercentage = 0;
         let backgroundStyle = '';
         let onPowerClick: () => void = () => false;
 
         if (device.powerSensorId) {
-            currentPower = parseFloat(this.hass!.states[device.powerSensorId].state) || 0;
             onPowerClick = () => this._showMoreInfo(device.powerSensorId!)
         }
-        else if (device.powerValue !== undefined) {
-            currentPower = device.powerValue;
-        } else {
-            currentPower = 0;
-        }
-        this.device.updateLivePower(currentPower);
 
         if (!currentParentPower || currentParentPower == 0) {
             currentParentPower = currentPower; // If no parent power, use current power as reference
@@ -192,9 +185,9 @@ export class PowerDevice extends LitElement {
                 <div class="deviceContent" style="${backgroundStyle}">
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
-                            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
-                            return html`<div class="historyBar" style="height: ${Math.min(100, hPercentage)}%"></div>`;
-                        })}
+            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
+            return html`<div class="historyBar" style="height: ${Math.min(100, hPercentage)}%"></div>`;
+        })}
                     </div>
                     ${switchIcon}
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>

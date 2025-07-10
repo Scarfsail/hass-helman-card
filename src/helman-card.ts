@@ -57,15 +57,21 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     }
 
-    connectedCallback() {
+    async connectedCallback() {
         super.connectedCallback();
         if (this._hass) {
-            this._fetchData();
+            await this._fetchData();
         }
-        this._historyInterval = window.setInterval(() => {
-            this._deviceTree.forEach(device => device.updateHistoryBuckets());
-            this.requestUpdate();
-        }, this.config.history_bucket_duration * 1000);
+        this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
+        this.periodicalPowerValuesUpdate();
+    }
+
+    private periodicalPowerValuesUpdate() {
+        if (!this._hass || this._deviceTree.length === 0) {
+            return;
+        }
+        this._deviceTree.forEach(device => device.updateHistoryBuckets(this._hass!));
+        this.requestUpdate();
     }
 
     disconnectedCallback(): void {

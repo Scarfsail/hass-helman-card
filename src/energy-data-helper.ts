@@ -256,10 +256,12 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
     }
 
     const childrenPowerHistorySum: number[] = Array(parentNode.powerHistory.length).fill(0);
-
+    //console.log(`*** Parent node power history (${parentNode.name}):`, parentNode.powerHistory)
     const childrenWithoutUnmeasured = parentNode.children.filter(child => !child.isUnmeasured);
     for (let childrenIdx = 0; childrenIdx < childrenWithoutUnmeasured.length; childrenIdx++) {
         const child = childrenWithoutUnmeasured[childrenIdx];
+        //console.log(`Child node power history (${child.name}):`, child.powerHistory)
+
         for (let bucketIdx = 0; bucketIdx < parentNode.powerHistory.length; bucketIdx++) {
             childrenPowerHistorySum[bucketIdx] += child.powerHistory[bucketIdx] || 0;
         }
@@ -269,6 +271,9 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
     unmeasuredNode.powerHistory = parentNode.powerHistory.map((parentPower, i) => {
         return parentPower - (childrenPowerHistorySum[i] || 0);
     });
+    //console.log(`-- Children power history under parent (${parentNode.name}):`, childrenPowerHistorySum)
+    //console.log(`-- Unmeasured power history under parent (${parentNode.name}):`, unmeasuredNode.powerHistory)
+
 }
 
 

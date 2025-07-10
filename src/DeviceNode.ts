@@ -1,3 +1,4 @@
+import type { HomeAssistant } from "../hass-frontend/src/types";
 
 export class DeviceNode {
     constructor(name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
@@ -10,28 +11,43 @@ export class DeviceNode {
         this.powerHistory = [];
     }
 
-    public updateHistoryBuckets() {
+    public updateHistoryBuckets(hass: HomeAssistant) {
         if (this.powerHistory.length > 0) {
             this.powerHistory.push(this.powerHistory[this.powerHistory.length - 1]); // Push the last value or liveAvg if history is empty
         }
         if (this.powerHistory.length > this.historyBuckets) { // Keep history items based on config
             this.powerHistory.shift();
         }
-        this.livePowerValuesSum = 0; // Reset the live power values after updating history
-        this.livePowerValuesCnt = 0; // Reset the count of live power values after updating history
 
         for (const child of this.children) {
-            child.updateHistoryBuckets();
+            child.updateHistoryBuckets(hass);
         }
+        this.updateLivePower(hass);
+
     }
 
-    public updateLivePower(power: number) {
-        this.livePowerValuesSum += power;
-        this.livePowerValuesCnt++;
+    private updateLivePower(hass: HomeAssistant, unmeasuredPower?: number) {
+        let power: number = 0;
+        if (this.isUnmeasured) {
+            if (unmeasuredPower == undefined) {
+                return;
+            }
+            power = unmeasuredPower;
+        } else {
+            if (this.powerSensorId) {
+                power = parseFloat(hass!.states[this.powerSensorId].state) || 0;
+            }
+            else if (this.powerValue !== undefined) {
+                power = this.powerValue;
+            } else {
+                power = 0;
+            }
+        }
         if (this.powerHistory.length === 0) {
             this.powerHistory.push(0); // Initialize with zero if empty
         }
-        this.powerHistory[this.powerHistory.length - 1] = this.livePowerValuesSum > 0 ? (this.livePowerValuesSum / this.livePowerValuesCnt) : 0; // Update the last history entry with the new average
+
+        this.powerHistory[this.powerHistory.length - 1] = power; // Update the last history entry with the new average
         this.powerValue = power;
 
         if (this.children.length > 0) {
@@ -39,11 +55,10 @@ export class DeviceNode {
                 return sum + (child.isUnmeasured ? 0 : child.powerValue || 0);
             }, 0);
             const unmeasuredNode = this.children.find(child => child.isUnmeasured);
-            unmeasuredNode?.updateLivePower(unmeasuredPower);
+            unmeasuredNode?.updateLivePower(hass, unmeasuredPower);
         }
+
     }
-    private livePowerValuesSum: number = 0;
-    private livePowerValuesCnt: number = 0;
 
     public name: string;
     public powerSensorId: string | null;
