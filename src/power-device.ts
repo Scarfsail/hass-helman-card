@@ -2,20 +2,31 @@ import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { keyed } from 'lit/directives/keyed.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
-import { DeviceNode, sortDevicesByPowerAndName, getPower } from "./energy-data-helper";
+import { sortDevicesByPowerAndName } from "./energy-data-helper";
+import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
-    @property({ type: Number }) public parentPower?: number;
-    @property({ type: String }) public unmeasuredPowerTitle?: string;;
+    @property({ type: Number }) public currentParentPower?: number;
+    @property({ type: Number }) public historyBuckets!: number;
+    @property({ type: Number }) public historyBucketDuration!: number;
+    @property({ attribute: false }) public parentPowerHistory?: number[];
 
     @state() private _childrenHidden = true;
 
+
+
     firstUpdated() {
         this._childrenHidden = this.device.childrenHidden ?? true; // Default to true if not set
+    }
+
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+
     }
 
     private _showMoreInfo(entityId: string) {
@@ -49,7 +60,7 @@ export class PowerDevice extends LitElement {
                 align-items: center;
                 flex-wrap: wrap;
                 margin-top: 3px;
-
+                position: relative;
             }
             .deviceContent {
                 display: flex;
@@ -97,12 +108,34 @@ export class PowerDevice extends LitElement {
                 cursor: pointer;
                 flex-shrink: 0;
             }
+            .historyContainer {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                display: flex;
+                flex-direction: row;
+                align-items: flex-end;
+                pointer-events: none;
+                overflow: hidden;
+                border-radius: 10px;
+            }
+            .historyBar {
+                flex-grow: 1;
+                background-color: rgba(var(--rgb-accent-color), 0.13);
+                transition: width 0.3s ease-in-out;
+            }
         `;
     }
 
     render() {
         const device = this.device;
-        let parentPower = this.parentPower;
+        if (device.isUnmeasured && (device.powerValue == undefined || device.powerValue < 1)) {
+            return nothing; // Do not render unmeasured devices with power < 1W
+        }
+
+        let currentParentPower = this.currentParentPower;
         let powerDisplay = html`<span class="powerDisplay">No power sensor found</span>`;
         let switchIcon: TemplateResult | typeof nothing = nothing;
 
@@ -124,52 +157,45 @@ export class PowerDevice extends LitElement {
 
         let currentPower: number;
         let percentageDisplay: TemplateResult | typeof nothing = nothing;
-        let percentage = 0;
+        let currentPercentage = 0;
         let backgroundStyle = '';
         let onPowerClick: () => void = () => false;
 
-        if (device.powerValue !== undefined) {
-            currentPower = device.powerValue;
-        } else if (device.powerSensorId) {
+        if (device.powerSensorId) {
             currentPower = parseFloat(this.hass!.states[device.powerSensorId].state) || 0;
             onPowerClick = () => this._showMoreInfo(device.powerSensorId!)
+        }
+        else if (device.powerValue !== undefined) {
+            currentPower = device.powerValue;
         } else {
             currentPower = 0;
         }
-        if (!parentPower || parentPower == 0) {
-            parentPower = currentPower; // If no parent power, use current power as reference
+        this.device.updateLivePower(currentPower);
+
+        if (!currentParentPower || currentParentPower == 0) {
+            currentParentPower = currentPower; // If no parent power, use current power as reference
         }
 
-        percentage = (currentPower / parentPower) * 100;
-        percentageDisplay = html`<span class=powerPercentages> (${Math.round(percentage).toFixed(0)}%)</span>`;
+        currentPercentage = (currentPower / currentParentPower) * 100;
+        percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
 
         powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
 
-        if (percentage > 0) {
-            backgroundStyle = `background: linear-gradient(to right, rgba(var(--rgb-accent-color), 0.13) ${percentage}%, transparent ${percentage}%);`;
-        }
 
-        const childrenWithUnmeasured = [...device.children];
-        const sumOfChildrenPower = device.children.reduce((acc, child) => acc + getPower(child, this.hass), 0);
+        const historyToRender = this.device.powerHistory;
+        const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
+        const childrenToRender = device.children.length > 0 ? sortDevicesByPowerAndName(device.children, this.hass) : [];
 
-        const unmeasuredPower = currentPower - sumOfChildrenPower;
-
-        if (unmeasuredPower > 1) { // Only show if greater than 1W
-            const unmeasuredNode: DeviceNode = {
-                name: this.unmeasuredPowerTitle ?? 'Unmeasured power',
-                powerSensorId: null,
-                switchEntityId: null,
-                children: [],
-                powerValue: Math.round(unmeasuredPower),
-            };
-            childrenWithUnmeasured.push(unmeasuredNode);
-        }
-
-        const childrenToRender = sortDevicesByPowerAndName(childrenWithUnmeasured, this.hass);
 
         return html`
             <div class="device">
                 <div class="deviceContent" style="${backgroundStyle}">
+                    <div class="historyContainer">
+                        ${historyToRender.map((p, i) => {
+                            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
+                            return html`<div class="historyBar" style="height: ${Math.min(100, hPercentage)}%"></div>`;
+                        })}
+                    </div>
                     ${switchIcon}
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
                     ${powerDisplay}
@@ -180,8 +206,10 @@ export class PowerDevice extends LitElement {
                             <power-device
                                 .hass=${this.hass}
                                 .device=${child}
-                                .parentPower=${currentPower}
-                                .unmeasuredPowerTitle=${this.unmeasuredPowerTitle}
+                                .currentParentPower=${currentPower}
+                                .parentPowerHistory=${historyToRender}
+                                .historyBuckets=${this.historyBuckets}
+                                .historyBucketDuration=${this.historyBucketDuration}
                             ></power-device>
                         `))}
                     </div>

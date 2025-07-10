@@ -4,7 +4,8 @@ import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
 import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/config/card";
-import { DeviceNode, fetchDeviceTree, sortDevicesByPowerAndName } from "./energy-data-helper";
+import { fetchDeviceTree, sortDevicesByPowerAndName, enrichDeviceTreeWithHistory } from "./energy-data-helper";
+import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 
 interface HelmanCardConfig extends LovelaceCardConfig {
@@ -13,14 +14,16 @@ interface HelmanCardConfig extends LovelaceCardConfig {
     power_switch_label?: string;
     power_sensor_name_cleaner_regex?: string;
     unmeasured_power_title?: string;
+    history_buckets: number;
+    history_bucket_duration: number;
 }
 
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
-    private config?: HelmanCardConfig;
+    private config!: HelmanCardConfig;
     @state() private _hass?: HomeAssistant;
     @state() private _deviceTree: DeviceNode[] = [];
-
+    private _historyInterval?: number;
     public set hass(value: HomeAssistant) {
         this._hass = value;
 
@@ -45,6 +48,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     async setConfig(config: HelmanCardConfig) {
         this.config = { ...config };
+        if (!this.config.history_buckets) {
+            this.config.history_buckets = 60;
+        }
+        if (!this.config.history_bucket_duration) {
+            this.config.history_bucket_duration = 1;
+        }
+
     }
 
     connectedCallback() {
@@ -52,15 +62,31 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         if (this._hass) {
             this._fetchData();
         }
+        this._historyInterval = window.setInterval(() => {
+            this._deviceTree.forEach(device => device.updateHistoryBuckets());
+            this.requestUpdate();
+        }, this.config.history_bucket_duration * 1000);
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        if (this._historyInterval) {
+            clearInterval(this._historyInterval);
+        }
     }
 
     private async _fetchData(): Promise<void> {
         try {
-            const housePowerEntityId = this.config?.house_power_entity;
-            const powerSensorLabel = this.config?.power_sensor_label;
-            const powerSwitchLabel = this.config?.power_switch_label;
-            const powerSensorNameCleanerRegex = this.config?.power_sensor_name_cleaner_regex;
-            this._deviceTree = await fetchDeviceTree(this._hass!, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
+            const housePowerEntityId = this.config.house_power_entity;
+            const powerSensorLabel = this.config.power_sensor_label;
+            const powerSwitchLabel = this.config.power_switch_label;
+            const powerSensorNameCleanerRegex = this.config.power_sensor_name_cleaner_regex;
+            const historyBuckets = this.config.history_buckets;
+            const historyBucketDuration = this.config.history_bucket_duration;
+
+            const tree = await fetchDeviceTree(this._hass!, historyBuckets, this.config.unmeasured_power_title, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
+            await enrichDeviceTreeWithHistory(tree, this._hass!, historyBuckets, historyBucketDuration);
+            this._deviceTree = tree;
             this.requestUpdate();
         } catch (error) {
             console.error('Error fetching device tree:', error);
@@ -81,7 +107,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         <power-device
                             .hass=${this._hass!}
                             .device=${device}
-                            .unmeasuredPowerTitle=${this.config?.unmeasured_power_title}
+                            .historyBuckets=${this.config.history_buckets}
+                            .historyBucketDuration=${this.config.history_bucket_duration}
                         ></power-device>
                     `))}
                 </div>
@@ -98,6 +125,5 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     description: 'A custom card for Home Assistant to control power devices. It allows users to see power consumption, control devices, and manage power settings.',
     preview: true,
 });
-
 
 
