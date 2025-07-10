@@ -280,8 +280,8 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
 
 export function sortDevicesByPowerAndName(devices: DeviceNode[]): DeviceNode[] {
     return [...devices].sort((a, b) => {
-        const powerA = a.powerValue ?? 0;
-        const powerB = b.powerValue ?? 0;
+        const powerA = a.powerHistory.reduce((acc, val) => acc + val, 0);
+        const powerB = b.powerHistory.reduce((acc, val) => acc + val, 0);
 
         // First sort by power (descending)
         if (powerB !== powerA) {
