@@ -61,9 +61,9 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         super.connectedCallback();
         if (this._hass) {
             await this._fetchCurrentData();
-            this._fetchHistoricalData();
             this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
             this.periodicalPowerValuesUpdate();
+            this._fetchHistoricalData();
         }
     }
 
