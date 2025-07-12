@@ -60,10 +60,9 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     async connectedCallback() {
         super.connectedCallback();
         if (this._hass) {
-            await this._fetchData();
+            await this._fetchCurrentData();
+            this._fetchHistoricalDataAndStartPeriodicUpdates();
         }
-        this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
-        this.periodicalPowerValuesUpdate();
     }
 
     private periodicalPowerValuesUpdate() {
@@ -80,20 +79,22 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             clearInterval(this._historyInterval);
         }
     }
+    private async _fetchCurrentData(): Promise<void> {
+        const housePowerEntityId = this.config.house_power_entity;
+        const powerSensorLabel = this.config.power_sensor_label;
+        const powerSwitchLabel = this.config.power_switch_label;
+        const powerSensorNameCleanerRegex = this.config.power_sensor_name_cleaner_regex;
+        const historyBuckets = this.config.history_buckets;
+        const historyBucketDuration = this.config.history_bucket_duration;
 
-    private async _fetchData(): Promise<void> {
+        this._deviceTree = await fetchDeviceTree(this._hass!, historyBuckets, this.config.unmeasured_power_title, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
+    }
+
+    private async _fetchHistoricalDataAndStartPeriodicUpdates(): Promise<void> {
         try {
-            const housePowerEntityId = this.config.house_power_entity;
-            const powerSensorLabel = this.config.power_sensor_label;
-            const powerSwitchLabel = this.config.power_switch_label;
-            const powerSensorNameCleanerRegex = this.config.power_sensor_name_cleaner_regex;
-            const historyBuckets = this.config.history_buckets;
-            const historyBucketDuration = this.config.history_bucket_duration;
-
-            const tree = await fetchDeviceTree(this._hass!, historyBuckets, this.config.unmeasured_power_title, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
-            await enrichDeviceTreeWithHistory(tree, this._hass!, historyBuckets, historyBucketDuration);
-            this._deviceTree = tree;
-            this.requestUpdate();
+            await enrichDeviceTreeWithHistory(this._deviceTree, this._hass!, this.config.history_buckets, this.config.history_bucket_duration);
+            this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
+            this.periodicalPowerValuesUpdate();
         } catch (error) {
             console.error('Error fetching device tree:', error);
         }
