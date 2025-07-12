@@ -61,7 +61,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         super.connectedCallback();
         if (this._hass) {
             await this._fetchCurrentData();
-            this._fetchHistoricalDataAndStartPeriodicUpdates();
+            this._fetchHistoricalData();
             this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
             this.periodicalPowerValuesUpdate();
         }
@@ -92,7 +92,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         this._deviceTree = await fetchDeviceTree(this._hass!, historyBuckets, this.config.unmeasured_power_title, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
     }
 
-    private async _fetchHistoricalDataAndStartPeriodicUpdates(): Promise<void> {
+    private async _fetchHistoricalData(): Promise<void> {
         try {
             await enrichDeviceTreeWithHistory(this._deviceTree, this._hass!, this.config.history_buckets, this.config.history_bucket_duration);
         } catch (error) {
