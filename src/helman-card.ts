@@ -62,6 +62,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         if (this._hass) {
             await this._fetchCurrentData();
             this._fetchHistoricalDataAndStartPeriodicUpdates();
+            this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
+            this.periodicalPowerValuesUpdate();
         }
     }
 
@@ -93,8 +95,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private async _fetchHistoricalDataAndStartPeriodicUpdates(): Promise<void> {
         try {
             await enrichDeviceTreeWithHistory(this._deviceTree, this._hass!, this.config.history_buckets, this.config.history_bucket_duration);
-            this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
-            this.periodicalPowerValuesUpdate();
         } catch (error) {
             console.error('Error fetching device tree:', error);
         }
