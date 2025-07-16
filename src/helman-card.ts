@@ -3,20 +3,10 @@ import { keyed } from 'lit/directives/keyed.js';
 import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
-import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/config/card";
-import { fetchDeviceTree, sortDevicesByPowerAndName, enrichDeviceTreeWithHistory } from "./energy-data-helper";
+import { fetchSourceAndConsumerRoots, enrichDeviceTreeWithHistory } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
-
-interface HelmanCardConfig extends LovelaceCardConfig {
-    house_power_entity?: string;
-    power_sensor_label?: string;
-    power_switch_label?: string;
-    power_sensor_name_cleaner_regex?: string;
-    unmeasured_power_title?: string;
-    history_buckets: number;
-    history_bucket_duration: number;
-}
+import { HelmanCardConfig } from "./helman-card-config";
 
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
@@ -83,14 +73,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         }
     }
     private async _fetchCurrentData(): Promise<void> {
-        const housePowerEntityId = this.config.house_power_entity;
-        const powerSensorLabel = this.config.power_sensor_label;
-        const powerSwitchLabel = this.config.power_switch_label;
-        const powerSensorNameCleanerRegex = this.config.power_sensor_name_cleaner_regex;
-        const historyBuckets = this.config.history_buckets;
-        const historyBucketDuration = this.config.history_bucket_duration;
-
-        this._deviceTree = await fetchDeviceTree(this._hass!, historyBuckets, this.config.unmeasured_power_title, housePowerEntityId, powerSensorLabel, powerSwitchLabel, powerSensorNameCleanerRegex);
+        this._deviceTree = await fetchSourceAndConsumerRoots(this._hass!, this.config);
     }
 
     private async _fetchHistoricalData(): Promise<void> {
@@ -106,12 +89,10 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             return html``;
         }
 
-        const sortedRoot = sortDevicesByPowerAndName(this._deviceTree);
-
         return html`
             <ha-card>
                 <div class="card-content">
-                    ${sortedRoot.map(device => keyed(device.name, html`
+                    ${this._deviceTree.map(device => keyed(device.name, html`
                         <power-device
                             .hass=${this._hass!}
                             .device=${device}

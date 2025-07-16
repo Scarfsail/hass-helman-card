@@ -1,5 +1,6 @@
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
+import { HelmanCardConfig } from "./helman-card-config";
 
 interface EnergyPrefs {
     energy_sources: unknown[];
@@ -37,6 +38,80 @@ function cleanDeviceName(name: string, cleanerRegex?: string): string {
         console.warn('Invalid regex pattern for power_sensor_name_cleaner_regex:', cleanerRegex);
         return name;
     }
+}
+
+export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: HelmanCardConfig): Promise<DeviceNode[]> {
+    const {
+        power_entities: { house, grid, battery, solar },
+        history_buckets,
+        power_sensor_name_cleaner_regex,
+        sources_title,
+        consumers_title
+    } = config;
+
+    const roots: DeviceNode[] = [];
+
+    // --- SOURCES ---
+    const sourcesNode = new DeviceNode(sources_title ?? "Energy Sources", null, null, history_buckets);
+    sourcesNode.isVirtual = true;
+    sourcesNode.childrenHidden = false;
+
+    if (solar?.entity_id) {
+        const name = hass.states[solar.entity_id]?.attributes.friendly_name || "Solar";
+        sourcesNode.children.push(new DeviceNode(name, solar.entity_id, null, history_buckets));
+    }
+    if (grid?.entity_id) {
+        const name = hass.states[grid.entity_id]?.attributes.friendly_name || "Grid";
+        const gridSource = new DeviceNode(name, grid.entity_id, null, history_buckets);
+        gridSource.valueType = 'negative';
+        sourcesNode.children.push(gridSource);
+    }
+    if (battery?.entity_id) {
+        const name = hass.states[battery.entity_id]?.attributes.friendly_name || "Battery";
+        const batterySource = new DeviceNode(name, battery.entity_id, null, history_buckets);
+        batterySource.valueType = 'negative';
+        sourcesNode.children.push(batterySource);
+    }
+
+    if (sourcesNode.children.length > 0) {
+        roots.push(sourcesNode);
+    }
+
+    // --- CONSUMERS ---
+    const consumersNode = new DeviceNode(consumers_title ?? "Energy Consumers", null, null, history_buckets);
+    consumersNode.isVirtual = true;
+    consumersNode.childrenHidden = false;
+
+    if (house?.entity_id) {
+        const houseTree = await fetchDeviceTree(
+            hass,
+            history_buckets,
+            house.unmeasured_power_title,
+            house.entity_id,
+            house.power_sensor_label,
+            house.power_switch_label,
+            power_sensor_name_cleaner_regex
+        );
+        consumersNode.children.push(...houseTree);
+    }
+    if (grid?.entity_id) {
+        const name = hass.states[grid.entity_id]?.attributes.friendly_name || "Grid";
+        const gridConsumer = new DeviceNode(name, grid.entity_id, null, history_buckets);
+        gridConsumer.valueType = 'positive';
+        consumersNode.children.push(gridConsumer);
+    }
+    if (battery?.entity_id) {
+        const name = hass.states[battery.entity_id]?.attributes.friendly_name || "Battery";
+        const batteryConsumer = new DeviceNode(name, battery.entity_id, null, history_buckets);
+        batteryConsumer.valueType = 'positive';
+        consumersNode.children.push(batteryConsumer);
+    }
+
+    if (consumersNode.children.length > 0) {
+        roots.push(consumersNode);
+    }
+
+    return roots;
 }
 
 export async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string): Promise<DeviceNode[]> {
@@ -237,7 +312,13 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
         const nodes = nodesWithSensors.get(entityId);
         if (nodes) {
             nodes.forEach(node => {
-                node.powerHistory = [...averagedHistory];
+                let processedHistory = [...averagedHistory];
+                if (node.valueType === 'positive') {
+                    processedHistory = processedHistory.map(v => Math.max(0, v));
+                } else if (node.valueType === 'negative') {
+                    processedHistory = processedHistory.map(v => Math.abs(Math.min(0, v)));
+                }
+                node.powerHistory = processedHistory;
             });
         }
     }
@@ -275,7 +356,6 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
     //console.log(`-- Unmeasured power history under parent (${parentNode.name}):`, unmeasuredNode.powerHistory)
 
 }
-
 
 
 export function sortDevicesByPowerAndName(devices: DeviceNode[]): DeviceNode[] {

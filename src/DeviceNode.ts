@@ -9,6 +9,8 @@ export class DeviceNode {
         this.childrenHidden = true;
         this.historyBuckets = historyBuckets;
         this.powerHistory = [];
+        this.valueType = 'default';
+        this.isVirtual = false;
     }
 
     public updateHistoryBuckets(hass: HomeAssistant) {
@@ -23,19 +25,31 @@ export class DeviceNode {
             child.updateHistoryBuckets(hass);
         }
         this.updateLivePower(hass);
-
     }
 
     private updateLivePower(hass: HomeAssistant, unmeasuredPower?: number) {
         let power: number = 0;
-        if (this.isUnmeasured) {
+        if (this.isVirtual) {
+            power = this.children.reduce((sum, child) => sum + (child.powerValue || 0), 0);
+        } else if (this.isUnmeasured) {
             if (unmeasuredPower == undefined) {
                 return;
             }
             power = unmeasuredPower;
         } else {
             if (this.powerSensorId) {
-                power = parseFloat(hass!.states[this.powerSensorId].state) || 0;
+                const rawPower = parseFloat(hass!.states[this.powerSensorId].state) || 0;
+                switch (this.valueType) {
+                    case 'positive':
+                        power = Math.max(0, rawPower);
+                        break;
+                    case 'negative':
+                        power = Math.abs(Math.min(0, rawPower));
+                        break;
+                    default:
+                        power = rawPower;
+                        break;
+                }
             }
             else if (this.powerValue !== undefined) {
                 power = this.powerValue;
@@ -50,12 +64,16 @@ export class DeviceNode {
         this.powerHistory[this.powerHistory.length - 1] = power; // Update the last history entry with the new average
         this.powerValue = power;
 
-        if (this.children.length > 0) {
-            const unmeasuredPower = this.powerValue - this.children.filter(child => !child.isUnmeasured).reduce((sum, child) => {
-                return sum + (child.isUnmeasured ? 0 : child.powerValue || 0);
+        if (this.children.length > 0 && !this.isVirtual) {
+            const childrenPower = this.children.filter(child => !child.isUnmeasured).reduce((sum, child) => {
+                return sum + (child.powerValue || 0);
             }, 0);
+
+            const unmeasuredPower = this.powerValue - childrenPower;
             const unmeasuredNode = this.children.find(child => child.isUnmeasured);
-            unmeasuredNode?.updateLivePower(hass, unmeasuredPower);
+            if (unmeasuredNode) {
+                unmeasuredNode.updateLivePower(hass, unmeasuredPower);
+            }
         }
 
     }
@@ -70,4 +88,6 @@ export class DeviceNode {
     public powerHistory: number[] = [];
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
+    public valueType: 'positive' | 'negative' | 'default';
+    public isVirtual: boolean;
 }

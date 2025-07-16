@@ -169,7 +169,7 @@ export class PowerDevice extends LitElement {
             currentParentPower = currentPower; // If no parent power, use current power as reference
         }
 
-        currentPercentage = (currentPower / currentParentPower) * 100;
+        currentPercentage = (currentParentPower > 0) ? (currentPower / currentParentPower) * 100 : 0;
         percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
 
         powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
