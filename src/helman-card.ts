@@ -19,6 +19,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     }
 
+    
     getCardSize() {
         return this.config?.card_size ?? 1;
     }
