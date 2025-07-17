@@ -69,11 +69,15 @@ export class PowerDevice extends LitElement {
                 min-width: 0; /* Prevents text overflow issues */
                 box-shadow: 0 2px 7px rgba(0,0,0,0.8);
                 border-radius: 10px;
-                transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+                transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
             }
             
-            .deviceContent:hover {
+            .deviceContent.is-off {
+                opacity: 0.6;
+            }
+
+            .deviceContent:not(.is-off):hover {
                 box-shadow: 0 4px 14px rgba(0,0,0,0.8);
                 transform: scale(1.02);
             }
@@ -173,6 +177,7 @@ export class PowerDevice extends LitElement {
         const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
 
         const currentPower = this.device.powerValue ?? 0;
+        const isOff = currentPower === 0;
         let percentageDisplay: TemplateResult | typeof nothing = nothing;
         let currentPercentage = 0;
         let onPowerClick: () => void = () => false;
@@ -199,7 +204,7 @@ export class PowerDevice extends LitElement {
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
         return html`
             <div class="device">
-                <div class="deviceContent">
+                <div class="deviceContent ${isOff ? 'is-off' : ''}">
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
                             const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
