@@ -19,7 +19,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     }
 
-    
+
     getCardSize() {
         return this.config?.card_size ?? 1;
     }
@@ -63,7 +63,20 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         if (!this._hass || this._deviceTree.length === 0) {
             return;
         }
-        this._deviceTree.forEach(device => device.updateHistoryBuckets(this._hass!));
+        const sourceNodes: DeviceNode[] = [];
+        const collectSources = (nodes: DeviceNode[]) => {
+            for (const node of nodes) {
+                if (node.isSource) {
+                    sourceNodes.push(node);
+                }
+                if (node.children) {
+                    collectSources(node.children);
+                }
+            }
+        };
+        collectSources(this._deviceTree);
+
+        this._deviceTree.forEach(device => device.updateHistoryBuckets(this._hass!, sourceNodes));
         this.requestUpdate();
     }
 

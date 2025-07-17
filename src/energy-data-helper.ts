@@ -58,18 +58,25 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
 
     if (solar?.entity_id) {
         const name = hass.states[solar.entity_id]?.attributes.friendly_name || "Solar";
-        sourcesNode.children.push(new DeviceNode(name, solar.entity_id, null, history_buckets));
+        const solarNode = new DeviceNode(name, solar.entity_id, null, history_buckets);
+        solarNode.color = '#FDD83560'; // Light yellow
+        solarNode.isSource = true;
+        sourcesNode.children.push(solarNode);
     }
     if (grid?.entity_id) {
         const name = hass.states[grid.entity_id]?.attributes.friendly_name || "Grid";
         const gridSource = new DeviceNode(name, grid.entity_id, null, history_buckets);
         gridSource.valueType = 'negative';
+        gridSource.color = '#42A5F560'; // Light blue
+        gridSource.isSource = true;
         sourcesNode.children.push(gridSource);
     }
     if (battery?.entity_id) {
         const name = hass.states[battery.entity_id]?.attributes.friendly_name || "Battery";
         const batterySource = new DeviceNode(name, battery.entity_id, null, history_buckets);
         batterySource.valueType = 'negative';
+        batterySource.color = '#66BB6A60'; // Light green
+        batterySource.isSource = true;
         sourcesNode.children.push(batterySource);
     }
 
@@ -218,7 +225,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: numbe
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode = new DeviceNode(cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
         houseNode.children = tree;
-        houseNode.childrenHidden = false;
+        //houseNode.childrenHidden = false;
         houseNode.children = tree;
 
         tree = [houseNode];
@@ -246,6 +253,7 @@ function inspectNodeAndAddUnmeasuredNodeToChildren(node: DeviceNode, historyBuck
 export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass: HomeAssistant, historyIntervals: number, bucketDuration: number): Promise<void> {
     const nodesWithSensors = new Map<string, DeviceNode[]>();
     const allNodes: DeviceNode[] = [];
+    const sourceNodes: DeviceNode[] = [];
 
     function collectNodes(nodes: DeviceNode[]) {
         for (const node of nodes) {
@@ -256,6 +264,9 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
                 nodesWithSensors.get(node.powerSensorId)!.push(node);
             }
             allNodes.push(node);
+            if (node.isSource) {
+                sourceNodes.push(node);
+            }
             if (node.children.length > 0) {
                 collectNodes(node.children);
             }
@@ -322,6 +333,66 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             });
         }
     }
+
+    // Calculate powerHistory for virtual nodes by summing up children
+    function calculateVirtualNodeHistory(node: DeviceNode) {
+        if (node.isVirtual) {
+            const childWithHistory = node.children.find(c => c.powerHistory && c.powerHistory.length > 0);
+            if (childWithHistory) {
+                const historyLength = childWithHistory.powerHistory.length;
+                node.powerHistory = Array(historyLength).fill(0);
+                for (let i = 0; i < historyLength; i++) {
+                    for (const child of node.children) {
+                        // First, ensure children have their history calculated if they are also virtual
+                        calculateVirtualNodeHistory(child);
+                        node.powerHistory[i] += (child.powerHistory && child.powerHistory[i]) || 0;
+                    }
+                }
+            }
+        } else {
+            for (const child of node.children) {
+                calculateVirtualNodeHistory(child);
+            }
+        }
+    }
+    for (const root of deviceTree) {
+        calculateVirtualNodeHistory(root);
+    }
+
+    // Calculate source ratios for each bucket
+    const totalSourcePowerByBucket: number[] = Array(historyIntervals).fill(0);
+    for (let i = 0; i < historyIntervals; i++) {
+        for (const sourceNode of sourceNodes) {
+            totalSourcePowerByBucket[i] += sourceNode.powerHistory[i] || 0;
+        }
+    }
+
+    // Assign source power history to all non-source nodes
+    for (const node of allNodes) {
+        if (node.isSource) {
+            continue; // Skip individual source nodes
+        }
+        node.sourcePowerHistory = [];
+        for (let i = 0; i < historyIntervals; i++) {
+            const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
+            const totalSourcePower = totalSourcePowerByBucket[i];
+            const nodePower = node.powerHistory[i] || 0;
+
+            if (totalSourcePower > 0 && nodePower > 0) {
+                for (const sourceNode of sourceNodes) {
+                    const sourcePower = sourceNode.powerHistory[i] || 0;
+                    const ratio = sourcePower / totalSourcePower;
+                    bucketSourcePower[sourceNode.name] = {
+                        power: nodePower * ratio,
+                        color: sourceNode.color || 'grey'
+                    };
+                }
+            }
+            node.sourcePowerHistory.push(bucketSourcePower);
+        }
+    }
+
+
     for (const node of allNodes) {
         enrichUnmeasuredDeviceTreeWithHistory(node);
     }
@@ -337,24 +408,49 @@ function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
     }
 
     const childrenPowerHistorySum: number[] = Array(parentNode.powerHistory.length).fill(0);
-    //console.log(`*** Parent node power history (${parentNode.name}):`, parentNode.powerHistory)
+    const childrenSourcePowerHistorySum: { [sourceName: string]: number }[] = Array(parentNode.powerHistory.length).fill(0).map(() => ({}));
+
     const childrenWithoutUnmeasured = parentNode.children.filter(child => !child.isUnmeasured);
-    for (let childrenIdx = 0; childrenIdx < childrenWithoutUnmeasured.length; childrenIdx++) {
-        const child = childrenWithoutUnmeasured[childrenIdx];
-        //console.log(`Child node power history (${child.name}):`, child.powerHistory)
+    for (let childIdx = 0; childIdx < childrenWithoutUnmeasured.length; childIdx++) {
+        const child = childrenWithoutUnmeasured[childIdx];
 
         for (let bucketIdx = 0; bucketIdx < parentNode.powerHistory.length; bucketIdx++) {
             childrenPowerHistorySum[bucketIdx] += child.powerHistory[bucketIdx] || 0;
+            if (child.sourcePowerHistory && child.sourcePowerHistory[bucketIdx]) {
+                for (const sourceName in child.sourcePowerHistory[bucketIdx]) {
+                    if (!childrenSourcePowerHistorySum[bucketIdx][sourceName]) {
+                        childrenSourcePowerHistorySum[bucketIdx][sourceName] = 0;
+                    }
+                    childrenSourcePowerHistorySum[bucketIdx][sourceName] += child.sourcePowerHistory[bucketIdx][sourceName].power;
+                }
+            }
         }
         enrichUnmeasuredDeviceTreeWithHistory(child);
     }
 
     unmeasuredNode.powerHistory = parentNode.powerHistory.map((parentPower, i) => {
-        return parentPower - (childrenPowerHistorySum[i] || 0);
+        return Math.max(0, parentPower - (childrenPowerHistorySum[i] || 0));
     });
-    //console.log(`-- Children power history under parent (${parentNode.name}):`, childrenPowerHistorySum)
-    //console.log(`-- Unmeasured power history under parent (${parentNode.name}):`, unmeasuredNode.powerHistory)
 
+    unmeasuredNode.sourcePowerHistory = [];
+    for (let i = 0; i < parentNode.powerHistory.length; i++) {
+        const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
+        const parentSources = parentNode.sourcePowerHistory?.[i] || {};
+        const childrenSources = childrenSourcePowerHistorySum[i] || {};
+
+        for (const sourceName in parentSources) {
+            const parentPower = parentSources[sourceName].power;
+            const childrenPower = childrenSources[sourceName] || 0;
+            const unmeasuredPower = Math.max(0, parentPower - childrenPower);
+            if (unmeasuredPower > 0) {
+                bucketSourcePower[sourceName] = {
+                    power: unmeasuredPower,
+                    color: parentSources[sourceName].color
+                };
+            }
+        }
+        unmeasuredNode.sourcePowerHistory.push(bucketSourcePower);
+    }
 }
 
 

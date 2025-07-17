@@ -11,23 +11,31 @@ export class DeviceNode {
         this.powerHistory = [];
         this.valueType = 'default';
         this.isVirtual = false;
+        this.color = undefined;
+        this.isSource = false;
     }
 
-    public updateHistoryBuckets(hass: HomeAssistant) {
+    public updateHistoryBuckets(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
         if (this.powerHistory.length > 0) {
-            this.powerHistory.push(this.powerHistory[this.powerHistory.length - 1]); // Push the last value or liveAvg if history is empty
+            this.powerHistory.push(this.powerHistory[this.powerHistory.length - 1]); // Push the last value
+            if (this.sourcePowerHistory) {
+                this.sourcePowerHistory.push(this.sourcePowerHistory[this.sourcePowerHistory.length - 1]);
+            }
         }
         if (this.powerHistory.length > this.historyBuckets) { // Keep history items based on config
             this.powerHistory.shift();
+            if (this.sourcePowerHistory) {
+                this.sourcePowerHistory.shift();
+            }
         }
 
         for (const child of this.children) {
-            child.updateHistoryBuckets(hass);
+            child.updateHistoryBuckets(hass, sourceNodes);
         }
-        this.updateLivePower(hass);
+        this.updateLivePower(hass, sourceNodes);
     }
 
-    private updateLivePower(hass: HomeAssistant, unmeasuredPower?: number) {
+    private updateLivePower(hass: HomeAssistant, sourceNodes: DeviceNode[], unmeasuredPower?: number) {
         let power: number = 0;
         if (this.isVirtual) {
             power = this.children.reduce((sum, child) => sum + (child.powerValue || 0), 0);
@@ -64,6 +72,25 @@ export class DeviceNode {
         this.powerHistory[this.powerHistory.length - 1] = power; // Update the last history entry with the new average
         this.powerValue = power;
 
+        // --- Live Source Power Calculation ---
+        if (this.sourcePowerHistory && !this.isSource) {
+            const totalSourcePower = sourceNodes.reduce((sum, s) => sum + (s.powerValue || 0), 0);
+            const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
+
+            if (totalSourcePower > 0 && this.powerValue > 0) {
+                for (const sourceNode of sourceNodes) {
+                    const sourcePower = sourceNode.powerValue || 0;
+                    const ratio = sourcePower / totalSourcePower;
+                    bucketSourcePower[sourceNode.name] = {
+                        power: this.powerValue * ratio,
+                        color: sourceNode.color || 'grey'
+                    };
+                }
+            }
+            this.sourcePowerHistory[this.sourcePowerHistory.length - 1] = bucketSourcePower;
+        }
+        // --- End Live Source Power Calculation ---
+
         if (this.children.length > 0 && !this.isVirtual) {
             const childrenPower = this.children.filter(child => !child.isUnmeasured).reduce((sum, child) => {
                 return sum + (child.powerValue || 0);
@@ -72,7 +99,7 @@ export class DeviceNode {
             const unmeasuredPower = this.powerValue - childrenPower;
             const unmeasuredNode = this.children.find(child => child.isUnmeasured);
             if (unmeasuredNode) {
-                unmeasuredNode.updateLivePower(hass, unmeasuredPower);
+                unmeasuredNode.updateLivePower(hass, sourceNodes, unmeasuredPower);
             }
         }
 
@@ -84,10 +111,12 @@ export class DeviceNode {
     public children: DeviceNode[];
     public powerValue?: number;
     public childrenHidden?: boolean;
-    //powerHistory?: number[];
     public powerHistory: number[] = [];
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
     public valueType: 'positive' | 'negative' | 'default';
     public isVirtual: boolean;
+    public color?: string;
+    public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
+    public isSource: boolean;
 }

@@ -71,18 +71,19 @@ export class PowerDevice extends LitElement {
                 border-radius: 10px;
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
                 position: relative;
-                z-index: 1;
             }
+            
             .deviceContent:hover {
                 box-shadow: 0 4px 14px rgba(0,0,0,0.8);
-                transform: scale(1.01);
-                z-index: 2;
+                transform: scale(1.02);
             }
             .deviceName {
                 flex-grow: 1;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 margin-left: 0px;
+                position: relative;
+                z-index: 2;
             }
             .deviceName.has-children {
                 cursor: pointer;
@@ -92,6 +93,8 @@ export class PowerDevice extends LitElement {
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
                 padding-right: 8px; /* Adds space between power and right edge */
+                position: relative;
+                z-index: 2;
             }
             .powerDisplay.has-sensor{
                 cursor: pointer;
@@ -107,6 +110,8 @@ export class PowerDevice extends LitElement {
             state-badge {
                 cursor: pointer;
                 flex-shrink: 0;
+                position: relative;
+                z-index: 2;
             }
             .historyContainer {
                 position: absolute;
@@ -120,11 +125,15 @@ export class PowerDevice extends LitElement {
                 pointer-events: none;
                 overflow: hidden;
                 border-radius: 10px;
+                z-index: 1;
             }
-            .historyBar {
+            .historyBarContainer {
                 flex-grow: 1;
-                background-color: rgba(var(--rgb-accent-color), 0.13);
-                transition: width 0.3s ease-in-out;
+                display: flex;
+                flex-direction: column-reverse; /* To stack from bottom up */
+            }
+            .historyBarSegment {
+                width: 100%;
             }
         `;
     }
@@ -158,7 +167,6 @@ export class PowerDevice extends LitElement {
         const currentPower = this.device.powerValue ?? 0;
         let percentageDisplay: TemplateResult | typeof nothing = nothing;
         let currentPercentage = 0;
-        let backgroundStyle = '';
         let onPowerClick: () => void = () => false;
 
         if (device.powerSensorId) {
@@ -179,15 +187,28 @@ export class PowerDevice extends LitElement {
         const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
         const childrenToRender = device.children.length > 0 ? sortDevicesByPowerAndName(device.children) : [];
 
-
+        // Determine the color for history bars
+        const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
         return html`
             <div class="device">
-                <div class="deviceContent" style="${backgroundStyle}">
+                <div class="deviceContent">
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
-            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
-            return html`<div class="historyBar" style="height: ${Math.min(100, hPercentage)}%"></div>`;
-        })}
+                            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
+                            const sourceHistory = this.device.sourcePowerHistory?.[i];
+                            const hasSourceHistory = !device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
+
+                            return html`
+                                <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
+                                    ${hasSourceHistory ?
+                                        Object.values(sourceHistory).map(s => {
+                                            const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
+                                            return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
+                                        }) :
+                                        html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
+                                    }
+                                </div>`;
+                       })}
                     </div>
                     ${switchIcon}
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
