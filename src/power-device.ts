@@ -77,9 +77,9 @@ export class PowerDevice extends LitElement {
                 opacity: 0.6;
             }
 
-            .deviceContent:not(.is-off):hover {
+            .deviceContent:hover {
                 box-shadow: 0 4px 14px rgba(0,0,0,0.8);
-                transform: scale(1.02);
+                transform: scale(1.01);
             }
             .deviceName {
                 flex-grow: 1;
