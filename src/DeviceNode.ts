@@ -13,6 +13,7 @@ export class DeviceNode {
         this.isVirtual = false;
         this.color = undefined;
         this.isSource = false;
+        this.icon = undefined;
     }
 
     public updateHistoryBuckets(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
@@ -119,4 +120,5 @@ export class DeviceNode {
     public color?: string;
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
     public isSource: boolean;
+    public icon?: string;
 }

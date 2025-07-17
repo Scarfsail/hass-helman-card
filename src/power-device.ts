@@ -148,10 +148,10 @@ export class PowerDevice extends LitElement {
 
         let currentParentPower = this.currentParentPower;
         let powerDisplay = html`<span class="powerDisplay">No power sensor found</span>`;
-        let switchIcon: TemplateResult | typeof nothing = nothing;
+        let iconDisplay: TemplateResult | typeof nothing = nothing;
 
         if (device.switchEntityId) {
-            switchIcon = html`
+            iconDisplay = html`
                 <state-badge
                     .hass=${this.hass}
                     .stateObj=${this.hass!.states[device.switchEntityId]}
@@ -159,8 +159,14 @@ export class PowerDevice extends LitElement {
                     @click=${() => this._showMoreInfo(device.switchEntityId!)}
                 ></state-badge>
             `;
+        } else if (device.icon) {
+            iconDisplay = html`
+                <div class="switchIconPlaceholder">
+                    <ha-icon .icon=${device.icon}></ha-icon>
+                </div>
+            `;
         } else {
-            switchIcon = html`<div class="switchIconPlaceholder"><ha-icon icon="mdi:border-none-variant" style=" color: var(--disabled-text-color);"></ha-icon></div>`;
+            iconDisplay = html`<div class="switchIconPlaceholder"><ha-icon icon="mdi:border-none-variant" style=" color: var(--disabled-text-color);"></ha-icon></div>`;
         }
 
         const hasChildren = device.children.length > 0;
@@ -212,7 +218,7 @@ export class PowerDevice extends LitElement {
                                 </div>`;
                        })}
                     </div>
-                    ${switchIcon}
+                    ${iconDisplay}
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
                     ${powerDisplay}
                 </div>
