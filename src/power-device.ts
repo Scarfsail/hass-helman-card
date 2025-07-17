@@ -84,6 +84,7 @@ export class PowerDevice extends LitElement {
                 margin-left: 0px;
                 position: relative;
                 z-index: 2;
+                text-shadow: 0px 0px 4px rgba(0,0,0,1);
             }
             .deviceName.has-children {
                 cursor: pointer;
@@ -95,6 +96,7 @@ export class PowerDevice extends LitElement {
                 padding-right: 8px; /* Adds space between power and right edge */
                 position: relative;
                 z-index: 2;
+                text-shadow: 0px 0px 4px rgba(0,0,0,1);
             }
             .powerDisplay.has-sensor{
                 cursor: pointer;
