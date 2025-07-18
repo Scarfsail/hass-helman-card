@@ -2,6 +2,8 @@ import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/conf
 
 export interface PowerEntityConfig {
     entity_id: string;
+    source_name?: string;
+    consumption_name?: string;
     power_sensor_label?: string;
     power_switch_label?: string;
     unmeasured_power_title?: string;
