@@ -112,6 +112,7 @@ export class DeviceNode {
     public children: DeviceNode[];
     public powerValue?: number;
     public childrenHidden?: boolean;
+    public hideNode?: boolean; // Indicates if this node should be hidden in the UI
     public powerHistory: number[] = [];
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power

@@ -202,8 +202,7 @@ export class PowerDevice extends LitElement {
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
-        return html`
-            <div class="device">
+        const deviceContent = device.hideNode ? nothing : html`
                 <div class="deviceContent ${isOff ? 'is-off' : ''}">
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
@@ -227,6 +226,11 @@ export class PowerDevice extends LitElement {
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
                     ${powerDisplay}
                 </div>
+                
+        `
+        return html`
+            <div class="device">
+                ${deviceContent}
                 ${!this._childrenHidden && childrenToRender.length > 0 ? html`
                     <div class="deviceChildren">
                         ${childrenToRender.map((child, idx) => keyed(`${device.name}-${child.name}`, html`
