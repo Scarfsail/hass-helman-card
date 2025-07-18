@@ -47,6 +47,15 @@ export class PowerDevice extends LitElement {
 
     static get styles() {
         return css`
+            :host([is-expanded]) {
+                flex-basis: 100%;
+                width: 100%;
+            }
+            :host(:not([is-expanded])) {
+                flex-basis: 0;
+                flex-grow: 1;
+                flex-shrink: 1;
+            }            
             .switchIconPlaceholder {
                 width: 40px;
                 height: 40px;
@@ -107,7 +116,18 @@ export class PowerDevice extends LitElement {
             }
             .deviceChildren {
                 flex-basis: 100%;
+                flex-wrap: wrap;
                 padding-left: 20px; /* Aligns with the device name */
+            }
+            .deviceChildren.full-width {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px; /* Optional: adds some space between children */
+            }
+            .deviceChildren.full-width > power-device {
+                flex-grow: 1;
+                flex-basis: 0;
+                min-width: 150px; /* Optional: prevent children from becoming too small */
             }
             .powerPercentages{
                 font-size: 0.7em;
@@ -175,6 +195,13 @@ export class PowerDevice extends LitElement {
         const device = this.device;
         if (device.isUnmeasured && (device.powerValue == undefined || device.powerValue < 1)) {
             return nothing; // Do not render unmeasured devices with power < 1W
+        }
+
+        const isExpanded = !this._childrenHidden && device.children.length > 0;
+        if (isExpanded) {
+            this.setAttribute('is-expanded', '');
+        } else {
+            this.removeAttribute('is-expanded');
         }
 
         let currentParentPower = this.currentParentPower;
@@ -254,8 +281,8 @@ export class PowerDevice extends LitElement {
         return html`
             <div class="device">
                 ${deviceContent}
-                ${!this._childrenHidden && childrenToRender.length > 0 ? html`
-                    <div class="deviceChildren">
+                ${isExpanded ? html`
+                    <div class="deviceChildren ${device.children_full_width ? 'full-width' : ''}" style="display: ${device.children_full_width ? 'block' : 'flex'};">
                         ${childrenToRender.map((child, idx) => keyed(`${device.name}-${child.name}`, html`
                             <power-device
                                 .hass=${this.hass}

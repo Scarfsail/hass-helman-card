@@ -52,23 +52,23 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     const roots: DeviceNode[] = [];
 
     // --- SOURCES ---
-    const sourcesNode = new DeviceNode(sources_title ?? "Energy Sources", null, null, history_buckets);
+    const sourcesNode = new DeviceNode("sources", sources_title ?? "Energy Sources", null, null, history_buckets);
     sourcesNode.isVirtual = true;
-    sourcesNode.hideNode=true;
+    sourcesNode.hideNode = true;
     sourcesNode.childrenHidden = false;
     sourcesNode.icon = 'mdi:lightning-bolt-outline';
 
     if (solar?.entity_id) {
-        const name = solar.source_name ?? (hass.states[solar.entity_id]?.attributes.friendly_name || "Solar");
-        const solarNode = new DeviceNode(name, solar.entity_id, null, history_buckets);
+        const name = ""//solar.source_name ?? (hass.states[solar.entity_id]?.attributes.friendly_name || "Solar");
+        const solarNode = new DeviceNode(solar.entity_id, name, solar.entity_id, null, history_buckets);
         solarNode.color = '#FDD83560'; // Light yellow
         solarNode.isSource = true;
         solarNode.icon = 'mdi:solar-power';
         sourcesNode.children.push(solarNode);
     }
     if (battery?.entity_id) {
-        const name = battery.source_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batterySource = new DeviceNode(name, battery.entity_id, null, history_buckets);
+        const name = ""//battery.source_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
+        const batterySource = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets);
         batterySource.valueType = 'negative';
         batterySource.color = '#66BB6A60'; // Light green
         batterySource.isSource = true;
@@ -77,8 +77,8 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         sourcesNode.children.push(batterySource);
     }
     if (grid?.entity_id) {
-        const name = grid.source_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridSource = new DeviceNode(name, grid.entity_id, null, history_buckets);
+        const name = ""//grid.source_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
+        const gridSource = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets);
         gridSource.valueType = 'negative';
         gridSource.color = '#42A5F560'; // Light blue
         gridSource.isSource = true;
@@ -91,7 +91,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     }
 
     // --- CONSUMERS ---
-    const consumersNode = new DeviceNode(consumers_title ?? "Energy Consumers", null, null, history_buckets);
+    const consumersNode = new DeviceNode("consumers", consumers_title ?? "Energy Consumers", null, null, history_buckets);
     consumersNode.isVirtual = true;
     consumersNode.childrenHidden = false;
     consumersNode.icon = 'mdi:lightning-bolt-outline';
@@ -110,16 +110,16 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         consumersNode.children.push(...houseTree);
     }
     if (battery?.entity_id) {
-        const name = battery.consumption_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batteryConsumer = new DeviceNode(name, battery.entity_id, null, history_buckets);
+        const name = ""// battery.consumption_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
+        const batteryConsumer = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets);
         batteryConsumer.valueType = 'positive';
         batteryConsumer.icon = 'mdi:battery';
         batteryConsumer.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         consumersNode.children.push(batteryConsumer);
     }
     if (grid?.entity_id) {
-        const name = grid.consumption_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridConsumer = new DeviceNode(name, grid.entity_id, null, history_buckets);
+        const name = ""//grid.consumption_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
+        const gridConsumer = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets);
         gridConsumer.valueType = 'positive';
         gridConsumer.icon = 'mdi:transmission-tower-import';
         consumersNode.children.push(gridConsumer);
@@ -214,7 +214,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         const name = hass.states[powerSensorId]?.attributes.friendly_name || powerSensorId;
         const cleanedName = cleanDeviceName(name, powerSensorNameCleanerRegex);
 
-        const node = new DeviceNode(cleanedName, powerSensorId, switchEntityId, historyBuckets);
+        const node = new DeviceNode(cleanedName, cleanedName, powerSensorId, switchEntityId, historyBuckets);
         const powerSensorState = hass.states[powerSensorId];
         if (powerSensorState?.attributes.icon) {
             node.icon = powerSensorState.attributes.icon;
@@ -238,12 +238,13 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
     }
 
     if (housePowerEntityId) {
-        const housePowerSensorName = houseName ?? (hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId);
+        const housePowerSensorName = "" //houseName ?? (hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId);
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
-        const houseNode = new DeviceNode(cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
+        const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
         houseNode.children = tree;
         houseNode.sortChildrenByPower = true; // Sort children by power
         houseNode.icon = 'mdi:home';
+        houseNode.children_full_width = true;
         //houseNode.childrenHidden = false;
         houseNode.children = tree;
 
@@ -259,7 +260,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
 
 function inspectNodeAndAddUnmeasuredNodeToChildren(node: DeviceNode, historyBuckets: number, unmeasuredPowerTitle?: string): void {
     if (node.children.length > 0) {
-        const unmeasuredNode = new DeviceNode(unmeasuredPowerTitle ?? 'Unmeasured power', null, null, historyBuckets);
+        const unmeasuredNode = new DeviceNode("unmeasured", unmeasuredPowerTitle ?? 'Unmeasured power', null, null, historyBuckets);
         unmeasuredNode.isUnmeasured = true;
         node.children.push(unmeasuredNode);
         for (const child of node.children) {
@@ -401,7 +402,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
                 for (const sourceNode of sourceNodes) {
                     const sourcePower = sourceNode.powerHistory[i] || 0;
                     const ratio = sourcePower / totalSourcePower;
-                    bucketSourcePower[sourceNode.name] = {
+                    bucketSourcePower[sourceNode.id] = {
                         power: nodePower * ratio,
                         color: sourceNode.color || 'grey'
                     };

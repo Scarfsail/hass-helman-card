@@ -1,7 +1,8 @@
 import type { HomeAssistant } from "../hass-frontend/src/types";
 
 export class DeviceNode {
-    constructor(name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
+    constructor(id:string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
+        this.id = id;
         this.name = name;
         this.powerSensorId = powerSensorId;
         this.switchEntityId = switchEntityId;
@@ -82,7 +83,7 @@ export class DeviceNode {
                 for (const sourceNode of sourceNodes) {
                     const sourcePower = sourceNode.powerValue || 0;
                     const ratio = sourcePower / totalSourcePower;
-                    bucketSourcePower[sourceNode.name] = {
+                    bucketSourcePower[sourceNode.id] = {
                         power: this.powerValue * ratio,
                         color: sourceNode.color || 'grey'
                     };
@@ -105,7 +106,7 @@ export class DeviceNode {
         }
 
     }
-
+    public id:string;
     public name: string;
     public powerSensorId: string | null;
     public switchEntityId: string | null;
@@ -124,4 +125,5 @@ export class DeviceNode {
     public icon?: string;
     public sortChildrenByPower?: boolean;
     public battery_capacity_entity_id?: string;
+    public children_full_width?: boolean; // Indicates if the device should take full width in the UI
 }

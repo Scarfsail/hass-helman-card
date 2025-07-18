@@ -106,7 +106,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return html`
             <ha-card>
                 <div class="card-content">
-                    ${this._deviceTree.map(device => keyed(device.name, html`
+                    ${this._deviceTree.map(device => keyed(device.id, html`
                         <power-device
                             .hass=${this._hass!}
                             .device=${device}
