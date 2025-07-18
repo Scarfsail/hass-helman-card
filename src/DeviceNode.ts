@@ -123,4 +123,5 @@ export class DeviceNode {
     public isSource: boolean;
     public icon?: string;
     public sortChildrenByPower?: boolean;
+    public battery_capacity_entity_id?: string;
 }

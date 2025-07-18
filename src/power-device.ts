@@ -143,6 +143,33 @@ export class PowerDevice extends LitElement {
             }
         `;
     }
+    deviceIcon() {
+        if (this.device.battery_capacity_entity_id) {
+            const batteryCapacity = this.hass.states[this.device.battery_capacity_entity_id];
+            if (batteryCapacity) {
+                const capacity = parseFloat(batteryCapacity.state);
+                if (capacity <= 10) {
+                    this.device.icon = 'mdi:battery-outline';
+                } else if (capacity > 90) {
+                    this.device.icon = 'mdi:battery';
+                } else {
+                    const iconLevel = Math.floor(capacity / 10) * 10;
+                    this.device.icon = `mdi:battery-${iconLevel}`;
+                }
+                return html`
+                        <div class="switchIconPlaceholder" @click=${() => this._showMoreInfo(this.device.battery_capacity_entity_id!)} style="cursor: pointer;">
+                            <ha-icon .icon=${this.device.icon} title="${capacity}%"></ha-icon>
+                        </div>
+                    `
+
+            }
+        } 
+        return html`
+                <div class="switchIconPlaceholder">
+                    <ha-icon .icon=${this.device.icon}></ha-icon>
+                </div>
+            `
+    }
 
     render() {
         const device = this.device;
@@ -164,11 +191,7 @@ export class PowerDevice extends LitElement {
                 ></state-badge>
             `;
         } else if (device.icon) {
-            iconDisplay = html`
-                <div class="switchIconPlaceholder">
-                    <ha-icon .icon=${device.icon}></ha-icon>
-                </div>
-            `;
+            iconDisplay = this.deviceIcon();
         } else {
             iconDisplay = html`<div class="switchIconPlaceholder"><ha-icon icon="mdi:border-none-variant" style=" color: var(--disabled-text-color);"></ha-icon></div>`;
         }

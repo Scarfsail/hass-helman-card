@@ -73,6 +73,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         batterySource.color = '#66BB6A60'; // Light green
         batterySource.isSource = true;
         batterySource.icon = 'mdi:battery';
+        batterySource.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         sourcesNode.children.push(batterySource);
     }
     if (grid?.entity_id) {
@@ -112,7 +113,8 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         const name = battery.consumption_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
         const batteryConsumer = new DeviceNode(name, battery.entity_id, null, history_buckets);
         batteryConsumer.valueType = 'positive';
-        batteryConsumer.icon = 'mdi:battery-charging';
+        batteryConsumer.icon = 'mdi:battery';
+        batteryConsumer.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         consumersNode.children.push(batteryConsumer);
     }
     if (grid?.entity_id) {

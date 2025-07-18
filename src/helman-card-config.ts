@@ -8,6 +8,9 @@ export interface PowerEntityConfig {
     power_switch_label?: string;
     unmeasured_power_title?: string;
 }
+export interface BatteryPowerEntityConfig extends PowerEntityConfig {
+    battery_capacity_entity_id?: string;
+}
 
 export interface HelmanCardConfig extends LovelaceCardConfig {
     sources_title?: string;
@@ -15,7 +18,7 @@ export interface HelmanCardConfig extends LovelaceCardConfig {
     power_entities: {
         house?: PowerEntityConfig;
         grid?: PowerEntityConfig;
-        battery?: PowerEntityConfig;
+        battery?: BatteryPowerEntityConfig;
         solar?: PowerEntityConfig;
     };
     power_sensor_name_cleaner_regex?: string;
