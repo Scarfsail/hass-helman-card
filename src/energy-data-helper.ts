@@ -238,6 +238,7 @@ export async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: numbe
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode = new DeviceNode(cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
         houseNode.children = tree;
+        houseNode.sortChildrenByPower = true; // Sort children by power
         houseNode.icon = 'mdi:home';
         //houseNode.childrenHidden = false;
         houseNode.children = tree;

@@ -122,4 +122,5 @@ export class DeviceNode {
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
     public isSource: boolean;
     public icon?: string;
+    public sortChildrenByPower?: boolean;
 }

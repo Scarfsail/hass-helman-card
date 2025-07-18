@@ -198,7 +198,7 @@ export class PowerDevice extends LitElement {
 
         const historyToRender = this.device.powerHistory;
         const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
-        const childrenToRender = device.children.length > 0 ? sortDevicesByPowerAndName(device.children) : [];
+        const childrenToRender = device.sortChildrenByPower ? (device.children.length > 0 ? sortDevicesByPowerAndName(device.children) : []) : device.children;
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
@@ -206,21 +206,21 @@ export class PowerDevice extends LitElement {
                 <div class="deviceContent ${isOff ? 'is-off' : ''}">
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
-                            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
-                            const sourceHistory = this.device.sourcePowerHistory?.[i];
-                            const hasSourceHistory = !device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
+            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
+            const sourceHistory = this.device.sourcePowerHistory?.[i];
+            const hasSourceHistory = !device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
 
-                            return html`
+            return html`
                                 <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
                                     ${hasSourceHistory ?
-                                        Object.values(sourceHistory).map(s => {
-                                            const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
-                                            return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
-                                        }) :
-                                        html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
-                                    }
+                    Object.values(sourceHistory).map(s => {
+                        const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
+                        return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
+                    }) :
+                    html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
+                }
                                 </div>`;
-                       })}
+        })}
                     </div>
                     ${iconDisplay}
                     <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
