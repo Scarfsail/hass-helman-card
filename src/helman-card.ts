@@ -27,7 +27,10 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return css`
             .card-content {
                 padding-right: 16px;
-                padding-left: 0px
+                padding-left: 0px;
+                display: flex;
+                flex-direction: column;
+                gap:5px
             }
         `;
     }
