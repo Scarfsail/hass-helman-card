@@ -49,7 +49,7 @@ export class PowerDevice extends LitElement {
         return css`
             :host([is-expanded]) {
                 flex-basis: 100%;
-                width: 100%;
+                width: 100%;            
             }
             :host(:not([is-expanded])) {
                 flex-basis: 0;
@@ -70,6 +70,7 @@ export class PowerDevice extends LitElement {
                 flex-wrap: wrap;
                 margin-top: 3px;
                 position: relative;
+                height: 100%;
             }
             .deviceContent {
                 display: flex;
@@ -80,6 +81,8 @@ export class PowerDevice extends LitElement {
                 border-radius: 10px;
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
+                
+                overflow: hidden; /* Prevents overflow if children are too wide */
             }
             
             .deviceContent.is-off {
@@ -103,11 +106,14 @@ export class PowerDevice extends LitElement {
                 cursor: pointer;
             }
             .powerDisplay {
-                flex-shrink: 0;
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
                 padding-right: 8px; /* Adds space between power and right edge */
                 position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                align-items: center;
                 z-index: 2;
                 text-shadow: 0px 0px 4px rgba(0,0,0,1);
             }
@@ -118,6 +124,7 @@ export class PowerDevice extends LitElement {
                 flex-basis: 100%;
                 flex-wrap: wrap;
                 padding-left: 20px; /* Aligns with the device name */
+                gap: 5px; /* Optional: adds some space between children */
             }
             .deviceChildren.full-width {
                 display: flex;
@@ -185,7 +192,7 @@ export class PowerDevice extends LitElement {
             }
         } 
         return html`
-                <div class="switchIconPlaceholder">
+                <div class="switchIconPlaceholder" @click=${this._toggleChildren}>
                     <ha-icon .icon=${this.device.icon}></ha-icon>
                 </div>
             `
@@ -243,7 +250,7 @@ export class PowerDevice extends LitElement {
         currentPercentage = (currentParentPower > 0) ? (currentPower / currentParentPower) * 100 : 0;
         percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
 
-        powerDisplay = html`<span class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>${percentageDisplay}${currentPower.toFixed(0)} W</span>`;
+        powerDisplay = html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}><div>${percentageDisplay}</div><div style="text-wrap: nowrap;">${currentPower.toFixed(0)} W</div></div>`;
 
 
         const historyToRender = this.device.powerHistory;
@@ -253,7 +260,7 @@ export class PowerDevice extends LitElement {
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
         const deviceContent = device.hideNode ? nothing : html`
-                <div class="deviceContent ${isOff ? 'is-off' : ''}">
+                <div class="deviceContent ${isOff ? 'is-off' : ''}" style=${isExpanded ? "":"height: 100%;"}>
                     <div class="historyContainer">
                         ${historyToRender.map((p, i) => {
             const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
@@ -273,7 +280,7 @@ export class PowerDevice extends LitElement {
         })}
                     </div>
                     ${iconDisplay}
-                    <span class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</span>
+                    <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
                     ${powerDisplay}
                 </div>
                 
