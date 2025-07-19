@@ -81,8 +81,11 @@ export class PowerDevice extends LitElement {
                 border-radius: 10px;
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
-                
+                height: 100%;
                 overflow: hidden; /* Prevents overflow if children are too wide */
+            }
+            :host([is-expanded]) .deviceContent {
+                height: auto;
             }
             
             .deviceContent.is-off {
@@ -119,6 +122,15 @@ export class PowerDevice extends LitElement {
             }
             .powerDisplay.has-sensor{
                 cursor: pointer;
+            }
+            .clickable {
+                cursor: pointer;
+            }
+            .no-wrap {
+                text-wrap: nowrap;
+            }
+            .disabled-icon {
+                color: var(--disabled-text-color);
             }
             .deviceChildren {
                 flex-basis: 100%;
@@ -170,27 +182,109 @@ export class PowerDevice extends LitElement {
             }
         `;
     }
+    private _getBatteryIcon(capacity: number): string {
+        if (capacity <= 10) {
+            return 'mdi:battery-outline';
+        }
+        if (capacity > 90) {
+            return 'mdi:battery';
+        }
+        const iconLevel = Math.floor(capacity / 10) * 10;
+        return `mdi:battery-${iconLevel}`;
+    }
+
+    private _renderIcon(): TemplateResult | typeof nothing {
+        const device = this.device;
+        if (device.switchEntityId) {
+            return html`
+                <state-badge
+                    .hass=${this.hass}
+                    .stateObj=${this.hass!.states[device.switchEntityId]}
+                    .stateColor=${true}
+                    @click=${() => this._showMoreInfo(device.switchEntityId!)}
+                ></state-badge>
+            `;
+        }
+        if (device.icon) {
+            return this.deviceIcon();
+        }
+        return html`<div class="switchIconPlaceholder"><ha-icon class="disabled-icon" icon="mdi:border-none-variant"></ha-icon></div>`;
+    }
+
+    private _renderPowerDisplay(): TemplateResult {
+        const device = this.device;
+        const currentPower = device.powerValue ?? 0;
+        let parentPower = this.currentParentPower;
+
+        if (!parentPower || parentPower === 0) {
+            parentPower = currentPower; // If no parent power, use current power as reference
+        }
+
+        const currentPercentage = (parentPower > 0) ? (currentPower / parentPower) * 100 : 0;
+        const percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
+
+        const onPowerClick = device.powerSensorId
+            ? () => this._showMoreInfo(device.powerSensorId!)
+            : () => { }; // No-op if no sensor
+
+        return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}><div>${percentageDisplay}</div><div class="no-wrap">${currentPower.toFixed(0)} W</div></div>`;
+    }
+
+    private _renderHistoryBars(historyToRender: number[], maxHistoryPower: number, historyBarColor: string): TemplateResult {
+        return html`
+            <div class="historyContainer">
+                ${historyToRender.map((p, i) => {
+            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
+            const sourceHistory = this.device.sourcePowerHistory?.[i];
+            const hasSourceHistory = !this.device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
+
+            return html`
+                        <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
+                            ${hasSourceHistory
+                    ? Object.values(sourceHistory).map(s => {
+                        const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
+                        return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
+                    })
+                    : html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
+                }
+                        </div>`;
+        })}
+            </div>
+        `;
+    }
+
+    private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
+        const device = this.device;
+        return html`
+            <div class="deviceChildren ${device.children_full_width ? 'full-width' : ''}" style="display: ${device.children_full_width ? 'block' : 'flex'};">
+                ${children.map((child) => keyed(`${device.name}-${child.name}`, html`
+                    <power-device
+                        .hass=${this.hass}
+                        .device=${child}
+                        .currentParentPower=${currentPower}
+                        .parentPowerHistory=${historyToRender}
+                        .historyBuckets=${this.historyBuckets}
+                        .historyBucketDuration=${this.historyBucketDuration}
+                    ></power-device>
+                `))}
+            </div>
+        `;
+    }
+
     deviceIcon() {
         if (this.device.battery_capacity_entity_id) {
-            const batteryCapacity = this.hass.states[this.device.battery_capacity_entity_id];
-            if (batteryCapacity) {
-                const capacity = parseFloat(batteryCapacity.state);
-                if (capacity <= 10) {
-                    this.device.icon = 'mdi:battery-outline';
-                } else if (capacity > 90) {
-                    this.device.icon = 'mdi:battery';
-                } else {
-                    const iconLevel = Math.floor(capacity / 10) * 10;
-                    this.device.icon = `mdi:battery-${iconLevel}`;
-                }
+            const batteryCapacityState = this.hass.states[this.device.battery_capacity_entity_id];
+            if (batteryCapacityState) {
+                const capacity = parseFloat(batteryCapacityState.state);
+                this.device.icon = this._getBatteryIcon(capacity);
+
                 return html`
-                        <div class="switchIconPlaceholder" @click=${() => this._showMoreInfo(this.device.battery_capacity_entity_id!)} style="cursor: pointer;">
+                        <div class="switchIconPlaceholder clickable" @click=${() => this._showMoreInfo(this.device.battery_capacity_entity_id!)}>
                             <ha-icon .icon=${this.device.icon} title="${capacity}%"></ha-icon>
                         </div>
                     `
-
             }
-        } 
+        }
         return html`
                 <div class="switchIconPlaceholder" @click=${this._toggleChildren}>
                     <ha-icon .icon=${this.device.icon}></ha-icon>
@@ -211,47 +305,14 @@ export class PowerDevice extends LitElement {
             this.removeAttribute('is-expanded');
         }
 
-        let currentParentPower = this.currentParentPower;
-        let powerDisplay = html`<span class="powerDisplay">No power sensor found</span>`;
-        let iconDisplay: TemplateResult | typeof nothing = nothing;
-
-        if (device.switchEntityId) {
-            iconDisplay = html`
-                <state-badge
-                    .hass=${this.hass}
-                    .stateObj=${this.hass!.states[device.switchEntityId]}
-                    .stateColor=${true}
-                    @click=${() => this._showMoreInfo(device.switchEntityId!)}
-                ></state-badge>
-            `;
-        } else if (device.icon) {
-            iconDisplay = this.deviceIcon();
-        } else {
-            iconDisplay = html`<div class="switchIconPlaceholder"><ha-icon icon="mdi:border-none-variant" style=" color: var(--disabled-text-color);"></ha-icon></div>`;
-        }
+        const powerDisplay = this._renderPowerDisplay();
+        const iconDisplay = this._renderIcon();
 
         const hasChildren = device.children.length > 0;
         const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
 
         const currentPower = this.device.powerValue ?? 0;
         const isOff = currentPower === 0;
-        let percentageDisplay: TemplateResult | typeof nothing = nothing;
-        let currentPercentage = 0;
-        let onPowerClick: () => void = () => false;
-
-        if (device.powerSensorId) {
-            onPowerClick = () => this._showMoreInfo(device.powerSensorId!)
-        }
-
-        if (!currentParentPower || currentParentPower == 0) {
-            currentParentPower = currentPower; // If no parent power, use current power as reference
-        }
-
-        currentPercentage = (currentParentPower > 0) ? (currentPower / currentParentPower) * 100 : 0;
-        percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
-
-        powerDisplay = html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}><div>${percentageDisplay}</div><div style="text-wrap: nowrap;">${currentPower.toFixed(0)} W</div></div>`;
-
 
         const historyToRender = this.device.powerHistory;
         const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
@@ -259,26 +320,10 @@ export class PowerDevice extends LitElement {
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
+        const historyBars = this._renderHistoryBars(historyToRender, maxHistoryPower, historyBarColor);
         const deviceContent = device.hideNode ? nothing : html`
-                <div class="deviceContent ${isOff ? 'is-off' : ''}" style=${isExpanded ? "":"height: 100%;"}>
-                    <div class="historyContainer">
-                        ${historyToRender.map((p, i) => {
-            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
-            const sourceHistory = this.device.sourcePowerHistory?.[i];
-            const hasSourceHistory = !device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
-
-            return html`
-                                <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
-                                    ${hasSourceHistory ?
-                    Object.values(sourceHistory).map(s => {
-                        const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
-                        return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
-                    }) :
-                    html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
-                }
-                                </div>`;
-        })}
-                    </div>
+                <div class="deviceContent ${isOff ? 'is-off' : ''}">
+                    ${historyBars}
                     ${iconDisplay}
                     <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
                     ${powerDisplay}
@@ -288,20 +333,7 @@ export class PowerDevice extends LitElement {
         return html`
             <div class="device">
                 ${deviceContent}
-                ${isExpanded ? html`
-                    <div class="deviceChildren ${device.children_full_width ? 'full-width' : ''}" style="display: ${device.children_full_width ? 'block' : 'flex'};">
-                        ${childrenToRender.map((child, idx) => keyed(`${device.name}-${child.name}`, html`
-                            <power-device
-                                .hass=${this.hass}
-                                .device=${child}
-                                .currentParentPower=${currentPower}
-                                .parentPowerHistory=${historyToRender}
-                                .historyBuckets=${this.historyBuckets}
-                                .historyBucketDuration=${this.historyBucketDuration}
-                            ></power-device>
-                        `))}
-                    </div>
-                ` : nothing}
+                ${isExpanded ? this._renderChildren(childrenToRender, currentPower, historyToRender) : nothing}
             </div>
         `;
     }
