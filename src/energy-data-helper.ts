@@ -134,8 +134,6 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
 }
 
 async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string): Promise<DeviceNode[]> {
-    console.time("Helman Card: fetchDeviceTree");
-    console.time("Helman Card: fetchDeviceTree - API calls");
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -150,9 +148,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
             { type: "config/label_registry/list" }
         ),
     ]);
-    console.timeEnd("Helman Card: fetchDeviceTree - API calls");
 
-    console.time("Helman Card: fetchDeviceTree - Device mapping");
     const deviceMap = new Map<string, DeviceNode>();
 
     // Create all nodes and put them in a map
@@ -225,9 +221,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         }
         deviceMap.set(source.stat_consumption, node);
     }
-    console.timeEnd("Helman Card: fetchDeviceTree - Device mapping");
 
-    console.time("Helman Card: fetchDeviceTree - Tree building");
     let tree: DeviceNode[] = [];
     for (const source of energyPrefs.device_consumption) {
         const deviceNode = deviceMap.get(source.stat_consumption);
@@ -260,8 +254,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
     for (const node of tree) {
         inspectNodeAndAddUnmeasuredNodeToChildren(node, historyBuckets, unmeasuredPowerTitle);
     }
-    console.timeEnd("Helman Card: fetchDeviceTree - Tree building");
-    console.timeEnd("Helman Card: fetchDeviceTree");
+
     return tree;
 }
 
@@ -278,8 +271,6 @@ function inspectNodeAndAddUnmeasuredNodeToChildren(node: DeviceNode, historyBuck
 
 
 export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass: HomeAssistant, historyIntervals: number, bucketDuration: number): Promise<void> {
-    console.time("Helman Card: enrichDeviceTreeWithHistory");
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Collect nodes");
     const nodesWithSensors = new Map<string, DeviceNode[]>();
     const allNodes: DeviceNode[] = [];
     const sourceNodes: DeviceNode[] = [];
@@ -303,19 +294,16 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
     }
 
     collectNodes(deviceTree);
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Collect nodes");
 
     allNodes.forEach(n => n.powerHistory = []);
 
     if (nodesWithSensors.size === 0) {
-        console.timeEnd("Helman Card: enrichDeviceTreeWithHistory");
         return;
     }
 
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - historyIntervals * bucketDuration * 1000);
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - History API call");
     const historyResult = await hass.connection.sendMessagePromise<{ [entityId: string]: { s: number; lu: number }[] }>({
         type: 'history/history_during_period',
         entity_ids: Array.from(nodesWithSensors.keys()),
@@ -324,9 +312,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
         minimal_response: true,
         no_attributes: true,
     });
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - History API call");
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Process history");
     for (const entityId in historyResult) {
         const history = historyResult[entityId];
         if (!history || history.length === 0) continue;
@@ -367,9 +353,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             });
         }
     }
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Process history");
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Calculate virtual node history");
     // Calculate powerHistory for virtual nodes by summing up children
     function calculateVirtualNodeHistory(node: DeviceNode) {
         if (node.isVirtual) {
@@ -394,9 +378,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
     for (const root of deviceTree) {
         calculateVirtualNodeHistory(root);
     }
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Calculate virtual node history");
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Calculate source ratios");
     // Calculate source ratios for each bucket
     const totalSourcePowerByBucket: number[] = Array(historyIntervals).fill(0);
     for (let i = 0; i < historyIntervals; i++) {
@@ -404,9 +386,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             totalSourcePowerByBucket[i] += sourceNode.powerHistory[i] || 0;
         }
     }
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Calculate source ratios");
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Assign source power history");
     // Assign source power history to all non-source nodes
     for (const node of allNodes) {
         if (node.isSource) {
@@ -431,15 +411,11 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             node.sourcePowerHistory.push(bucketSourcePower);
         }
     }
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Assign source power history");
 
 
-    console.time("Helman Card: enrichDeviceTreeWithHistory - Enrich unmeasured");
     for (const node of allNodes) {
         enrichUnmeasuredDeviceTreeWithHistory(node);
     }
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory - Enrich unmeasured");
-    console.timeEnd("Helman Card: enrichDeviceTreeWithHistory");
 }
 
 function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
