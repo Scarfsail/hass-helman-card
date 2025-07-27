@@ -5,6 +5,7 @@ import type { HomeAssistant } from "../hass-frontend/src/types";
 import { sortDevicesByPowerAndName } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
+import "./power-devices-container";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
@@ -136,22 +137,6 @@ export class PowerDevice extends LitElement {
             .disabled-icon {
                 color: var(--disabled-text-color);
             }
-            .deviceChildren {
-                flex-basis: 100%;
-                flex-wrap: wrap;
-                padding-left: 20px; /* Aligns with the device name */
-                gap: 5px; /* Optional: adds some space between children */
-            }
-            .deviceChildren.full-width {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 5px; /* Optional: adds some space between children */
-            }
-            .deviceChildren.full-width > power-device {
-                flex-grow: 1;
-                flex-basis: 0;
-                min-width: 150px; /* Optional: prevent children from becoming too small */
-            }
             .powerPercentages{
                 font-size: 0.7em;
                 margin-right: 4px; /* Adds space between percentage and power value */
@@ -260,18 +245,15 @@ export class PowerDevice extends LitElement {
     private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
         const device = this.device;
         return html`
-            <div class="deviceChildren ${device.children_full_width ? 'full-width' : ''}" style="display: ${device.children_full_width ? 'block' : 'flex'};">
-                ${children.map((child) => keyed(`${device.name}-${child.name}`, html`
-                    <power-device
-                        .hass=${this.hass}
-                        .device=${child}
-                        .currentParentPower=${currentPower}
-                        .parentPowerHistory=${historyToRender}
-                        .historyBuckets=${this.historyBuckets}
-                        .historyBucketDuration=${this.historyBucketDuration}
-                    ></power-device>
-                `))}
-            </div>
+            <power-devices-container
+                .hass=${this.hass}
+                .devices=${children}
+                .currentParentPower=${currentPower}
+                .parentPowerHistory=${historyToRender}
+                .historyBuckets=${this.historyBuckets}
+                .historyBucketDuration=${this.historyBucketDuration}
+                .devices_full_width=${device.children_full_width}
+            ></power-devices-container>
         `;
     }
 

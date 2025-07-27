@@ -6,6 +6,7 @@ import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
 import { fetchSourceAndConsumerRoots, enrichDeviceTreeWithHistory } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
+import "./power-devices-container";
 import { HelmanCardConfig } from "./helman-card-config";
 
 @customElement("helman-card")
@@ -109,14 +110,12 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return html`
             <ha-card>
                 <div class="card-content">
-                    ${this._deviceTree.map(device => keyed(device.id, html`
-                        <power-device
-                            .hass=${this._hass!}
-                            .device=${device}
-                            .historyBuckets=${this.config.history_buckets}
-                            .historyBucketDuration=${this.config.history_bucket_duration}
-                        ></power-device>
-                    `))}
+                    <power-devices-container
+                        .hass=${this._hass!}
+                        .devices=${this._deviceTree}
+                        .historyBuckets=${this.config.history_buckets}
+                        .historyBucketDuration=${this.config.history_bucket_duration}
+                    ></power-devices-container>
                 </div>
             </ha-card>
         `;
