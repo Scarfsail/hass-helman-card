@@ -16,12 +16,12 @@ export class PowerDevice extends LitElement {
     @property({ type: Number }) public historyBucketDuration!: number;
     @property({ attribute: false }) public parentPowerHistory?: number[];
 
-    @state() private _childrenHidden = true;
+    @state() private _childrenCollapsed = true;
 
 
 
     firstUpdated() {
-        this._childrenHidden = this.device.childrenHidden ?? true; // Default to true if not set
+        this._childrenCollapsed = this.device.childrenCollapsed ?? true; // Default to true if not set
     }
 
 
@@ -41,8 +41,8 @@ export class PowerDevice extends LitElement {
 
     private _toggleChildren() {
         if (this.device.children.length > 0) {
-            this._childrenHidden = !this._childrenHidden;
-            this.device.childrenHidden = this._childrenHidden; // Update the device state to reflect the visibility
+            this._childrenCollapsed = !this._childrenCollapsed;
+            this.device.childrenCollapsed = this._childrenCollapsed; // Update the device state to reflect the visibility
         }
     }
 
@@ -56,7 +56,7 @@ export class PowerDevice extends LitElement {
                 flex-basis: 0;
                 flex-grow: 1;
                 flex-shrink: 1;
-            }            
+            }
             .switchIconPlaceholder {
                 width: 40px;
                 height: 40px;
@@ -72,6 +72,7 @@ export class PowerDevice extends LitElement {
                 margin-top: 3px;
                 position: relative;
                 height: 100%;
+                height: 100%;
             }
             .deviceContent {
                 display: flex;
@@ -86,6 +87,7 @@ export class PowerDevice extends LitElement {
 
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
+                height: 100%;
                 height: 100%;
                 overflow: hidden; /* Prevents overflow if children are too wide */
             }
@@ -169,6 +171,10 @@ export class PowerDevice extends LitElement {
             .historyBarSegment {
                 width: 100%;
             }
+            .childrenContainer{
+                padding-left: 10px;
+                width:100%;
+            }
         `;
     }
     private _getBatteryIcon(capacity: number): string {
@@ -245,15 +251,18 @@ export class PowerDevice extends LitElement {
     private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
         const device = this.device;
         return html`
-            <power-devices-container
-                .hass=${this.hass}
-                .devices=${children}
-                .currentParentPower=${currentPower}
-                .parentPowerHistory=${historyToRender}
-                .historyBuckets=${this.historyBuckets}
-                .historyBucketDuration=${this.historyBucketDuration}
-                .devices_full_width=${device.children_full_width}
-            ></power-devices-container>
+            <div class="childrenContainer">
+                <power-devices-container
+                    .hass=${this.hass}
+                    .devices=${children}
+                    .currentParentPower=${currentPower}
+                    .parentPowerHistory=${historyToRender}
+                    .historyBuckets=${this.historyBuckets}
+                    .historyBucketDuration=${this.historyBucketDuration}
+                    .devices_full_width=${device.children_full_width}
+                    .sortChildrenByPower=${device.sortChildrenByPower}
+                ></power-devices-container>
+            </div>
         `;
     }
 
@@ -284,25 +293,27 @@ export class PowerDevice extends LitElement {
             return nothing; // Do not render unmeasured devices with power < 1W
         }
 
-        const isExpanded = !this._childrenHidden && device.children.length > 0;
-        if (isExpanded) {
-            this.setAttribute('is-expanded', '');
-        } else {
-            this.removeAttribute('is-expanded');
+        const isExpanded = !this._childrenCollapsed && device.children.length > 0;
+        if (!this.device.hideChildren) {
+            if (isExpanded) {
+                this.setAttribute('is-expanded', '');
+            } else {
+                this.removeAttribute('is-expanded');
+            }
         }
 
         const powerDisplay = this._renderPowerDisplay();
         const iconDisplay = this._renderIcon();
 
-        const hasChildren = device.children.length > 0;
-        const indicator = hasChildren ? (this._childrenHidden ? '►' : '▼') : '';
+        const hasChildren = device.children.length > 0 && !device.hideChildrenIndicator;
+        const indicator = hasChildren ? (this._childrenCollapsed ? '►' : '▼') : '';
 
         const currentPower = this.device.powerValue ?? 0;
         const isOff = currentPower === 0;
 
         const historyToRender = this.device.powerHistory;
         const maxHistoryPower = this.parentPowerHistory ? Math.max(...this.parentPowerHistory) : Math.max(...historyToRender);
-        const childrenToRender = device.sortChildrenByPower ? (device.children.length > 0 ? sortDevicesByPowerAndName(device.children) : []) : device.children;
+        const childrenToRender = device.children;
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
@@ -319,7 +330,7 @@ export class PowerDevice extends LitElement {
         return html`
             <div class="device">
                 ${deviceContent}
-                ${isExpanded ? this._renderChildren(childrenToRender, currentPower, historyToRender) : nothing}
+                ${isExpanded && !this.device.hideChildren ? this._renderChildren(childrenToRender, currentPower, historyToRender) : nothing}
             </div>
         `;
     }

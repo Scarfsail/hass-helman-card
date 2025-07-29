@@ -55,7 +55,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     const sourcesNode = new DeviceNode("sources", sources_title ?? "Energy Sources", null, null, history_buckets);
     sourcesNode.isVirtual = true;
     sourcesNode.hideNode = true;
-    sourcesNode.childrenHidden = false;
+    sourcesNode.childrenCollapsed = false;
     sourcesNode.icon = 'mdi:lightning-bolt-outline';
 
     if (solar?.entity_id) {
@@ -93,7 +93,8 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     // --- CONSUMERS ---
     const consumersNode = new DeviceNode("consumers", consumers_title ?? "Energy Consumers", null, null, history_buckets);
     consumersNode.isVirtual = true;
-    consumersNode.childrenHidden = false;
+    consumersNode.hideChildren = true;
+    consumersNode.hideChildrenIndicator = true;
     consumersNode.icon = 'mdi:lightning-bolt-outline';
 
     if (house?.entity_id) {
@@ -215,6 +216,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         const cleanedName = cleanDeviceName(name, powerSensorNameCleanerRegex);
 
         const node = new DeviceNode(cleanedName, cleanedName, powerSensorId, switchEntityId, historyBuckets);
+        node.children_full_width = true;
         const powerSensorState = hass.states[powerSensorId];
         if (powerSensorState?.attributes.icon) {
             node.icon = powerSensorState.attributes.icon;
@@ -241,6 +243,8 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         const housePowerSensorName = "" //houseName ?? (hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId);
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
+        houseNode.hideChildren = true; // Hide children by default
+        houseNode.hideChildrenIndicator = true; // Hide the indicator for children
         houseNode.children = tree;
         houseNode.sortChildrenByPower = true; // Sort children by power
         houseNode.icon = 'mdi:home';

@@ -15,6 +15,7 @@ export interface BatteryPowerEntityConfig extends PowerEntityConfig {
 export interface HelmanCardConfig extends LovelaceCardConfig {
     sources_title?: string;
     consumers_title?: string;
+    max_power?:number;
     power_entities: {
         house?: PowerEntityConfig;
         grid?: PowerEntityConfig;
