@@ -29,7 +29,8 @@ export class PowerDevicesContainer extends LitElement {
             .container.full-width {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 5px; /* Optional: adds some space between children */
+                flex-direction:column;
+                gap: 5px;
             }
             .container.full-width > power-device {
                 flex-grow: 1;
@@ -45,7 +46,7 @@ export class PowerDevicesContainer extends LitElement {
             devicesToRender = devicesToRender.slice(0, this.show_only_top_children);
         }
         return html`
-            <div class="container ${this.devices_full_width ? 'full-width' : ''}" style="display: ${this.devices_full_width ? 'block' : ''};">
+            <div class="container ${this.devices_full_width ? 'full-width' : ''}">
                 ${devicesToRender.map((device) => keyed(device.id, html`
                     <power-device
                         .hass=${this.hass}

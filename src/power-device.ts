@@ -70,7 +70,6 @@ export class PowerDevice extends LitElement {
                 display: flex;
                 align-items: center;
                 flex-wrap: wrap;
-                margin-top: 3px;
                 position: relative;
             }
             .deviceContent {

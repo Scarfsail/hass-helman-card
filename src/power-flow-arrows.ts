@@ -13,7 +13,7 @@ export class PowerFlowArrows extends LitElement {
             .container {
                 display: flex;
                 flex-direction: row;
-                gap: 10px;
+                gap: 5px;
                 justify-content: space-evenly;
             }
             .device-container {
@@ -24,7 +24,7 @@ export class PowerFlowArrows extends LitElement {
             .animated-arrow {
                 position: relative;
                 width: 100%;
-                height: 10px;
+                height: 20px;
                 margin: 0 auto;
             }
             .strip {
