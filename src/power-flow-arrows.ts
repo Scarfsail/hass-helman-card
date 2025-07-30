@@ -24,8 +24,10 @@ export class PowerFlowArrows extends LitElement {
             .animated-arrow {
                 position: relative;
                 width: 100%;
-                height: 20px;
+                height: 22px;
                 margin: 0 auto;
+                border-radius: 2px;
+                overflow: hidden;
             }
             .strip {
                 position: absolute;
