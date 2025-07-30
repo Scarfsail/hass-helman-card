@@ -50,7 +50,8 @@ export class PowerDevice extends LitElement {
         return css`
             :host([is-expanded]) {
                 flex-basis: 100%;
-                width: 100%;            
+                width: 100%;
+                height: 100%;
             }
             :host(:not([is-expanded])) {
                 flex-basis: 0;
@@ -71,8 +72,6 @@ export class PowerDevice extends LitElement {
                 flex-wrap: wrap;
                 margin-top: 3px;
                 position: relative;
-                height: 100%;
-                height: 100%;
             }
             .deviceContent {
                 display: flex;
@@ -87,8 +86,6 @@ export class PowerDevice extends LitElement {
 
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
-                height: 100%;
-                height: 100%;
                 overflow: hidden; /* Prevents overflow if children are too wide */
             }
             :host([is-expanded]) .deviceContent {
@@ -222,7 +219,10 @@ export class PowerDevice extends LitElement {
             ? () => this._showMoreInfo(device.powerSensorId!)
             : () => { }; // No-op if no sensor
 
-        return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}><div>${percentageDisplay}</div><div class="no-wrap">${currentPower.toFixed(0)} W</div></div>`;
+        return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.device.compact ? 'flex-direction: column; align-items: center;' : ''}">
+                        <div>${percentageDisplay}</div>
+                        <div class="no-wrap">${currentPower.toFixed(0)} W</div>
+                    </div>`;
     }
 
     private _renderHistoryBars(historyToRender: number[], maxHistoryPower: number, historyBarColor: string): TemplateResult {

@@ -1,7 +1,7 @@
 import type { HomeAssistant } from "../hass-frontend/src/types";
 
 export class DeviceNode {
-    constructor(id:string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
+    constructor(id: string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
         this.id = id;
         this.name = name;
         this.powerSensorId = powerSensorId;
@@ -106,7 +106,7 @@ export class DeviceNode {
         }
 
     }
-    public id:string;
+    public id: string;
     public name: string;
     public powerSensorId: string | null;
     public switchEntityId: string | null;
@@ -121,12 +121,13 @@ export class DeviceNode {
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
     public valueType: 'positive' | 'negative' | 'default';
     public isVirtual: boolean;
-    
+
     public color?: string;
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
     public isSource: boolean;
     public icon?: string;
     public sortChildrenByPower?: boolean;
     public battery_capacity_entity_id?: string;
+    public compact?: boolean; // Indicates if the device should be displayed in a compact mode
     public children_full_width?: boolean; // Indicates if the device should take full width in the UI
 }
