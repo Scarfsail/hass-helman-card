@@ -6,6 +6,7 @@ import { sortDevicesByPowerAndName } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
+import "./power-device-history-bars";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
@@ -145,28 +146,6 @@ export class PowerDevice extends LitElement {
                 position: relative;
                 z-index: 2;
             }
-            .historyContainer {
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                display: flex;
-                flex-direction: row;
-                align-items: flex-end;
-                pointer-events: none;
-                overflow: hidden;
-                border-radius: 10px;
-                z-index: 1;
-            }
-            .historyBarContainer {
-                flex-grow: 1;
-                display: flex;
-                flex-direction: column-reverse; /* To stack from bottom up */
-            }
-            .historyBarSegment {
-                width: 100%;
-            }
             .childrenContainer{
                 padding-left: 10px;
                 width:100%;
@@ -222,29 +201,6 @@ export class PowerDevice extends LitElement {
                         <div>${percentageDisplay}</div>
                         <div class="no-wrap">${currentPower.toFixed(0)} W</div>
                     </div>`;
-    }
-
-    private _renderHistoryBars(historyToRender: number[], maxHistoryPower: number, historyBarColor: string): TemplateResult {
-        return html`
-            <div class="historyContainer">
-                ${historyToRender.map((p, i) => {
-            const hPercentage = maxHistoryPower && maxHistoryPower > 0 ? (p / maxHistoryPower) * 100 : 0;
-            const sourceHistory = this.device.sourcePowerHistory?.[i];
-            const hasSourceHistory = !this.device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
-
-            return html`
-                        <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
-                            ${hasSourceHistory
-                    ? Object.values(sourceHistory).map(s => {
-                        const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
-                        return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
-                    })
-                    : html`<div class="historyBarSegment" style="height: 100%; background-color: ${historyBarColor};"></div>`
-                }
-                        </div>`;
-        })}
-            </div>
-        `;
     }
 
     private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
@@ -316,7 +272,12 @@ export class PowerDevice extends LitElement {
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
-        const historyBars = this._renderHistoryBars(historyToRender, maxHistoryPower, historyBarColor);
+        const historyBars = html`<power-device-history-bars 
+                                    .device=${this.device}
+                                    .historyToRender=${historyToRender}
+                                    .maxHistoryPower=${maxHistoryPower}
+                                    .historyBarColor=${historyBarColor}>
+                                 </power-device-history-bars>`;
         const deviceContent = device.hideNode ? nothing : html`
                 <div class="deviceContent ${isOff ? 'is-off' : ''}">
                     ${historyBars}
