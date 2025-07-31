@@ -16,7 +16,7 @@ export class PowerFlowArrows extends LitElement {
                 gap: 5px;
                 justify-content: space-evenly;
             }
-            .device-container {
+            .item-container {
                 flex: 1;
                 min-width: 0;
                 text-align: center;
@@ -61,11 +61,11 @@ export class PowerFlowArrows extends LitElement {
             <div class="container">
                 ${this.devices.map((device) => {
                     if (!device?.powerValue || device.powerValue <= 0.4) {
-                        return html`<div class="device-container"></div>`;
+                        return html`<div class="item-container"></div>`;
                     }
                     const widthPercentage = Math.min((device.powerValue / this.maxPower) * 100, 100);
                     return html`
-                        <div class="device-container">
+                        <div class="item-container">
                             <div class="animated-arrow" style="width: ${widthPercentage}%">
                                 ${Array.from({ length: 10 }).map((_, i) => html`<div class="strip" style="--index: ${i}"></div>`)}
                             </div>

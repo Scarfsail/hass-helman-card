@@ -1,5 +1,6 @@
 import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { keyed } from 'lit/directives/keyed.js';
+import { styleMap } from 'lit/directives/style-map.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { sortDevicesByPowerAndName } from "./energy-data-helper";
@@ -72,7 +73,7 @@ export class PowerDevice extends LitElement {
                 align-items: center;
                 flex-basis: 100%;
                 min-width: 0; /* Prevents text overflow issues */
-                box-shadow: 0 2px 7px rgba(0,0,0,0.8);
+                box-shadow: 0 2px 7px var(--device-shadow-color, rgba(0,0,0,0.8));
                 border-radius: var(--ha-card-border-radius, 12px);
                 border-width: var(--ha-card-border-width, 1px);
                 border-style: solid;
@@ -91,7 +92,7 @@ export class PowerDevice extends LitElement {
             }
 
             .deviceContent:hover {
-                box-shadow: 0 4px 14px rgba(0,0,0,0.8);
+                box-shadow: 0 4px 14px var(--device-shadow-color, rgba(0,0,0,0.8));
                 transform: scale(1.01);
             }
             .deviceName {
@@ -159,10 +160,10 @@ export class PowerDevice extends LitElement {
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
         const deviceContent = device.hideNode ? nothing : html`
-                <div class="deviceContent ${isOff ? 'is-off' : ''}">
+                <div class="deviceContent ${isOff ? 'is-off' : ''}" style=${styleMap(this.device.color ? {'--device-shadow-color': this.device.color} : {})}>
                     <power-device-history-bars 
                         .device=${this.device}
-                        .historyToRender=${historyToRender}
+                        .historyToRender=${[...historyToRender]}
                         .maxHistoryPower=${maxHistoryPower}
                         .historyBarColor=${historyBarColor}>
                     </power-device-history-bars>
