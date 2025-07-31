@@ -7,6 +7,7 @@ import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
 import "./power-device-history-bars";
+import "./power-device-icon";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
@@ -152,34 +153,6 @@ export class PowerDevice extends LitElement {
             }
         `;
     }
-    private _getBatteryIcon(capacity: number): string {
-        if (capacity <= 10) {
-            return 'mdi:battery-outline';
-        }
-        if (capacity > 90) {
-            return 'mdi:battery';
-        }
-        const iconLevel = Math.floor(capacity / 10) * 10;
-        return `mdi:battery-${iconLevel}`;
-    }
-
-    private _renderIcon(): TemplateResult | typeof nothing {
-        const device = this.device;
-        if (device.switchEntityId) {
-            return html`
-                <state-badge
-                    .hass=${this.hass}
-                    .stateObj=${this.hass!.states[device.switchEntityId]}
-                    .stateColor=${true}
-                    @click=${() => this._showMoreInfo(device.switchEntityId!)}
-                ></state-badge>
-            `;
-        }
-        if (device.icon) {
-            return this.deviceIcon();
-        }
-        return html`<div class="switchIconPlaceholder"><ha-icon class="disabled-icon" icon="mdi:border-none-variant"></ha-icon></div>`;
-    }
 
     private _renderPowerDisplay(): TemplateResult {
         const device = this.device;
@@ -221,27 +194,6 @@ export class PowerDevice extends LitElement {
         `;
     }
 
-    deviceIcon() {
-        if (this.device.battery_capacity_entity_id) {
-            const batteryCapacityState = this.hass.states[this.device.battery_capacity_entity_id];
-            if (batteryCapacityState) {
-                const capacity = parseFloat(batteryCapacityState.state);
-                this.device.icon = this._getBatteryIcon(capacity);
-
-                return html`
-                        <div class="switchIconPlaceholder clickable" @click=${() => this._showMoreInfo(this.device.battery_capacity_entity_id!)}>
-                            <ha-icon .icon=${this.device.icon} title="${capacity}%"></ha-icon>
-                        </div>
-                    `
-            }
-        }
-        return html`
-                <div class="switchIconPlaceholder" @click=${this._toggleChildren}>
-                    <ha-icon .icon=${this.device.icon}></ha-icon>
-                </div>
-            `
-    }
-
     render() {
         const device = this.device;
         if (device.isUnmeasured && (device.powerValue == undefined || device.powerValue < 1)) {
@@ -258,7 +210,12 @@ export class PowerDevice extends LitElement {
         }
 
         const powerDisplay = this._renderPowerDisplay();
-        const iconDisplay = this._renderIcon();
+        const iconDisplay = html`<power-device-icon 
+                                    .hass=${this.hass} 
+                                    .device=${this.device}
+                                    @toggle-children=${this._toggleChildren}
+                                    @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                                 ></power-device-icon>`;
 
         const hasChildren = device.children.length > 0 && !device.hideChildrenIndicator;
         const indicator = hasChildren ? (this._childrenCollapsed ? '►' : '▼') : '';
