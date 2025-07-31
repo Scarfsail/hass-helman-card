@@ -8,6 +8,7 @@ import "./power-device";
 import "./power-devices-container";
 import "./power-device-history-bars";
 import "./power-device-icon";
+import "./power-device-power-display";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
@@ -60,14 +61,6 @@ export class PowerDevice extends LitElement {
                 flex-grow: 1;
                 flex-shrink: 1;
             }
-            .switchIconPlaceholder {
-                width: 40px;
-                height: 40px;
-                flex-shrink: 0;
-                display:inline-flex;
-                align-items: center;
-                justify-content: center;
-            }
             .device {
                 display: flex;
                 align-items: center;
@@ -113,67 +106,11 @@ export class PowerDevice extends LitElement {
             .deviceName.has-children {
                 cursor: pointer;
             }
-            .powerDisplay {
-                margin-left: auto; /* Aligns to the right */
-                padding-left: 8px; /* Adds space between name and power */
-                padding-right: 8px; /* Adds space between power and right edge */
-                position: relative;
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: flex-end;
-                align-items: center;
-                z-index: 2;
-                text-shadow: 0px 0px 4px rgba(0,0,0,1);
-            }
-            .powerDisplay.has-sensor{
-                cursor: pointer;
-            }
-            .clickable {
-                cursor: pointer;
-            }
-            .no-wrap {
-                text-wrap: nowrap;
-            }
-            .disabled-icon {
-                color: var(--disabled-text-color);
-            }
-            .powerPercentages{
-                font-size: 0.7em;
-                margin-right: 4px; /* Adds space between percentage and power value */
-            }
-            state-badge {
-                cursor: pointer;
-                flex-shrink: 0;
-                position: relative;
-                z-index: 2;
-            }
             .childrenContainer{
                 padding-left: 10px;
                 width:100%;
             }
         `;
-    }
-
-    private _renderPowerDisplay(): TemplateResult {
-        const device = this.device;
-        const currentPower = device.powerValue ?? 0;
-        let parentPower = this.currentParentPower;
-
-        if (!parentPower || parentPower === 0) {
-            parentPower = currentPower; // If no parent power, use current power as reference
-        }
-
-        const currentPercentage = (parentPower > 0) ? (currentPower / parentPower) * 100 : 0;
-        const percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
-
-        const onPowerClick = device.powerSensorId
-            ? () => this._showMoreInfo(device.powerSensorId!)
-            : () => { }; // No-op if no sensor
-
-        return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.device.compact ? 'flex-direction: column; align-items: center;' : ''}">
-                        <div>${percentageDisplay}</div>
-                        <div class="no-wrap">${currentPower.toFixed(0)} W</div>
-                    </div>`;
     }
 
     private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
@@ -209,14 +146,6 @@ export class PowerDevice extends LitElement {
             }
         }
 
-        const powerDisplay = this._renderPowerDisplay();
-        const iconDisplay = html`<power-device-icon 
-                                    .hass=${this.hass} 
-                                    .device=${this.device}
-                                    @toggle-children=${this._toggleChildren}
-                                    @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
-                                 ></power-device-icon>`;
-
         const hasChildren = device.children.length > 0 && !device.hideChildrenIndicator;
         const indicator = hasChildren ? (this._childrenCollapsed ? '►' : '▼') : '';
 
@@ -229,18 +158,26 @@ export class PowerDevice extends LitElement {
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
-        const historyBars = html`<power-device-history-bars 
-                                    .device=${this.device}
-                                    .historyToRender=${historyToRender}
-                                    .maxHistoryPower=${maxHistoryPower}
-                                    .historyBarColor=${historyBarColor}>
-                                 </power-device-history-bars>`;
         const deviceContent = device.hideNode ? nothing : html`
                 <div class="deviceContent ${isOff ? 'is-off' : ''}">
-                    ${historyBars}
-                    ${iconDisplay}
+                    <power-device-history-bars 
+                        .device=${this.device}
+                        .historyToRender=${historyToRender}
+                        .maxHistoryPower=${maxHistoryPower}
+                        .historyBarColor=${historyBarColor}>
+                    </power-device-history-bars>
+                    <power-device-icon 
+                        .hass=${this.hass} 
+                        .device=${this.device}
+                        @toggle-children=${this._toggleChildren}
+                        @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                    ></power-device-icon>
                     <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
-                    ${powerDisplay}
+                    <power-device-power-display
+                        .device=${this.device}
+                        .currentParentPower=${this.currentParentPower}
+                        @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                    ></power-device-power-display>
                 </div>
                 
         `
