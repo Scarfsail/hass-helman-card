@@ -160,7 +160,7 @@ export class PowerDevice extends LitElement {
 
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
-        const deviceContent = device.hideNode ? nothing : html`
+        const deviceContent = html`
                 <div class="deviceContent ${isOff ? 'is-off' : ''}" style=${styleMap(this.device.color ? {'--device-shadow-color': this.device.color} : {})}>
                     <power-device-history-bars 
                         .device=${this.device}

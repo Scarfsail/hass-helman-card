@@ -54,7 +54,6 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     // --- SOURCES ---
     const sourcesNode = new DeviceNode("sources", sources_title ?? "Energy Sources", null, null, history_buckets);
     sourcesNode.isVirtual = true;
-    sourcesNode.hideNode = true;
     sourcesNode.childrenCollapsed = false;
     sourcesNode.icon = 'mdi:lightning-bolt-outline';
 

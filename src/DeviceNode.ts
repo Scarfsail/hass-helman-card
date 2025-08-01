@@ -115,7 +115,6 @@ export class DeviceNode {
     public childrenCollapsed?: boolean;
     public hideChildren?: boolean; // Indicates if children should be hidden in the UI
     public hideChildrenIndicator?: boolean; // Indicates if a button to show/hide children should be displayed
-    public hideNode?: boolean; // Indicates if this node should be hidden in the UI
     public powerHistory: number[] = [];
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
