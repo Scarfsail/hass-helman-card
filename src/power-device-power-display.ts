@@ -62,9 +62,12 @@ export class PowerDevicePowerDisplay extends LitElement {
             ? () => this._showMoreInfo(device.powerSensorId!)
             : () => { }; // No-op if no sensor
 
+        const powerValue = currentPower >= 1000 ? (currentPower / 1000).toFixed(1) : currentPower.toFixed(0);
+        const powerUnit = currentPower >= 1000 ? "kW" : "W";
+
         return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.device.compact ? 'flex-direction: column; align-items: center;' : ''}">
                         <div>${percentageDisplay}</div>
-                        <div class="no-wrap">${currentPower.toFixed(0)} W</div>
+                        <div class="no-wrap">${powerValue} ${powerUnit}</div>
                     </div>`;
     }
 }
