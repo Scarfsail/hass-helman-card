@@ -37,7 +37,7 @@ export class PowerFlowArrows extends LitElement {
                 background-color: transparent;
                 animation: flow 1.0s linear infinite;
                 top: calc(var(--index) * 10%);
-                animation-delay: calc(var(--index) * 0.2s);
+                animation-delay: calc(var(--index) * 0.15s);
                 transform: translateY(-10px);
             }
 
