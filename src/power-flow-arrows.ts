@@ -26,7 +26,7 @@ export class PowerFlowArrows extends LitElement {
                 width: 100%;
                 height: 22px;
                 margin: 0 auto;
-                border-radius: 2px;
+                border-radius: 0px;
                 overflow: hidden;
             }
             .strip {
@@ -34,20 +34,30 @@ export class PowerFlowArrows extends LitElement {
                 left: 0;
                 right: 0;
                 height: 10%;
-                background-color: rgba(192, 192, 192, 0.2);
-                animation: flow 1.5s linear infinite;
+                background-color: transparent;
+                animation: flow 1.0s linear infinite;
                 top: calc(var(--index) * 10%);
-                animation-delay: calc(var(--index) * 0.1s);
+                animation-delay: calc(var(--index) * 0.2s);
+                transform: translateY(-10px);
             }
 
             @keyframes flow {
-                0%, 100% {
+                0% {
                     background-color: rgba(192, 192, 192, 0.2);
                     box-shadow: none;
+                    opacity: 0;
+                    transform: translateY(-10px);
                 }
                 50% {
                     background-color: rgba(220, 220, 220, 1);
                     box-shadow: 0 0 5px rgba(220, 220, 220, 0.8);
+                    opacity: 1;
+                }
+                100% {
+                    background-color: rgba(192, 192, 192, 0.2);
+                    box-shadow: none;
+                    opacity: 0;
+                    transform: translateY(10px);
                 }
             }
         `;
