@@ -69,6 +69,7 @@ export class PowerDevice extends LitElement {
                 position: relative;
             }
             .deviceContent {
+                background-color: #050505;
                 display: flex;
                 align-items: center;
                 flex-basis: 100%;
@@ -88,7 +89,7 @@ export class PowerDevice extends LitElement {
             }
             
             .deviceContent.is-off {
-                opacity: 0.6;
+                opacity: 0.4;
             }
 
             .deviceContent:hover {

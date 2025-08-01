@@ -118,6 +118,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         const batteryConsumer = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets);
         batteryConsumer.compact = true;
         batteryConsumer.valueType = 'positive';
+        batteryConsumer.color = '#66BB6A60'; // Light green
         batteryConsumer.icon = 'mdi:battery';
         batteryConsumer.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         consumersNode.children.push(batteryConsumer);
@@ -127,6 +128,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         const gridConsumer = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets);
         gridConsumer.compact = true;
         gridConsumer.valueType = 'positive';
+        gridConsumer.color = '#42A5F560'; // Light blue
         gridConsumer.icon = 'mdi:transmission-tower-import';
         consumersNode.children.push(gridConsumer);
     }
@@ -222,6 +224,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
 
         const node = new DeviceNode(cleanedName, cleanedName, powerSensorId, switchEntityId, historyBuckets);
         node.children_full_width = true;
+        
         const powerSensorState = hass.states[powerSensorId];
         if (powerSensorState?.attributes.icon) {
             node.icon = powerSensorState.attributes.icon;
@@ -249,6 +252,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
         houseNode.compact = true;
+        houseNode.color = '#FFAB91'; // Light pastel red
         houseNode.hideChildren = true; // Hide children by default
         houseNode.hideChildrenIndicator = true; // Hide the indicator for children
         houseNode.children = tree;
