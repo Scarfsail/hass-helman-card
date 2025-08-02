@@ -1,7 +1,9 @@
 import type { HomeAssistant } from "../hass-frontend/src/types";
+import { DeviceConfig } from "./DeviceConfig";
+
 
 export class DeviceNode {
-    constructor(id: string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number) {
+    constructor(id: string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number, deviceConfig?: DeviceConfig) {
         this.id = id;
         this.name = name;
         this.powerSensorId = powerSensorId;
@@ -15,6 +17,7 @@ export class DeviceNode {
         this.color = undefined;
         this.isSource = false;
         this.icon = undefined;
+        this.deviceConfig = deviceConfig;
     }
 
     public updateHistoryBuckets(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
@@ -126,7 +129,7 @@ export class DeviceNode {
     public isSource: boolean;
     public icon?: string;
     public sortChildrenByPower?: boolean;
-    public battery_capacity_entity_id?: string;
+    public deviceConfig?: DeviceConfig;
     public compact?: boolean; // Indicates if the device should be displayed in a compact mode
     public children_full_width?: boolean; // Indicates if the device should take full width in the UI
 }

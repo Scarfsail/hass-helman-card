@@ -7,8 +7,9 @@ import { fetchSourceAndConsumerRoots, enrichDeviceTreeWithHistory } from "./ener
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
-import { HelmanCardConfig } from "./helman-card-config";
+import { HelmanCardConfig } from "./HelmanCardConfig";
 import "./power-flow-arrows"
+import "./power-device-info"
 
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
@@ -116,6 +117,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return html`
             <ha-card>
                 <div class="card-content">
+                    <power-device-info .devices=${[...sourcesChildren]} .hass=${this._hass!}></power-device-info>
                     <power-devices-container
                         .hass=${this._hass!}
                         .devices=${sourcesChildren}
@@ -124,7 +126,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .currentParentPower=${sourcesNode!.powerValue}
                         .parentPowerHistory=${sourcesNode!.powerHistory}
                     ></power-devices-container>
-                    <power-flow-arrows .devices=${[...sourcesChildren]}></power-flow-arrows>
+                    <power-flow-arrows .devices=${[...sourcesChildren]} .maxPower=${this.config?.max_power}></power-flow-arrows>
                     
                     <power-devices-container
                         .hass=${this._hass!}
@@ -133,7 +135,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .historyBucketDuration=${this.config.history_bucket_duration}
                         .devices_full_width=${true}
                     ></power-devices-container>
-                    <power-flow-arrows .devices=${[...consumersChildren]}></power-flow-arrows>
+                    <power-flow-arrows .devices=${[...consumersChildren]} .maxPower=${this.config?.max_power}></power-flow-arrows>
                     
                     <power-devices-container
                         .hass=${this._hass!}
@@ -143,7 +145,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .currentParentPower=${consumerNode!.powerValue}
                         .parentPowerHistory=${consumerNode!.powerHistory}                        
                     ></power-devices-container>
-                    <power-flow-arrows .devices=${[houseNode, undefined, undefined]}></power-flow-arrows>
+                    <power-flow-arrows .devices=${[houseNode, undefined, undefined]} .maxPower=${this.config?.max_power}></power-flow-arrows>
               
                     <power-devices-container
                         .hass=${this._hass!}

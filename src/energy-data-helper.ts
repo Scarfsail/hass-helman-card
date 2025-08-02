@@ -1,6 +1,7 @@
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
-import { HelmanCardConfig } from "./helman-card-config";
+import { HelmanCardConfig } from "./HelmanCardConfig";
+import { HouseDeviceConfig } from "./DeviceConfig";
 
 interface EnergyPrefs {
     energy_sources: unknown[];
@@ -42,7 +43,7 @@ function cleanDeviceName(name: string, cleanerRegex?: string): string {
 
 export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: HelmanCardConfig): Promise<DeviceNode[]> {
     const {
-        power_entities: { house, grid, battery, solar },
+        power_devices: { house, grid, battery, solar },
         history_buckets,
         power_sensor_name_cleaner_regex,
         sources_title,
@@ -59,7 +60,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
 
     if (solar?.entity_id) {
         const name = ""//solar.source_name ?? (hass.states[solar.entity_id]?.attributes.friendly_name || "Solar");
-        const solarNode = new DeviceNode(solar.entity_id, name, solar.entity_id, null, history_buckets);
+        const solarNode = new DeviceNode(solar.entity_id, name, solar.entity_id, null, history_buckets, solar);
         solarNode.compact = true;
         solarNode.color = '#FDD83560'; // Light yellow
         solarNode.isSource = true;
@@ -68,18 +69,17 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     }
     if (battery?.entity_id) {
         const name = ""//battery.source_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batterySource = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets);
+        const batterySource = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets, battery);
         batterySource.compact = true;
         batterySource.valueType = 'negative';
         batterySource.color = '#66BB6A60'; // Light green
         batterySource.isSource = true;
         batterySource.icon = 'mdi:battery';
-        batterySource.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         sourcesNode.children.push(batterySource);
     }
     if (grid?.entity_id) {
         const name = ""//grid.source_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridSource = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets);
+        const gridSource = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets, grid);
         gridSource.compact = true;
         gridSource.valueType = 'negative';
         gridSource.color = '#42A5F560'; // Light blue
@@ -108,23 +108,23 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
             house.power_sensor_label,
             house.power_switch_label,
             power_sensor_name_cleaner_regex,
-            house.consumption_name
+            house.consumption_name,
+            house
         );
         consumersNode.children.push(...houseTree);
     }
     if (battery?.entity_id) {
         const name = ""// battery.consumption_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batteryConsumer = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets);
+        const batteryConsumer = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets, battery);
         batteryConsumer.compact = true;
         batteryConsumer.valueType = 'positive';
         batteryConsumer.color = '#66BB6A60'; // Light green
         batteryConsumer.icon = 'mdi:battery';
-        batteryConsumer.battery_capacity_entity_id = battery.battery_capacity_entity_id;
         consumersNode.children.push(batteryConsumer);
     }
     if (grid?.entity_id) {
         const name = ""//grid.consumption_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridConsumer = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets);
+        const gridConsumer = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets, grid);
         gridConsumer.compact = true;
         gridConsumer.valueType = 'positive';
         gridConsumer.color = '#42A5F560'; // Light blue
@@ -140,7 +140,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     return roots;
 }
 
-async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string): Promise<DeviceNode[]> {
+async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string, houseConfig?: HouseDeviceConfig): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -249,7 +249,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
     if (housePowerEntityId) {
         const housePowerSensorName = "" //houseName ?? (hass.states[housePowerEntityId]?.attributes.friendly_name || housePowerEntityId);
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
-        const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets);
+        const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets, houseConfig);
         houseNode.compact = true;
         houseNode.color = '#FFAB91'; // Light pastel red
         houseNode.hideChildren = true; // Hide children by default

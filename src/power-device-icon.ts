@@ -2,6 +2,7 @@ import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
+import { BatteryDeviceConfig } from "./DeviceConfig";
 
 @customElement("power-device-icon")
 export class PowerDeviceIcon extends LitElement {
@@ -32,14 +33,15 @@ export class PowerDeviceIcon extends LitElement {
     }
 
     private _renderDeviceIcon(): TemplateResult {
-        if (this.device.battery_capacity_entity_id) {
-            const batteryCapacityState = this.hass.states[this.device.battery_capacity_entity_id];
+        const battConfig = (this.device.deviceConfig as BatteryDeviceConfig);
+        if (battConfig?.battery_capacity_entity_id) {
+            const batteryCapacityState = this.hass.states[battConfig.battery_capacity_entity_id];
             if (batteryCapacityState) {
                 const capacity = parseFloat(batteryCapacityState.state);
                 const icon = this._getBatteryIcon(capacity);
 
                 return html`
-                    <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(this.device.battery_capacity_entity_id!)}>
+                    <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.battery_capacity_entity_id!)}>
                         <ha-icon .icon=${icon} title="${capacity}%"></ha-icon>
                     </div>
                 `;

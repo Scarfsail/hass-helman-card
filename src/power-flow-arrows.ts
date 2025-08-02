@@ -6,7 +6,7 @@ import { nothing } from "lit-html";
 @customElement("power-flow-arrows")
 export class PowerFlowArrows extends LitElement {
     @property({ type: Array }) devices: (DeviceNode | undefined)[] = [];
-    @property({ type: Number }) maxPower: number = 25 * 230 * 3; // Default max power for 3-phase system and 25A per phase
+    @property({ type: Number }) maxPower?: number; // Default max power for 3-phase system and 25A per phase
 
     static get styles() {
         return css`
@@ -67,13 +67,14 @@ export class PowerFlowArrows extends LitElement {
         if (!this.devices || this.devices.length === 0) {
             return nothing;
         }
+        const maxPower = this.maxPower || (25 * 230 * 3); // Default to 3-phase system with 25A per phase
         return html`
             <div class="container">
                 ${this.devices.map((device) => {
                     if (!device?.powerValue || device.powerValue <= 0.4) {
                         return html`<div class="item-container"></div>`;
                     }
-                    const widthPercentage = Math.min((device.powerValue / this.maxPower) * 100, 100);
+                    const widthPercentage = Math.min((device.powerValue / maxPower) * 100, 100);
                     return html`
                         <div class="item-container">
                             <div class="animated-arrow" style="width: ${widthPercentage}%">
