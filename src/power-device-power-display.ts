@@ -1,10 +1,11 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
-import { DeviceNode } from "./DeviceNode";
 
 @customElement("power-device-power-display")
 export class PowerDevicePowerDisplay extends LitElement {
-    @property({ attribute: false }) public device!: DeviceNode;
+    @property({ type: Number }) public powerValue = 0;
+    @property({ type: String }) public powerSensorId?: string;
+    @property({ type: Boolean }) public compact = false;
     @property({ type: Number }) public currentParentPower?: number;
 
     private _showMoreInfo(entityId: string) {
@@ -34,7 +35,7 @@ export class PowerDevicePowerDisplay extends LitElement {
                 cursor: pointer;
             }
             .no-wrap {
-                text-wrap: nowrap;
+                white-space: nowrap;
             }
             .powerPercentages{
                 font-size: 0.7em;
@@ -47,8 +48,7 @@ export class PowerDevicePowerDisplay extends LitElement {
     }
 
     render(): TemplateResult {
-        const device = this.device;
-        const currentPower = device.powerValue ?? 0;
+        const currentPower = this.powerValue ?? 0;
         let parentPower = this.currentParentPower;
 
         if (!parentPower || parentPower === 0) {
@@ -58,14 +58,14 @@ export class PowerDevicePowerDisplay extends LitElement {
         const currentPercentage = (parentPower > 0) ? (currentPower / parentPower) * 100 : 0;
         const percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
 
-        const onPowerClick = device.powerSensorId
-            ? () => this._showMoreInfo(device.powerSensorId!)
+        const onPowerClick = this.powerSensorId
+            ? () => this._showMoreInfo(this.powerSensorId!)
             : () => { }; // No-op if no sensor
 
         const powerValue = currentPower >= 1000 ? (currentPower / 1000).toFixed(1) : currentPower.toFixed(0);
         const powerUnit = currentPower >= 1000 ? "kW" : "W";
 
-        return html`<div class="powerDisplay ${device.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.device.compact ? 'flex-direction: column; align-items: center;' : ''}">
+        return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.compact ? 'flex-direction: column; align-items: center;' : ''}">
                         <div>${percentageDisplay}</div>
                         <div class="no-wrap">${powerValue} ${powerUnit}</div>
                     </div>`;

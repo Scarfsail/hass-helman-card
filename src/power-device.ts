@@ -176,7 +176,9 @@ export class PowerDevice extends LitElement {
                     ></power-device-icon>
                     <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
                     <power-device-power-display
-                        .device=${this.device}
+                        .powerValue=${this.device.powerValue ?? 0}
+                        .powerSensorId=${this.device.powerSensorId ?? undefined}
+                        .compact=${this.device.compact ?? false}
                         .currentParentPower=${this.currentParentPower}
                         @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
                     ></power-device-power-display>
