@@ -65,6 +65,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         solarNode.color = '#FDD83560'; // Light yellow
         solarNode.isSource = true;
         solarNode.icon = 'mdi:solar-power';
+        solarNode.show_additional_info = true;
         sourcesNode.children.push(solarNode);
     }
     if (battery?.entity_id) {
@@ -75,6 +76,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         batterySource.color = '#66BB6A60'; // Light green
         batterySource.isSource = true;
         batterySource.icon = 'mdi:battery';
+        batterySource.show_additional_info = true;
         sourcesNode.children.push(batterySource);
     }
     if (grid?.entity_id) {
@@ -85,6 +87,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         gridSource.color = '#42A5F560'; // Light blue
         gridSource.isSource = true;
         gridSource.icon = 'mdi:transmission-tower-export';
+        gridSource.show_additional_info = true;
         sourcesNode.children.push(gridSource);
     }
 
@@ -120,6 +123,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         batteryConsumer.valueType = 'positive';
         batteryConsumer.color = '#66BB6A60'; // Light green
         batteryConsumer.icon = 'mdi:battery';
+        batteryConsumer.show_additional_info = true;
         consumersNode.children.push(batteryConsumer);
     }
     if (grid?.entity_id) {
@@ -129,6 +133,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         gridConsumer.valueType = 'positive';
         gridConsumer.color = '#42A5F560'; // Light blue
         gridConsumer.icon = 'mdi:transmission-tower-import';
+        gridConsumer.show_additional_info = true;
         consumersNode.children.push(gridConsumer);
     }
 
@@ -257,6 +262,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         houseNode.children = tree;
         houseNode.sortChildrenByPower = true; // Sort children by power
         houseNode.icon = 'mdi:home';
+        houseNode.show_additional_info = true;
         houseNode.children_full_width = true;
         //houseNode.childrenHidden = false;
         houseNode.children = tree;

@@ -132,4 +132,5 @@ export class DeviceNode {
     public deviceConfig?: DeviceConfig;
     public compact?: boolean; // Indicates if the device should be displayed in a compact mode
     public children_full_width?: boolean; // Indicates if the device should take full width in the UI
+    public show_additional_info?: boolean; // Indicates if additional info should be shown in the UI
 }

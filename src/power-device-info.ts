@@ -7,7 +7,7 @@ import type { HomeAssistant } from "../hass-frontend/src/types";
 
 @customElement("power-device-info")
 export class PowerDeviceInfo extends LitElement {
-    @property({ type: Array }) devices: (DeviceNode | undefined)[] = [];
+    @property({ attribute: false }) device!: DeviceNode;
     @property({ attribute: false }) public hass!: HomeAssistant;
 
     static get styles() {
@@ -17,43 +17,36 @@ export class PowerDeviceInfo extends LitElement {
                 flex-direction: row;
                 gap: 5px;
                 justify-content: space-evenly;
-            }
-            .item-container {
-                flex: 1;
-                min-width: 0;
-           //     text-align: center;
+                height: 16px;
+                margin-left:5px;
+                margin-right:5px;
             }
             .battery-info {
                 display: flex;
-                flex-direction: column;
+                flex-direction: row;
                 align-items: center;
+                flex-basis: 100%;                
+                font-size: 0.8em;
             }
             .remaining-time {
-                font-size: 0.8em;
+                //font-size: 0.8em;
+                margin-left: auto;
                 color: var(--secondary-text-color);
             }
         `;
     }
 
     render() {
-        if (!this.devices || this.devices.length === 0) {
+        if (!this.device || !this.device.show_additional_info) {
             return nothing;
         }
+        const batteryConfig = this.device.deviceConfig as BatteryDeviceConfig;
+        
         return html`
             <div class="container">
-                ${this.devices.map((device) => {
-                    if (!device) {
-                        return html`<div class="item-container"></div>`;
-                    }
-                    const batteryConfig = device.deviceConfig as BatteryDeviceConfig;
-                    return html`
-                        <div class="item-container">
-                            ${batteryConfig.battery_capacity_entity_id
-                                ? this._renderBatteryInfo(device, batteryConfig)
-                                : nothing}
-                        </div>
-                    `;
-                })}
+                ${batteryConfig.battery_capacity_entity_id
+                    ? this._renderBatteryInfo(this.device, batteryConfig)
+                    : nothing}
             </div>
         `;
     }
@@ -105,14 +98,20 @@ export class PowerDeviceInfo extends LitElement {
         const maxCapacityWh = totalCapacityWh * (maxSoC / 100);
 
         let timeHours;
-        if (currentPowerW > 0) { // Discharging
+        let statusWord = "";
+        let targetCapacity = 0;
+        if (device.isSource) { // Discharging
+            targetCapacity = minSoC;
             const remainingEnergyWh = currentEnergyWh - minCapacityWh;
             if (remainingEnergyWh <= 0) return "Empty";
             timeHours = remainingEnergyWh / currentPowerW;
+            statusWord = "empty";
         } else { // Charging
+            targetCapacity = maxSoC;
             const energyToFullWh = maxCapacityWh - currentEnergyWh;
             if (energyToFullWh <= 0) return "Full";
-            timeHours = energyToFullWh / -currentPowerW;
+            timeHours = energyToFullWh / currentPowerW;
+            statusWord = "full";
         }
 
         if (timeHours <= 0) return null;
@@ -120,9 +119,11 @@ export class PowerDeviceInfo extends LitElement {
         const hours = Math.floor(timeHours);
         const minutes = Math.round((timeHours - hours) * 60);
 
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        }
-        return `${minutes}m`;
+        const targetDate = new Date(Date.now() + timeHours * 3600 * 1000);
+        const targetTime = targetDate.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+        return `${targetTime} ➜ ${targetCapacity}%`;
     }
 }

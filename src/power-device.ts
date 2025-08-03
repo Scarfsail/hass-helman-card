@@ -10,6 +10,7 @@ import "./power-devices-container";
 import "./power-device-history-bars";
 import "./power-device-icon";
 import "./power-device-power-display";
+import "./power-device-info";
 
 @customElement("power-device")
 export class PowerDevice extends LitElement {
@@ -168,20 +169,25 @@ export class PowerDevice extends LitElement {
                         .maxHistoryPower=${maxHistoryPower}
                         .historyBarColor=${historyBarColor}>
                     </power-device-history-bars>
-                    <power-device-icon 
-                        .hass=${this.hass} 
-                        .device=${this.device}
-                        @toggle-children=${this._toggleChildren}
-                        @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
-                    ></power-device-icon>
-                    <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
-                    <power-device-power-display
-                        .powerValue=${this.device.powerValue ?? 0}
-                        .powerSensorId=${this.device.powerSensorId ?? undefined}
-                        .compact=${this.device.compact ?? false}
-                        .currentParentPower=${this.currentParentPower}
-                        @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
-                    ></power-device-power-display>
+                    <div style="display: flex; flex-direction: column;flex-basis: 100%;">
+                        <div style="display: flex; flex-direction: row;flex-basis: 100%;align-items: center; ">
+                            <power-device-icon 
+                                .hass=${this.hass} 
+                                .device=${this.device}
+                                @toggle-children=${this._toggleChildren}
+                                @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                            ></power-device-icon>
+                            <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
+                            <power-device-power-display
+                                .powerValue=${this.device.powerValue ?? 0}
+                                .powerSensorId=${this.device.powerSensorId ?? undefined}
+                                .compact=${this.device.compact ?? false}
+                                .currentParentPower=${this.currentParentPower}
+                                @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                            ></power-device-power-display>
+                        </div>
+                        <power-device-info .device=${this.device} .hass=${this.hass}></power-device-info>
+                    </div>
                 </div>
                 
         `

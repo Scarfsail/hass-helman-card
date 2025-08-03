@@ -34,12 +34,12 @@ export class PowerDevicePowerDisplay extends LitElement {
             .powerDisplay.has-sensor{
                 cursor: pointer;
             }
-            .no-wrap {
+            .powerValue {
                 white-space: nowrap;
             }
             .powerPercentages{
                 font-size: 0.7em;
-                margin-right: 4px; /* Adds space between percentage and power value */
+                color: var(--secondary-text-color);                
             }
             .clickable {
                 cursor: pointer;
@@ -65,9 +65,9 @@ export class PowerDevicePowerDisplay extends LitElement {
         const powerValue = currentPower >= 1000 ? (currentPower / 1000).toFixed(1) : currentPower.toFixed(0);
         const powerUnit = currentPower >= 1000 ? "kW" : "W";
 
-        return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.compact ? 'flex-direction: column; align-items: center;' : ''}">
+        return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.compact ? 'flex-direction: column; align-items: center;' : 'gap:6px'}">
                         <div>${percentageDisplay}</div>
-                        <div class="no-wrap">${powerValue} ${powerUnit}</div>
+                        <div class="powerValue">${powerValue} ${powerUnit}</div>
                     </div>`;
     }
 }
