@@ -60,14 +60,14 @@ export class PowerDeviceIcon extends LitElement {
 
     private _renderDeviceIcon(): TemplateResult {
         const battConfig = (this.device.deviceConfig as BatteryDeviceConfig);
-        if (battConfig?.battery_capacity_entity_id) {
-            const batteryCapacityState = this.hass.states[battConfig.battery_capacity_entity_id];
+        if (battConfig?.entities.capacity) {
+            const batteryCapacityState = this.hass.states[battConfig.entities.capacity];
             if (batteryCapacityState) {
                 const capacity = parseFloat(batteryCapacityState.state);
                 const icon = this._getBatteryIcon(capacity);
 
                 return html`
-                    <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.battery_capacity_entity_id!)}>
+                    <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.entities.capacity!)}>
                         <ha-icon .icon=${icon} title="${capacity}%"></ha-icon>
                         <div>${capacity}%</div>
                     </div>

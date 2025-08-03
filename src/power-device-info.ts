@@ -44,7 +44,7 @@ export class PowerDeviceInfo extends LitElement {
         
         return html`
             <div class="container">
-                ${batteryConfig.battery_capacity_entity_id
+                ${batteryConfig.entities.capacity
                     ? this._renderBatteryInfo(this.device, batteryConfig)
                     : nothing}
             </div>
@@ -52,7 +52,7 @@ export class PowerDeviceInfo extends LitElement {
     }
 
     private _renderBatteryInfo(device:DeviceNode, cfg: BatteryDeviceConfig): TemplateResult | typeof nothing { 
-        if (!cfg.battery_capacity_entity_id)
+        if (!cfg.entities.capacity)
             return nothing;
 
         const remainingTime = this._calculateRemainingTime(device, cfg);
@@ -72,7 +72,7 @@ export class PowerDeviceInfo extends LitElement {
 
         if (Math.abs(currentPowerW) < 1) return null; // Don't show if power is very low
 
-        const { battery_remaining_energy_entity_id, battery_min_soc_entity_id, battery_max_soc_entity_id, battery_capacity_entity_id } = cfg;
+        const { remaining_energy: battery_remaining_energy_entity_id, min_soc: battery_min_soc_entity_id, max_soc: battery_max_soc_entity_id, capacity: battery_capacity_entity_id } = cfg.entities;
 
         if (!battery_remaining_energy_entity_id || !battery_capacity_entity_id || !battery_min_soc_entity_id || !battery_max_soc_entity_id) {
             return null;

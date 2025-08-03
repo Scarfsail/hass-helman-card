@@ -58,9 +58,9 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     sourcesNode.childrenCollapsed = false;
     sourcesNode.icon = 'mdi:lightning-bolt-outline';
 
-    if (solar?.entity_id) {
+    if (solar?.entities.power) {
         const name = ""//solar.source_name ?? (hass.states[solar.entity_id]?.attributes.friendly_name || "Solar");
-        const solarNode = new DeviceNode(solar.entity_id, name, solar.entity_id, null, history_buckets, solar);
+        const solarNode = new DeviceNode(solar.entities.power, name, solar.entities.power, null, history_buckets, solar);
         solarNode.compact = true;
         solarNode.color = '#FDD83560'; // Light yellow
         solarNode.isSource = true;
@@ -68,9 +68,9 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         solarNode.show_additional_info = true;
         sourcesNode.children.push(solarNode);
     }
-    if (battery?.entity_id) {
+    if (battery?.entities.power) {
         const name = ""//battery.source_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batterySource = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets, battery);
+        const batterySource = new DeviceNode(battery.entities.power, name, battery.entities.power, null, history_buckets, battery);
         batterySource.compact = true;
         batterySource.valueType = 'negative';
         batterySource.color = '#66BB6A60'; // Light green
@@ -79,9 +79,9 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         batterySource.show_additional_info = true;
         sourcesNode.children.push(batterySource);
     }
-    if (grid?.entity_id) {
+    if (grid?.entities.power) {
         const name = ""//grid.source_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridSource = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets, grid);
+        const gridSource = new DeviceNode(grid.entities.power, name, grid.entities.power, null, history_buckets, grid);
         gridSource.compact = true;
         gridSource.valueType = 'negative';
         gridSource.color = '#42A5F560'; // Light blue
@@ -102,12 +102,12 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     consumersNode.hideChildrenIndicator = true;
     consumersNode.icon = 'mdi:lightning-bolt-outline';
 
-    if (house?.entity_id) {
+    if (house?.entities.power) {
         const houseTree = await fetchDeviceTree(
             hass,
             history_buckets,
             house.unmeasured_power_title,
-            house.entity_id,
+            house.entities.power,
             house.power_sensor_label,
             house.power_switch_label,
             power_sensor_name_cleaner_regex,
@@ -116,9 +116,9 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         );
         consumersNode.children.push(...houseTree);
     }
-    if (battery?.entity_id) {
+    if (battery?.entities.power) {
         const name = ""// battery.consumption_name ?? (hass.states[battery.entity_id]?.attributes.friendly_name || "Battery");
-        const batteryConsumer = new DeviceNode(battery.entity_id, name, battery.entity_id, null, history_buckets, battery);
+        const batteryConsumer = new DeviceNode(battery.entities.power, name, battery.entities.power, null, history_buckets, battery);
         batteryConsumer.compact = true;
         batteryConsumer.valueType = 'positive';
         batteryConsumer.color = '#66BB6A60'; // Light green
@@ -126,9 +126,9 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         batteryConsumer.show_additional_info = true;
         consumersNode.children.push(batteryConsumer);
     }
-    if (grid?.entity_id) {
+    if (grid?.entities.power) {
         const name = ""//grid.consumption_name ?? (hass.states[grid.entity_id]?.attributes.friendly_name || "Grid");
-        const gridConsumer = new DeviceNode(grid.entity_id, name, grid.entity_id, null, history_buckets, grid);
+        const gridConsumer = new DeviceNode(grid.entities.power, name, grid.entities.power, null, history_buckets, grid);
         gridConsumer.compact = true;
         gridConsumer.valueType = 'positive';
         gridConsumer.color = '#42A5F560'; // Light blue
