@@ -26,7 +26,7 @@ export class PowerDeviceInfo extends LitElement {
                 flex-direction: row;
                 align-items: center;
                 flex-basis: 100%;                
-                font-size: 0.8em;
+                font-size: 0.7em;
             }
             .remaining-time {
                 //font-size: 0.8em;
@@ -59,7 +59,6 @@ export class PowerDeviceInfo extends LitElement {
 
         return html`
             <div class="battery-info">
-                <span>${this.hass.states[cfg.battery_capacity_entity_id]?.state}%</span>
                 ${remainingTime ? html`<span class="remaining-time">${remainingTime}</span>` : nothing}
             </div>
         `;
@@ -121,9 +120,10 @@ export class PowerDeviceInfo extends LitElement {
 
         const targetDate = new Date(Date.now() + timeHours * 3600 * 1000);
         const targetTime = targetDate.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
+            hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',
         });
-        return `${targetTime} ➜ ${targetCapacity}%`;
+        return `${targetTime} (${hours}h ${minutes}m) ➜ ${targetCapacity}%`;
     }
 }

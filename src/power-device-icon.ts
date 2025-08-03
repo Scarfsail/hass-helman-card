@@ -8,7 +8,33 @@ import { BatteryDeviceConfig } from "./DeviceConfig";
 export class PowerDeviceIcon extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
-
+    static get styles() {
+        return css`
+            .switchIconPlaceholder {
+                width: 40px;
+                height: 40px;
+                flex-shrink: 0;
+                display:flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: var(--secondary-text-color);
+                font-size:0.7em;
+            }
+            .clickable {
+                cursor: pointer;
+            }
+            .disabled-icon {
+                color: var(--disabled-text-color);
+            }
+            state-badge {
+                cursor: pointer;
+                flex-shrink: 0;
+                position: relative;
+                z-index: 2;
+            }
+        `;
+    }
     private _fireToggleChildren() {
         this.dispatchEvent(new CustomEvent('toggle-children', { bubbles: true, composed: true }));
     }
@@ -43,6 +69,7 @@ export class PowerDeviceIcon extends LitElement {
                 return html`
                     <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.battery_capacity_entity_id!)}>
                         <ha-icon .icon=${icon} title="${capacity}%"></ha-icon>
+                        <div>${capacity}%</div>
                     </div>
                 `;
             }
@@ -72,28 +99,5 @@ export class PowerDeviceIcon extends LitElement {
         return html`<div class="switchIconPlaceholder"><ha-icon class="disabled-icon" icon="mdi:border-none-variant"></ha-icon></div>`;
     }
 
-    static get styles() {
-        return css`
-            .switchIconPlaceholder {
-                width: 40px;
-                height: 40px;
-                flex-shrink: 0;
-                display:inline-flex;
-                align-items: center;
-                justify-content: center;
-            }
-            .clickable {
-                cursor: pointer;
-            }
-            .disabled-icon {
-                color: var(--disabled-text-color);
-            }
-            state-badge {
-                cursor: pointer;
-                flex-shrink: 0;
-                position: relative;
-                z-index: 2;
-            }
-        `;
-    }
+
 }
