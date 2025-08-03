@@ -21,18 +21,16 @@ export class PowerDeviceInfo extends LitElement {
                 margin-left:5px;
                 margin-right:5px;
             }
-            .battery-info {
+            .info {
                 display: flex;
                 flex-direction: row;
                 align-items: center;
                 flex-basis: 100%;                
                 font-size: 0.7em;
-            }
-            .remaining-time {
-                //font-size: 0.8em;
-                margin-left: auto;
                 color: var(--secondary-text-color);
+                text-wrap: nowrap;
             }
+          
         `;
     }
 
@@ -40,27 +38,32 @@ export class PowerDeviceInfo extends LitElement {
         if (!this.device || !this.device.show_additional_info) {
             return nothing;
         }
-        const batteryConfig = this.device.deviceConfig as BatteryDeviceConfig;
-        
+
         return html`
             <div class="container">
-                ${batteryConfig.entities.capacity
-                    ? this._renderBatteryInfo(this.device, batteryConfig)
-                    : nothing}
+                <div class="info">
+                    ${this._renderDeviceInfo(this.device)}
+                </div>
             </div>
         `;
     }
 
-    private _renderBatteryInfo(device:DeviceNode, cfg: BatteryDeviceConfig): TemplateResult | typeof nothing { 
+    private _renderDeviceInfo(device: DeviceNode): TemplateResult | typeof nothing {
+        const batteryConfig = device.deviceConfig as BatteryDeviceConfig;
+        if (batteryConfig.entities.capacity)
+            return this._renderBatteryInfo(device, batteryConfig)
+        
+        return nothing;
+    }
+
+    private _renderBatteryInfo(device: DeviceNode, cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
         if (!cfg.entities.capacity)
             return nothing;
 
         const remainingTime = this._calculateRemainingTime(device, cfg);
 
         return html`
-            <div class="battery-info">
-                ${remainingTime ? html`<span class="remaining-time">${remainingTime}</span>` : nothing}
-            </div>
+                ${remainingTime ? html`<span>${remainingTime}</span>` : nothing}
         `;
     }
 
