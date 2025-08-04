@@ -187,9 +187,10 @@ export class PowerDeviceInfo extends LitElement {
             minute: '2-digit',
         });
         return html`
-            <span>🕓 ${targetTime}</span>
+            <span>${targetCapacity}% ➜</span>
+            <span>🕓${targetTime}</span>
             <span>⏳${hours}:${minutes}</span>
-            <span>➜ ${targetCapacity}%</span>`;
+        `;
     }
 
 
