@@ -75,7 +75,7 @@ export class PowerDevice extends LitElement {
                 align-items: center;
                 flex-basis: 100%;
                 min-width: 0; /* Prevents text overflow issues */
-                box-shadow: 0 2px 7px var(--device-shadow-color, rgba(0,0,0,0.8));
+                box-shadow: 0 0px 12px var(--device-shadow-color, rgba(0,0,0,0.8));
                 border-radius: var(--ha-card-border-radius, 12px);
                 border-width: var(--ha-card-border-width, 1px);
                 border-style: solid;

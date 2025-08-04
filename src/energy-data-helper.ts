@@ -256,7 +256,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         const cleanedHousePowerSensorName = cleanDeviceName(housePowerSensorName, powerSensorNameCleanerRegex);
         const houseNode = new DeviceNode("house", cleanedHousePowerSensorName, housePowerEntityId, null, historyBuckets, houseConfig);
         houseNode.compact = true;
-        houseNode.color = '#FFAB91'; // Light pastel red
+        houseNode.color = '#FFAB9160'; // Light pastel red
         houseNode.hideChildren = true; // Hide children by default
         houseNode.hideChildrenIndicator = true; // Hide the indicator for children
         houseNode.children = tree;
