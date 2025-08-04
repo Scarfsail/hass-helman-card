@@ -113,6 +113,9 @@ export class PowerDevice extends LitElement {
                 padding-left: 10px;
                 width:100%;
             }
+            .deviceInfo {
+                z-index: 2;
+            }
         `;
     }
 
@@ -169,7 +172,7 @@ export class PowerDevice extends LitElement {
                         .maxHistoryPower=${maxHistoryPower}
                         .historyBarColor=${historyBarColor}>
                     </power-device-history-bars>
-                    <div style="display: flex; flex-direction: column;flex-basis: 100%;">
+                    <div class="deviceInfo" style="display: flex; flex-direction: column;flex-basis: 100%;">
                         <div style="display: flex; flex-direction: row;flex-basis: 100%;align-items: center; ">
                             <power-device-icon 
                                 .hass=${this.hass} 
@@ -186,7 +189,11 @@ export class PowerDevice extends LitElement {
                                 @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
                             ></power-device-power-display>
                         </div>
-                        <power-device-info .device=${this.device} .hass=${this.hass}></power-device-info>
+                        <power-device-info
+                            .device=${this.device} 
+                            .hass=${this.hass}
+                            @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
+                        ></power-device-info>
                     </div>
                 </div>
                 

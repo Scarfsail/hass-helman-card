@@ -16,6 +16,11 @@ export interface SolarDeviceConfig extends PowerDeviceConfigBase {
 }
 
 export interface GridDeviceConfig extends PowerDeviceConfigBase {
+    entities:{
+        power: string;
+        today_export?: string;
+        today_import?: string;        
+    }
 }
 
 export interface HouseDeviceConfig extends PowerDeviceConfigBase {
