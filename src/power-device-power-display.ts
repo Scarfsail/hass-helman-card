@@ -1,5 +1,6 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
+import { sharedStyles } from "./shared-styles";
 
 @customElement("power-device-power-display")
 export class PowerDevicePowerDisplay extends LitElement {
@@ -18,18 +19,20 @@ export class PowerDevicePowerDisplay extends LitElement {
     }
 
     static get styles() {
-        return css`
+        return [sharedStyles, css`
             .powerDisplay {
                 margin-left: auto; /* Aligns to the right */
                 padding-left: 8px; /* Adds space between name and power */
                 padding-right: 8px; /* Adds space between power and right edge */
                 position: relative;
                 display: flex;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 justify-content: flex-end;
                 align-items: center;
                 z-index: 2;
                 text-shadow: 0px 0px 4px rgba(0,0,0,1);
+                gap: 6px;
+
             }
             .powerDisplay.has-sensor{
                 cursor: pointer;
@@ -41,10 +44,7 @@ export class PowerDevicePowerDisplay extends LitElement {
                 font-size: 0.7em;
                 color: var(--secondary-text-color);                
             }
-            .clickable {
-                cursor: pointer;
-            }
-        `;
+        `];
     }
 
     render(): TemplateResult {
@@ -56,7 +56,7 @@ export class PowerDevicePowerDisplay extends LitElement {
         }
 
         const currentPercentage = (parentPower > 0) ? (currentPower / parentPower) * 100 : 0;
-        const percentageDisplay = html`<span class=powerPercentages> (${Math.round(currentPercentage).toFixed(0)}%)</span>`;
+        const percentageDisplay = html`<span class=powerPercentages>${Math.round(currentPercentage).toFixed(0)}%</span>`;
 
         const onPowerClick = this.powerSensorId
             ? () => this._showMoreInfo(this.powerSensorId!)
@@ -65,9 +65,9 @@ export class PowerDevicePowerDisplay extends LitElement {
         const powerValue = currentPower >= 1000 ? (currentPower / 1000).toFixed(1) : currentPower.toFixed(0);
         const powerUnit = currentPower >= 1000 ? "kW" : "W";
 
-        return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick} style="${this.compact ? 'flex-direction: column; align-items: center;' : 'gap:6px'}">
+        return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>
+                        <div class="powerValue">${powerValue} <span class="units">${powerUnit}</span></div>
                         <div>${percentageDisplay}</div>
-                        <div class="powerValue">${powerValue} ${powerUnit}</div>
                     </div>`;
     }
 }

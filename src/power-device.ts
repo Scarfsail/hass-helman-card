@@ -174,7 +174,7 @@ export class PowerDevice extends LitElement {
                     </power-device-history-bars>
                     <div class="deviceInfo" style="display: flex; flex-direction: column;flex-basis: 100%;">
                         <div style="display: flex; flex-direction: row;flex-basis: 100%;align-items: center; ">
-                            <power-device-icon 
+                                <power-device-icon 
                                 .hass=${this.hass} 
                                 .device=${this.device}
                                 @toggle-children=${this._toggleChildren}
@@ -194,6 +194,7 @@ export class PowerDevice extends LitElement {
                             .hass=${this.hass}
                             @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
                         ></power-device-info>
+
                     </div>
                 </div>
                 

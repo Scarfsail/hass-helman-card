@@ -4,6 +4,7 @@ import { DeviceNode } from "./DeviceNode";
 import { nothing, TemplateResult } from "lit-html";
 import { BatteryDeviceConfig, GridDeviceConfig, SolarDeviceConfig } from "./DeviceConfig";
 import type { HomeAssistant } from "../hass-frontend/src/types";
+import { sharedStyles } from "./shared-styles";
 
 @customElement("power-device-info")
 export class PowerDeviceInfo extends LitElement {
@@ -11,7 +12,7 @@ export class PowerDeviceInfo extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
 
     static get styles() {
-        return css`
+        return [sharedStyles, css`
             .container {
                 display: flex;
                 flex-direction: row;
@@ -31,10 +32,9 @@ export class PowerDeviceInfo extends LitElement {
                 color: var(--secondary-text-color);
                 text-wrap: nowrap;
             }
-            .clickable {
-                cursor: pointer;
-            }          
-        `;
+
+
+        `];
     }
     private _showMoreInfo(entityId: string) {
         const event = new CustomEvent("show-more-info", {
@@ -92,11 +92,11 @@ export class PowerDeviceInfo extends LitElement {
         }
         if (device.isSource) {
             return html`
-                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_import!)}>⚡ ${(todayImport).toFixed(1)} kWh</span>
+                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_import!)}>⚡ ${(todayImport).toFixed(1)} <span class="units">kWh</span></span>
             `;
         } else {
             return html`
-                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_export!)}>⚡ ${(todayExport).toFixed(1)} kWh</span>
+                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_export!)}>⚡ ${(todayExport).toFixed(1)} <span class="units">kWh</span></span>
             `;
         }
 
@@ -121,8 +121,8 @@ export class PowerDeviceInfo extends LitElement {
         }
 
         return html`
-            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.today_energy!)}>⚡${(todayEnergyWh / 1000).toFixed(1)} kWh</span>
-            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.remaining_today_energy_forecast!)}>✨${(forecastEnergyWh / 1000).toFixed(1)} kWh</span>
+            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.today_energy!)}>⚡${(todayEnergyWh / 1000).toFixed(1)} <span class="units">kWh</span></span>
+            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.remaining_today_energy_forecast!)}>✨${(forecastEnergyWh / 1000).toFixed(1)} <span class="units">kWh</span></span>
         `;
     }
 

@@ -3,13 +3,14 @@ import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
+import { sharedStyles } from "./shared-styles";
 
 @customElement("power-device-icon")
 export class PowerDeviceIcon extends LitElement {
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
     static get styles() {
-        return css`
+        return [sharedStyles, css`
             .switchIconPlaceholder {
                 width: 40px;
                 height: 40px;
@@ -21,9 +22,6 @@ export class PowerDeviceIcon extends LitElement {
                 color: var(--secondary-text-color);
                 font-size:0.7em;
             }
-            .clickable {
-                cursor: pointer;
-            }
             .disabled-icon {
                 color: var(--disabled-text-color);
             }
@@ -33,7 +31,7 @@ export class PowerDeviceIcon extends LitElement {
                 position: relative;
                 z-index: 2;
             }
-        `;
+        `];
     }
     private _fireToggleChildren() {
         this.dispatchEvent(new CustomEvent('toggle-children', { bubbles: true, composed: true }));
