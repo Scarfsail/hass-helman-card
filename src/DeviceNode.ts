@@ -133,4 +133,5 @@ export class DeviceNode {
     public compact?: boolean; // Indicates if the device should be displayed in a compact mode
     public children_full_width?: boolean; // Indicates if the device should take full width in the UI
     public show_additional_info?: boolean; // Indicates if additional info should be shown in the UI
+    public customLabelTexts?: string[]; // Custom texts to display based on matching device labels
 }

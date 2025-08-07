@@ -14,4 +14,5 @@ export interface HelmanCardConfig extends LovelaceCardConfig {
     power_sensor_name_cleaner_regex?: string;
     history_buckets: number;
     history_bucket_duration: number;
+    device_label_text?: Record<string, string>;
 }

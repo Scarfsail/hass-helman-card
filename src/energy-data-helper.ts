@@ -47,7 +47,8 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         history_buckets,
         power_sensor_name_cleaner_regex,
         sources_title,
-        consumers_title
+        consumers_title,
+        device_label_text
     } = config;
 
     const roots: DeviceNode[] = [];
@@ -112,7 +113,8 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
             house.power_switch_label,
             power_sensor_name_cleaner_regex,
             house.consumption_name,
-            house
+            house,
+            device_label_text
         );
         consumersNode.children.push(...houseTree);
     }
@@ -145,7 +147,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     return roots;
 }
 
-async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string, houseConfig?: HouseDeviceConfig): Promise<DeviceNode[]> {
+async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string, houseConfig?: HouseDeviceConfig, deviceLabelText?: Record<string, string>): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -233,6 +235,35 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         if (powerSensorState?.attributes.icon) {
             node.icon = powerSensorState.attributes.icon;
         }
+
+        // Match device labels with user configuration and collect custom texts
+        if (deviceLabelText && energyEntity && energyEntity.device_id) {
+            const deviceEntities = entityRegistry.filter(e => e.device_id === energyEntity.device_id);
+            const deviceLabels = new Set<string>();
+            
+            // Collect all labels from all entities of this device
+            for (const entity of deviceEntities) {
+                for (const labelId of entity.labels) {
+                    const label = labelRegistry.find(l => l.label_id === labelId);
+                    if (label) {
+                        deviceLabels.add(label.name);
+                    }
+                }
+            }
+            
+            // Find matching custom texts
+            const customTexts: string[] = [];
+            for (const labelName of deviceLabels) {
+                if (deviceLabelText[labelName]) {
+                    customTexts.push(deviceLabelText[labelName]);
+                }
+            }
+            
+            if (customTexts.length > 0) {
+                node.customLabelTexts = customTexts;
+            }
+        }
+
         deviceMap.set(source.stat_consumption, node);
     }
 

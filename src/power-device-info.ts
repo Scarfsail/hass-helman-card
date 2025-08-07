@@ -30,7 +30,13 @@ export class PowerDeviceInfo extends LitElement {
                 justify-content: space-evenly;   
                 font-size: 0.7em;
                 color: var(--secondary-text-color);
-                text-wrap: nowrap;
+                white-space: nowrap;
+            }
+
+            .custom-labels {
+                font-style: italic;
+                opacity: 0.8;
+                justify-content: left;
             }
 
 
@@ -45,15 +51,29 @@ export class PowerDeviceInfo extends LitElement {
         this.dispatchEvent(event);
     }
     render() {
-        if (!this.device || !this.device.show_additional_info) {
+        if (!this.device) {
+            return nothing;
+        }
+
+        const hasAdditionalInfo = this.device.show_additional_info;
+        const hasCustomLabels = this.device.customLabelTexts && this.device.customLabelTexts.length > 0;
+
+        if (!hasAdditionalInfo && !hasCustomLabels) {
             return nothing;
         }
 
         return html`
             <div class="container">
-                <div class="info">
-                    ${this._renderDeviceInfo(this.device)}
-                </div>
+                ${hasAdditionalInfo ? html`
+                    <div class="info">
+                        ${this._renderDeviceInfo(this.device)}
+                    </div>
+                ` : nothing}
+                ${hasCustomLabels ? html`
+                    <div class="info custom-labels">
+                        ${this.device.customLabelTexts!.join(' • ')}
+                    </div>
+                ` : nothing}
             </div>
         `;
     }
