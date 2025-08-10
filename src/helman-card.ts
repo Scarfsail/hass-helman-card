@@ -10,13 +10,14 @@ import "./power-devices-container";
 import { HelmanCardConfig } from "./HelmanCardConfig";
 import "./power-flow-arrows"
 import "./power-device-info"
+import "./power-house-devices-section"
 
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
     private config!: HelmanCardConfig;
     @state() private _hass?: HomeAssistant;
     @state() private _deviceTree: DeviceNode[] = [];
-    @state() private _showAllHouseChildren = false;
+    @state() private _showAllHouseChildren = false; // deprecated locally, now handled in section
     private _historyInterval?: number;
     public set hass(value: HomeAssistant) {
         this._hass = value;
@@ -114,6 +115,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         const consumersChildren = consumerNode?.children || [];
         const houseNode = consumersChildren.find((device) => device.id === "house");
         const houseDevices = houseNode?.children || [];
+
         return html`
             <ha-card>
                 <div class="card-content">
@@ -145,8 +147,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .parentPowerHistory=${consumerNode!.powerHistory}                        
                     ></power-devices-container>
                     <power-flow-arrows .devices=${[houseNode, undefined, undefined]} .maxPower=${this.config?.max_power}></power-flow-arrows>
-              
-                    <power-devices-container
+                    <power-house-devices-section
                         .hass=${this._hass!}
                         .devices=${houseDevices}
                         .historyBuckets=${this.config.history_buckets}
@@ -155,9 +156,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .parentPowerHistory=${houseNode!.powerHistory}
                         .devices_full_width=${true}
                         .sortChildrenByPower=${true}
-                        .show_only_top_children=${this._showAllHouseChildren ? 0 : 3}
-                    ></power-devices-container>
-                    <div style="text-align: center; cursor: pointer;" @click=${() => { this._showAllHouseChildren = !this._showAllHouseChildren; }}>...</div>                    
+                        .initial_show_only_top_children=${3}
+                    ></power-house-devices-section>
                 </div>
             </ha-card>
         `;
