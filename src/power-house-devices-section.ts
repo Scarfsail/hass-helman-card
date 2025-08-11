@@ -97,7 +97,7 @@ export class PowerHouseDevicesSection extends LitElement {
             node.groupLabel = label;
             node.children_full_width = true;
             node.sortChildrenByPower = true;
-            node.childrenCollapsed = false;
+            node.childrenCollapsed = true; // default collapsed
             groups[label] = node;
         }
         const unmatched: DeviceNode[] = [];
@@ -163,7 +163,7 @@ export class PowerHouseDevicesSection extends LitElement {
             others.groupCategory = category;
             others.children_full_width = true;
             others.sortChildrenByPower = true;
-            others.childrenCollapsed = false;
+            others.childrenCollapsed = true; // default collapsed
             others.children = unmatched;
             aggregateGroup(others);
             result.push(others);
