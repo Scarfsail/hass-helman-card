@@ -176,7 +176,7 @@ export class PowerHouseDevicesSection extends LitElement {
         const categories = this._getCategories();
         const activeCat = this._activeCategory;
         const devicesToShow = activeCat ? this._groupByCategory(filtered, activeCat) : filtered;
-        const showTop = this._showAll ? 0 : this.initial_show_only_top_children;
+    const showTop = activeCat ? 0 : (this._showAll ? 0 : this.initial_show_only_top_children);
 
         return html`
             <div class="house-section">
@@ -205,7 +205,7 @@ export class PowerHouseDevicesSection extends LitElement {
                     .show_only_top_children=${showTop}
                 ></power-devices-container>
 
-                <div class="toggle-row" @click=${() => { this._showAll = !this._showAll; }}>...</div>
+                ${!activeCat ? html`<div class="toggle-row" @click=${() => { this._showAll = !this._showAll; }}>...</div>` : nothing}
             </div>
         `;
     }
