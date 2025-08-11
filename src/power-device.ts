@@ -53,6 +53,13 @@ export class PowerDevice extends LitElement {
 
     static get styles() {
         return css`
+            .border{
+                box-shadow: 0 0px 12px var(--device-shadow-color, rgba(0,0,0,0.8));
+                border-radius: var(--ha-card-border-radius, 12px);
+                border-width: var(--ha-card-border-width, 1px);
+                border-style: solid;
+                border-color: var(--ha-card-border-color, var(--divider-color, #e0e0e0));
+            }
             :host([is-expanded]) {
                 flex-basis: 100%;
                 width: 100%;
@@ -75,18 +82,19 @@ export class PowerDevice extends LitElement {
                 align-items: center;
                 flex-basis: 100%;
                 min-width: 0; /* Prevents text overflow issues */
-                box-shadow: 0 0px 12px var(--device-shadow-color, rgba(0,0,0,0.8));
-                border-radius: var(--ha-card-border-radius, 12px);
-                border-width: var(--ha-card-border-width, 1px);
-                border-style: solid;
-                border-color: var(--ha-card-border-color, var(--divider-color, #e0e0e0));
-
                 transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, opacity 0.3s ease-in-out;
                 position: relative;
                 overflow: hidden; /* Prevents overflow if children are too wide */
             }
             :host([is-expanded]) .deviceContent {
                 height: auto;
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
+            }
+            /* Increase specificity to override .border's border-radius when expanded */
+            :host([is-expanded]) .border .deviceContent {
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
             }
             
             .deviceContent.is-off {
@@ -110,8 +118,14 @@ export class PowerDevice extends LitElement {
                 cursor: pointer;
             }
             .childrenContainer{
-                padding-left: 10px;
                 width:100%;
+                padding: 6px 6px 6px 6px; /* extra left indent for children */
+                margin-top: 0px;
+            }
+            :host([is-expanded]) .childrenContainer {
+                border-top: none; /* seamless merge with parent */
+                border-top-left-radius: 0;
+                border-top-right-radius: 0;
             }
             .deviceInfo {
                 z-index: 2;
@@ -122,7 +136,7 @@ export class PowerDevice extends LitElement {
     private _renderChildren(children: DeviceNode[], currentPower: number, historyToRender: number[]): TemplateResult {
         const device = this.device;
         return html`
-            <div class="childrenContainer">
+            <div class="border childrenContainer">
                 <power-devices-container
                     .hass=${this.hass}
                     .devices=${children}
@@ -165,7 +179,7 @@ export class PowerDevice extends LitElement {
         // Determine the color for history bars
         const historyBarColor = device.color ?? 'rgba(var(--rgb-accent-color), 0.13)';
         const deviceContent = html`
-                <div class="deviceContent ${isOff ? 'is-off' : ''}" style=${styleMap(this.device.color ? {'--device-shadow-color': this.device.color} : {})}>
+                <div class="border deviceContent ${isOff ? 'is-off' : ''}" style=${styleMap(this.device.color ? {'--device-shadow-color': this.device.color} : {})}>
                     <power-device-history-bars 
                         .device=${this.device}
                         .historyToRender=${[...historyToRender]}

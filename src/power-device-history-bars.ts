@@ -22,7 +22,7 @@ export class PowerDeviceHistoryBars extends LitElement {
                 align-items: flex-end;
                 pointer-events: none;
                 overflow: hidden;
-                border-radius: 10px;
+                //border-radius: 10px;
                 z-index: 1;
             }
             .historyBarContainer {
