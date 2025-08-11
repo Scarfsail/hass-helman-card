@@ -134,4 +134,10 @@ export class DeviceNode {
     public children_full_width?: boolean; // Indicates if the device should take full width in the UI
     public show_additional_info?: boolean; // Indicates if additional info should be shown in the UI
     public customLabelTexts?: string[]; // Custom texts to display based on matching device labels
+    public labels?: string[]; // HA label names attached to this device (for grouping)
+    // Virtual grouping metadata
+    public displayName?: string; // Optional display name override (e.g., "Label (Emoji)")
+    public virtualType?: 'labelCategory' | 'others';
+    public groupCategory?: string; // Category name when grouped by labels
+    public groupLabel?: string; // Label name within the category
 }

@@ -4,6 +4,7 @@ import { HouseDeviceConfig, GridDeviceConfig, BatteryDeviceConfig, SolarDeviceCo
 export interface HelmanCardConfig extends LovelaceCardConfig {
     sources_title?: string;
     consumers_title?: string;
+    groups_title?: string;
     max_power?:number;
     power_devices: {
         house?: HouseDeviceConfig;
@@ -14,5 +15,12 @@ export interface HelmanCardConfig extends LovelaceCardConfig {
     power_sensor_name_cleaner_regex?: string;
     history_buckets: number;
     history_bucket_duration: number;
-    device_label_text?: Record<string, string>;
+    // Nested mapping: Category -> (Label -> Emoji/Text)
+    device_label_text?: Record<string, Record<string, string>>;
+    // Show groups even if they contain no devices
+    show_empty_groups?: boolean;
+    // Include an "Others" group with devices not matching any label in the chosen category (default true)
+    show_others_group?: boolean;
+    // Custom label for the Others group (default "Others")
+    others_group_label?: string;
 }

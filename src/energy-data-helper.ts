@@ -48,7 +48,7 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
         power_sensor_name_cleaner_regex,
         sources_title,
         consumers_title,
-        device_label_text
+    device_label_text
     } = config;
 
     const roots: DeviceNode[] = [];
@@ -147,7 +147,18 @@ export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: H
     return roots;
 }
 
-async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unmeasuredPowerTitle?: string, housePowerEntityId?: string, powerSensorLabel?: string, powerSwitchLabel?: string, powerSensorNameCleanerRegex?: string, houseName?: string, houseConfig?: HouseDeviceConfig, deviceLabelText?: Record<string, string>): Promise<DeviceNode[]> {
+async function fetchDeviceTree(
+    hass: HomeAssistant,
+    historyBuckets: number,
+    unmeasuredPowerTitle?: string,
+    housePowerEntityId?: string,
+    powerSensorLabel?: string,
+    powerSwitchLabel?: string,
+    powerSensorNameCleanerRegex?: string,
+    houseName?: string,
+    houseConfig?: HouseDeviceConfig,
+    deviceLabelText?: Record<string, Record<string, string>>
+): Promise<DeviceNode[]> {
     const [energyPrefs, entityRegistry, deviceRegistry, labelRegistry] = await Promise.all([
         hass.connection.sendMessagePromise<EnergyPrefs>(
             { type: "energy/get_prefs" }
@@ -171,7 +182,7 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
         let powerSensorId: string | null = null;
         let switchEntityId: string | null = null;
 
-        if (energyEntity && energyEntity.device_id) {
+    if (energyEntity && energyEntity.device_id) {
             const device = deviceRegistry.find(d => d.id === energyEntity.device_id);
             if (!device) continue;
 
@@ -236,8 +247,8 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
             node.icon = powerSensorState.attributes.icon;
         }
 
-        // Match device labels with user configuration and collect custom texts
-        if (deviceLabelText && energyEntity && energyEntity.device_id) {
+    // Match device labels with user configuration and collect custom texts
+    if (energyEntity && energyEntity.device_id) {
             const deviceEntities = entityRegistry.filter(e => e.device_id === energyEntity.device_id);
             const deviceLabels = new Set<string>();
             
@@ -251,16 +262,23 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
                 }
             }
             
-            // Find matching custom texts
-            const customTexts: string[] = [];
-            for (const labelName of deviceLabels) {
-                if (deviceLabelText[labelName]) {
-                    customTexts.push(deviceLabelText[labelName]);
+            // Attach labels to node for grouping in UI
+            node.labels = Array.from(deviceLabels);
+
+            // If mapping is provided, compute custom label texts (emoji/shortcuts)
+            if (deviceLabelText) {
+                const customTexts: string[] = [];
+                for (const labelName of deviceLabels) {
+                    for (const category in deviceLabelText) {
+                        const mapping = deviceLabelText[category];
+                        if (mapping && mapping[labelName]) {
+                            customTexts.push(mapping[labelName]);
+                        }
+                    }
                 }
-            }
-            
-            if (customTexts.length > 0) {
-                node.customLabelTexts = customTexts;
+                if (customTexts.length > 0) {
+                    node.customLabelTexts = customTexts;
+                }
             }
         }
 
@@ -309,13 +327,15 @@ async function fetchDeviceTree(hass: HomeAssistant, historyBuckets: number, unme
 }
 
 function inspectNodeAndAddUnmeasuredNodeToChildren(node: DeviceNode, historyBuckets: number, unmeasuredPowerTitle?: string): void {
-    if (node.children.length > 0) {
+    if (node.children.length === 0) return;
+    // Do not add an unmeasured node to virtual grouping parents, but still traverse
+    if (!node.isVirtual) {
         const unmeasuredNode = new DeviceNode("unmeasured", unmeasuredPowerTitle ?? 'Unmeasured power', null, null, historyBuckets);
         unmeasuredNode.isUnmeasured = true;
         node.children.push(unmeasuredNode);
-        for (const child of node.children) {
-            inspectNodeAndAddUnmeasuredNodeToChildren(child, historyBuckets, unmeasuredPowerTitle);
-        }
+    }
+    for (const child of node.children) {
+        inspectNodeAndAddUnmeasuredNodeToChildren(child, historyBuckets, unmeasuredPowerTitle);
     }
 }
 

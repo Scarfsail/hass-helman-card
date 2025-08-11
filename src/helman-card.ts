@@ -157,6 +157,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .devices_full_width=${true}
                         .sortChildrenByPower=${true}
                         .initial_show_only_top_children=${3}
+                        .config=${this.config}
                     ></power-house-devices-section>
                 </div>
             </ha-card>

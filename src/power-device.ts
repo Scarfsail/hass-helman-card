@@ -180,7 +180,7 @@ export class PowerDevice extends LitElement {
                                 @toggle-children=${this._toggleChildren}
                                 @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
                             ></power-device-icon>
-                            <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.name} ${indicator}</div>
+                            <div class="deviceName ${hasChildren ? 'has-children' : ''}" @click=${this._toggleChildren}>${device.displayName || device.name} ${indicator}</div>
                             <power-device-power-display
                                 .powerValue=${this.device.powerValue ?? 0}
                                 .powerSensorId=${this.device.powerSensorId ?? undefined}
