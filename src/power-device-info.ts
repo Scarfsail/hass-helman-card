@@ -5,6 +5,7 @@ import { nothing, TemplateResult } from "lit-html";
 import { BatteryDeviceConfig, GridDeviceConfig, SolarDeviceConfig } from "./DeviceConfig";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { sharedStyles } from "./shared-styles";
+import { convertToKWh, getDisplayEnergyUnit } from "./energy-unit-converter";
 
 @customElement("power-device-info")
 export class PowerDeviceInfo extends LitElement {
@@ -104,45 +105,58 @@ export class PowerDeviceInfo extends LitElement {
         if (!todayImportState || !todayExportState) {
             return nothing;
         }
-        const todayImport = parseFloat(todayImportState.state);
-        const todayExport = parseFloat(todayExportState.state);
+        const todayImportRaw = parseFloat(todayImportState.state);
+        const todayExportRaw = parseFloat(todayExportState.state);
 
-        if (isNaN(todayImport) || isNaN(todayExport)) {
+        if (isNaN(todayImportRaw) || isNaN(todayExportRaw)) {
             return nothing;
         }
+
+        // Convert to kWh using unit detection
+        const todayImportKWh = convertToKWh(todayImportRaw, todayImportState.attributes.unit_of_measurement);
+        const todayExportKWh = convertToKWh(todayExportRaw, todayExportState.attributes.unit_of_measurement);
+
         if (device.isSource) {
+            const importDisplay = getDisplayEnergyUnit(todayImportKWh);
             return html`
-                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_import!)}>⚡ ${(todayImport).toFixed(1)} <span class="units">kWh</span></span>
+                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_import!)}>⚡ ${importDisplay.value.toFixed(1)} <span class="units">${importDisplay.unit}</span></span>
             `;
         } else {
+            const exportDisplay = getDisplayEnergyUnit(todayExportKWh);
             return html`
-                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_export!)}>⚡ ${(todayExport).toFixed(1)} <span class="units">kWh</span></span>
+                <span class="clickable" @click=${() => this._showMoreInfo(gridConfig.entities.today_export!)}>⚡ ${exportDisplay.value.toFixed(1)} <span class="units">${exportDisplay.unit}</span></span>
             `;
         }
-
-
     }
 
     private _renderSolarInfo(device: DeviceNode, solarConfig: SolarDeviceConfig): TemplateResult | typeof nothing {
         if (!solarConfig.entities.today_energy || !solarConfig.entities.remaining_today_energy_forecast) {
             return nothing;
         }
-        const todayEnergyWhState = this.hass.states[solarConfig.entities.today_energy];
+        const todayEnergyState = this.hass.states[solarConfig.entities.today_energy];
         const forecastEnergyState = this.hass.states[solarConfig.entities.remaining_today_energy_forecast];
 
-        if (!todayEnergyWhState || !forecastEnergyState) {
+        if (!todayEnergyState || !forecastEnergyState) {
             return nothing;
         }
-        const todayEnergyWh = parseFloat(todayEnergyWhState.state);
-        const forecastEnergyWh = parseFloat(forecastEnergyState.state);
+        const todayEnergyRaw = parseFloat(todayEnergyState.state);
+        const forecastEnergyRaw = parseFloat(forecastEnergyState.state);
 
-        if (isNaN(todayEnergyWh) || isNaN(forecastEnergyWh)) {
+        if (isNaN(todayEnergyRaw) || isNaN(forecastEnergyRaw)) {
             return nothing;
         }
+
+        // Convert to kWh using unit detection
+        const todayEnergyKWh = convertToKWh(todayEnergyRaw, todayEnergyState.attributes.unit_of_measurement);
+        const forecastEnergyKWh = convertToKWh(forecastEnergyRaw, forecastEnergyState.attributes.unit_of_measurement);
+
+        // Get appropriate display units
+        const todayDisplay = getDisplayEnergyUnit(todayEnergyKWh);
+        const forecastDisplay = getDisplayEnergyUnit(forecastEnergyKWh);
 
         return html`
-            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.today_energy!)}>⚡${(todayEnergyWh / 1000).toFixed(1)} <span class="units">kWh</span></span>
-            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.remaining_today_energy_forecast!)}>✨${(forecastEnergyWh / 1000).toFixed(1)} <span class="units">kWh</span></span>
+            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.today_energy!)}>⚡${todayDisplay.value.toFixed(1)} <span class="units">${todayDisplay.unit}</span></span>
+            <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.remaining_today_energy_forecast!)}>✨${forecastDisplay.value.toFixed(1)} <span class="units">${forecastDisplay.unit}</span></span>
         `;
     }
 

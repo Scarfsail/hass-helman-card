@@ -90,8 +90,8 @@ Note: Label names must match HA Labels exactly (see Settings → Automations & S
 #### GridDeviceConfig (`power_devices.grid`)
 - `entities`:
   - `power`: sensor entity_id — Grid power (positive import, negative export). The card treats import/export explicitly when rendering.
-  - `today_export`: sensor entity_id (kWh) — Optional; shown in consumer mode.
-  - `today_import`: sensor entity_id (kWh) — Optional; shown in source mode.
+  - `today_export`: sensor entity_id — Optional; shown in consumer mode (any energy unit supported).
+  - `today_import`: sensor entity_id — Optional; shown in source mode (any energy unit supported).
 
 #### BatteryDeviceConfig (`power_devices.battery`)
 - `entities`:
@@ -106,8 +106,8 @@ When sufficient battery fields are present and current power is significant, the
 #### SolarDeviceConfig (`power_devices.solar`)
 - `entities`:
   - `power`: sensor entity_id — Solar inverter/array power.
-  - `today_energy`: sensor entity_id (Wh) — Rendered as kWh.
-  - `remaining_today_energy_forecast`: sensor entity_id (Wh) — Rendered as kWh.
+  - `today_energy`: sensor entity_id — Energy produced today (any energy unit supported).
+  - `remaining_today_energy_forecast`: sensor entity_id — Remaining forecast energy (any energy unit supported).
 
 
 ## Grouping by labels (house devices)
@@ -138,7 +138,7 @@ Usage notes:
 ## Entity and data requirements
 - Power sensors should have `device_class: power` so the card can locate them per device via the Entity Registry.
 - The house device tree is built from Energy → Device consumption preferences (uses the `included_in_stat` relationship to form parent/child links).
-- Grid `today_import`/`today_export` are expected in kWh. Solar `today_energy` and `remaining_today_energy_forecast` are expected in Wh and are shown as kWh.
+- All energy sensors (Grid `today_import`/`today_export`, Solar `today_energy` and `remaining_today_energy_forecast`) automatically detect their units from the sensor's `unit_of_measurement` attribute and convert appropriately. Supported units include Wh, kWh, MWh, and GWh.
 - Label selection for power sensor/switch requires the Label Registry (core) and correct label assignment in HA.
 
 
