@@ -20,7 +20,7 @@
 **Sections**:
 1. ✅ **Core Caching** (45 min) - Cache source nodes & computed device tree nodes
 2. ✅ **Array Operations Cleanup** (15 min) - Remove unnecessary array spreads
-3. ✅ **Sorting Optimization** (45 min) - Memoize sorting operations
+3. ✅ **Sorting Optimization** (45 min) - Cache sorted order with fresh references
 4. ⏳ **Lifecycle Optimizations** (60 min) - Add shouldUpdate() to prevent unnecessary renders
 
 ---
@@ -225,29 +225,102 @@ All unnecessary array spread operators removed successfully. These spreads were 
 - [ ] No issues found during implementation
 
 ### Next Steps
-- Build and test the changes
-- Verify visual appearance is identical
-- Move to Section 3: Sorting Optimization
+- ✅ Completed - Moving to Section 3: Sorting Optimization
 
 ---
 
-## Section 2: Array Operations Cleanup (Duplicate - Old)
+## Section 3: Sorting Optimization ✅
 
-**Status**: Not Started
-1. Add `_sourceNodes` state property
-2. Create `_collectSourceNodes()` method
-3. Call collection once in `connectedCallback()`
-4. Use cached nodes in `periodicalPowerValuesUpdate()`
-5. Add `_computedNodes` state property
-6. Move device tree .find() operations to `willUpdate()`
-7. Create constant `EMPTY_ARRAY` for fallbacks
+**Status**: Complete  
+**Actual Time**: 10 minutes  
+**Expected Impact**: ~20% CPU reduction
+
+### Key Learning from Section 2
+
+The historyToRender spread was essential because **mutable arrays need new references for Lit change detection**. This insight is critical for sorting optimization.
+
+### Implementation Strategy
+
+**Problem**: Can't cache sorted DeviceNode arrays (mutable objects + same references = no Lit updates)  
+**Solution**: Cache the SORTED ORDER (IDs only), reconstruct fresh array on each render
+
+### Changes Made
+
+1. **Cache Properties Added** ✅
+   ```typescript
+   private _lastSortedIds?: string[];          // Cache the ORDER (just IDs)
+   private _lastDevicesPowerSnapshot?: string;  // For change detection
+   ```
+
+2. **willUpdate() Lifecycle Method** ✅
+   - Creates power snapshot: `devices.map(d => ${d.id}:${d.powerValue}).join(',')`
+   - Only re-sorts when snapshot changes
+   - Stores sorted IDs: `_lastSortedIds = sorted.map(d => d.id)`
+   - Clears cache when sorting disabled
+
+3. **render() Method Updated** ✅
+   - If sortChildrenByPower && cached IDs exist:
+     - Creates Map for O(1) device lookup
+     - Returns NEW array using cached order
+     - Devices have latest mutable data
+   - Otherwise uses devices array directly
+
+### Performance Impact
+
+**Before**:
+- Called `sortDevicesByPowerAndName()` on every render when sortChildrenByPower enabled
+- Sort algorithm runs 60+ times/min even when power values unchanged
+- O(n log n) complexity × 60 renders/min
+
+**After**:
+- Sort algorithm runs ONLY when power values actually change
+- Typical case: Power values change ~1-2 times/min for most devices
+- Render just reconstructs array using cached order: O(n) map creation + O(n) array build
+- Fresh array reference ensures Lit detects changes
+
+**Expected Result**: ~20% CPU reduction by:
+- Eliminating 58-59 unnecessary sorts per minute
+- Still providing fresh references for change detection
+- Maintaining correct visual updates
+
+### Build Verification
+- ✅ Production build successful: `npm run build-prod`
+- ✅ Output: `dist/helman-card-prod.js  76.93 kB │ gzip: 18.62 kB`
+- ✅ No TypeScript compilation errors
+- ✅ Build time: 239ms
+- ✅ File size increase: +0.13 kB (minimal - cache logic overhead)
 
 ### Testing Focus
 **What to test**:
-- Card loads normally
-- All devices display correctly
-- Power values update in real-time (every 1 second by default)
+- Devices sort correctly when sortChildrenByPower enabled
+- Sorting updates when power values change
+- No sorting when sortChildrenByPower disabled
+- Visual updates still work correctly
 - No console errors
+
+**Expected Behavior**:
+- Same visual appearance and behavior
+- Smoother performance (less sorting)
+- Devices maintain correct order as power changes
+
+### Technical Explanation
+
+**Why this approach works**:
+1. **Cached order**: IDs don't change, safe to cache
+2. **Fresh references**: New array on each render triggers Lit updates
+3. **Latest data**: Mutable DeviceNode objects have current values
+4. **Smart invalidation**: Only re-sort when power actually changes
+
+**The magic**: We cache what's stable (sort order) but recreate what's needed (array reference).
+
+### Next Steps
+- Move to Section 4: Lifecycle Optimizations (shouldUpdate)
+
+---
+
+## Section 4: Lifecycle Optimizations
+
+**Status**: Not Started
 - **Performance**: Open DevTools Performance tab, record 10 seconds, check if scripting time reduced
 
 **Expected Behavior**:
