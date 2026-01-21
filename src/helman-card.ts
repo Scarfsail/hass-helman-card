@@ -164,7 +164,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .currentParentPower=${sourcesNode!.powerValue}
                         .parentPowerHistory=${sourcesNode!.powerHistory}
                     ></power-devices-container>
-                    <power-flow-arrows .devices=${[...sourcesChildren]} .maxPower=${this.config?.max_power}></power-flow-arrows>
+                    <power-flow-arrows .devices=${sourcesChildren} .maxPower=${this.config?.max_power}></power-flow-arrows>
                     
                     <power-devices-container
                         .hass=${this._hass!}
@@ -173,7 +173,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .historyBucketDuration=${this.config.history_bucket_duration}
                         .devices_full_width=${true}
                     ></power-devices-container>
-                    <power-flow-arrows .devices=${[...consumersChildren]} .maxPower=${this.config?.max_power}></power-flow-arrows>
+                    <power-flow-arrows .devices=${consumersChildren} .maxPower=${this.config?.max_power}></power-flow-arrows>
                     
                     <power-devices-container
                         .hass=${this._hass!}
