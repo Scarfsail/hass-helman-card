@@ -12,12 +12,24 @@ import "./power-flow-arrows"
 import "./power-device-info"
 import "./power-house-devices-section"
 
+// Constant for empty arrays to avoid creating new empty arrays repeatedly
+const EMPTY_ARRAY: readonly DeviceNode[] = Object.freeze([]);
+
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
     private config!: HelmanCardConfig;
     @state() private _hass?: HomeAssistant;
     @state() private _deviceTree: DeviceNode[] = [];
     @state() private _showAllHouseChildren = false; // deprecated locally, now handled in section
+    @state() private _sourceNodes: DeviceNode[] = [];
+    @state() private _computedNodes?: {
+        sourcesNode: DeviceNode | undefined;
+        sourcesChildren: readonly DeviceNode[];
+        consumerNode: DeviceNode | undefined;
+        consumersChildren: readonly DeviceNode[];
+        houseNode: DeviceNode | undefined;
+        houseDevices: readonly DeviceNode[];
+    };
     private _historyInterval?: number;
     public set hass(value: HomeAssistant) {
         this._hass = value;
@@ -59,6 +71,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         super.connectedCallback();
         if (this._hass) {
             await this._fetchCurrentData();
+            this._sourceNodes = this._collectSourceNodes(this._deviceTree);
             this.requestUpdate();
             this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
             this.periodicalPowerValuesUpdate();
@@ -70,9 +83,15 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         if (!this._hass || this._deviceTree.length === 0) {
             return;
         }
+        // Use cached source nodes instead of collecting them every time
+        this._deviceTree.forEach(device => device.updateHistoryBuckets(this._hass!, this._sourceNodes));
+        this.requestUpdate();
+    }
+
+    private _collectSourceNodes(nodes: DeviceNode[]): DeviceNode[] {
         const sourceNodes: DeviceNode[] = [];
-        const collectSources = (nodes: DeviceNode[]) => {
-            for (const node of nodes) {
+        const collectSources = (nodeList: DeviceNode[]) => {
+            for (const node of nodeList) {
                 if (node.isSource) {
                     sourceNodes.push(node);
                 }
@@ -81,10 +100,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                 }
             }
         };
-        collectSources(this._deviceTree);
-
-        this._deviceTree.forEach(device => device.updateHistoryBuckets(this._hass!, sourceNodes));
-        this.requestUpdate();
+        collectSources(nodes);
+        return sourceNodes;
     }
 
     disconnectedCallback(): void {
@@ -93,6 +110,30 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             clearInterval(this._historyInterval);
         }
     }
+
+    willUpdate(changedProperties: Map<string, any>): void {
+        super.willUpdate(changedProperties);
+        
+        // Recompute nodes only when _deviceTree changes
+        if (changedProperties.has('_deviceTree')) {
+            const sourcesNode = this._deviceTree.find((device) => device.id === "sources");
+            const sourcesChildren = sourcesNode?.children ?? EMPTY_ARRAY;
+            const consumerNode = this._deviceTree.find((device) => device.id === "consumers");
+            const consumersChildren = consumerNode?.children ?? EMPTY_ARRAY;
+            const houseNode = consumersChildren.find((device) => device.id === "house");
+            const houseDevices = houseNode?.children ?? EMPTY_ARRAY;
+
+            this._computedNodes = {
+                sourcesNode,
+                sourcesChildren,
+                consumerNode,
+                consumersChildren,
+                houseNode,
+                houseDevices
+            };
+        }
+    }
+
     private async _fetchCurrentData(): Promise<void> {
         this._deviceTree = await fetchSourceAndConsumerRoots(this._hass!, this.config);
     }
@@ -106,15 +147,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     render() {
-        if (!this._hass || this._deviceTree.length === 0) {
+        if (!this._hass || this._deviceTree.length === 0 || !this._computedNodes) {
             return html``;
         }
-        const sourcesNode = this._deviceTree.find((device) => device.id === "sources");
-        const sourcesChildren = sourcesNode?.children || [];
-        const consumerNode = this._deviceTree.find((device) => device.id === "consumers");
-        const consumersChildren = consumerNode?.children || [];
-        const houseNode = consumersChildren.find((device) => device.id === "house");
-        const houseDevices = houseNode?.children || [];
+        // Use pre-computed nodes from willUpdate
+        const { sourcesNode, sourcesChildren, consumerNode, consumersChildren, houseNode, houseDevices } = this._computedNodes;
 
         return html`
             <ha-card>
