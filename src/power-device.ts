@@ -182,7 +182,7 @@ export class PowerDevice extends LitElement {
                 <div class="border deviceContent ${isOff ? 'is-off' : ''}" style=${styleMap(this.device.color ? {'--device-shadow-color': this.device.color} : {})}>
                     <power-device-history-bars 
                         .device=${this.device}
-                        .historyToRender=${historyToRender}
+                        .historyToRender=${[...historyToRender]}
                         .maxHistoryPower=${maxHistoryPower}
                         .historyBarColor=${historyBarColor}>
                     </power-device-history-bars>
