@@ -1,0 +1,294 @@
+# Helman Card – Backend Migration: Comprehensive Implementation Plan
+
+## Overview
+
+This document is the master plan for migrating the majority of helman-card's data
+fetching, computation, and configuration into a new Home Assistant custom component
+(`hass-helman`). The frontend card retains its entire UX and visual layer but
+delegates all heavy work to the backend.
+
+### Goals
+- Single configuration point (set up once in HA integrations, not per-Lovelace-view)
+- Eliminate 4 parallel WebSocket registry lookups on every card load
+- Move O(buckets × entities) history aggregation out of the browser
+- Enable battery ETA and unmeasured-power as proper HA sensors
+- Allow simpler sibling cards (e.g. "Helman Battery Card") with zero extra config
+
+### Non-goals
+- Changing the card's visual design or UX in any way
+- Replacing the custom Lovelace card with a built-in panel (keep HACS card approach)
+- Real-time streaming (standard HA entity push is sufficient)
+
+---
+
+## Progress Tracking
+
+**This file is the single source of truth for implementation progress across sessions.**
+Each phase is implemented in a separate session. At the end of a session (once testing
+is confirmed), the assistant updates the status table below, commits all changes, and
+provides a short prompt to start the next session.
+
+### Status Table
+
+| Phase | Name | Status | Notes |
+|-------|------|--------|-------|
+| 1 | Backend Skeleton | ✅ Tested & complete | |
+| 2 | Config Migration | ✅ Tested & complete | |
+| 3 | Device Tree in Backend | ⬜ Not started | |
+| 4 | Live Power Subscription | ⬜ Not started | |
+| 5 | History Aggregation | ⬜ Not started | |
+| 6 | Derived Sensors | ⬜ Not started | |
+| 7 | Frontend Cleanup | ⬜ Not started | |
+
+Status values: ⬜ Not started · 🔄 In progress · 🧪 Implemented – awaiting test · ✅ Tested & complete
+
+### Session Workflow
+
+1. **Start of session**: read this file to find the first phase that is not ✅.
+2. **Implement**: follow the detail document for that phase.
+3. **Hand off for testing**: set the phase to 🧪, list the testing checklist below
+   so the user knows exactly what to verify.
+4. **After user confirms it works**: set the phase to ✅, commit all changes with
+   the commit message from the phase document, then output the next-session prompt.
+
+### Testing Checklists
+
+Filled in by the assistant at the end of each implementation session.
+
+#### Phase 1 – Backend Skeleton
+1. Copy `hass-helman/custom_components/helman/` to your HA `config/custom_components/` directory.
+2. Restart Home Assistant.
+3. Go to **Settings → Integrations → Add Integration** and search for "Helman Energy".
+4. Click through the single-step setup flow (no fields to fill in).
+5. Verify the entry appears in the integrations list with no errors in the HA logs.
+6. Reload the integration (⋮ menu → Reload) → should succeed without errors.
+7. Delete the entry (⋮ menu → Delete) → should succeed without errors.
+8. Re-add it to confirm the single-instance guard works (adding a second instance should show "Only one Helman Energy instance is supported.").
+
+#### Phase 2 – Config Migration
+1. Copy the updated `hass-helman/custom_components/helman/` to `config/custom_components/` (it now contains `storage.py` and `websockets.py`).
+2. Restart Home Assistant.
+3. Verify the integration loads without errors in HA logs.
+4. Open **Developer Tools → WebSocket** (or browser console) and send:
+   ```json
+   { "id": 1, "type": "helman/get_config" }
+   ```
+   Confirm the response contains the default config (`history_buckets`, `sources_title`, etc.).
+5. Save a custom config via:
+   ```json
+   { "id": 2, "type": "helman/save_config", "config": { "sources_title": "Test Sources", "history_buckets": 30, "history_bucket_duration": 1, "consumers_title": "Test Consumers", "others_group_label": "Others", "groups_title": "Group by:", "device_label_text": {}, "power_devices": {} } }
+   ```
+   Confirm `{ "success": true }` is returned.
+6. Restart HA and call `helman/get_config` again — confirm the saved value (`"sources_title": "Test Sources"`) persists across restarts.
+7. Build the frontend (`npm run build-dev` in `hass-helman-card/`) and load the card in a dashboard **without** the `sensor.helman_power_summary` entity present — the card should fall back to YAML config (legacy mode).
+
+#### Phase 3 – Device Tree in Backend
+_Populated when phase moves to 🧪._
+
+#### Phase 4 – Live Power Subscription
+_Populated when phase moves to 🧪._
+
+#### Phase 5 – History Aggregation
+_Populated when phase moves to 🧪._
+
+#### Phase 6 – Derived Sensors
+_Populated when phase moves to 🧪._
+
+#### Phase 7 – Frontend Cleanup
+_Populated when phase moves to 🧪._
+
+---
+
+## Repository Strategy
+
+Create a **new Git repository** `hass-helman` (sibling to `hass-helman-card`):
+
+```
+hass-helman/
+  custom_components/
+    helman/
+      __init__.py
+      manifest.json
+      config_flow.py
+      const.py
+      storage.py
+      coordinator.py
+      websockets.py
+      sensor.py
+      services.yaml
+```
+
+The existing `hass-helman-card` repository is kept; only its `src/` is progressively
+simplified as backend phases land.
+
+---
+
+## Phase Overview
+
+Current progress is tracked in the **Status Table** above.
+
+| Phase | Name | Backend deliverable | Frontend change |
+|-------|------|---------------------|-----------------|
+| 1 | Backend Skeleton | HACS-installable component (no-op) | None |
+| 2 | Config Migration | `HelmanStorage` + `helman/get_config` / `helman/save_config` WS | Config-loader with backend-first / YAML fallback |
+| 3 | Device Tree in Backend | `HelmanTreeBuilder` + `helman/get_device_tree` WS | Replace 4 WS calls with 1 |
+| 4 | Live Power Subscription | `HelmanPowerSummarySensor` + `async_track_state_change_event` | Replace `setInterval` with `hass` setter |
+| 5 | History Aggregation | `HelmanHistoryAggregator` + history in sensor attributes | Remove raw history fetch + bucketing |
+| 6 | Derived Sensors | `sensor.helman_battery_time_to_target` + `sensor.helman_unmeasured_house_power` | Read ETA from sensor state |
+| 7 | Frontend Cleanup | Stable (no backend changes) | Delete `energy-data-helper.ts`; strip card to pure renderer |
+
+Detailed notes for each phase are in separate files alongside this document.
+
+---
+
+## Architecture Decision: Communication Channels
+
+Three channels will be used, chosen to match the nature of each data type:
+
+### Channel A – Custom WebSocket Commands
+**Used for:** One-shot structured data (device tree, config, history)
+
+Modelled after `hass-door-window-watcher`'s `dww/get_config` pattern.
+
+```
+Frontend → hass.connection.sendMessagePromise({ type: "helman/get_device_tree" })
+Backend  → connection.send_result(msg["id"], tree_payload)
+```
+
+Commands planned:
+- `helman/get_config` – fetch current backend config
+- `helman/save_config` – persist config changes
+- `helman/get_device_tree` – fetch the fully-resolved device tree
+- `helman/get_history` – fetch pre-bucketed history for a time window
+
+### Channel B – HA Entity State Push
+**Used for:** Live power values and derived metrics (battery ETA, unmeasured power)
+
+Modelled after `hass-door-window-watcher`'s `BinarySensorEntity` with
+`extra_state_attributes`. The card's existing `hass` setter already receives every
+state update automatically. No polling interval needed.
+
+Entity planned:
+- `sensor.helman_power_summary` – attributes contain the full current power tree
+  (sources, consumers, per-device readings) as a JSON-serializable dict
+- `sensor.helman_battery_time_to_target` (or per-battery if multiple)
+- `sensor.helman_unmeasured_house_power`
+
+### Channel C – HA Services (action-only)
+**Used for:** Triggering side effects from the frontend (e.g. future: manual refresh)
+
+Not needed in initial phases; reserved for future use.
+
+---
+
+## Data Flow (target state)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Home Assistant Core                                                  │
+│                                                                       │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  helman custom component                                      │   │
+│  │                                                               │   │
+│  │  HelmanCoordinator                                            │   │
+│  │    ├── Reads: energy/get_prefs                                │   │
+│  │    ├── Reads: entity_registry / device_registry / labels     │   │
+│  │    ├── Subscribes: async_track_state_change_event (power)    │   │
+│  │    ├── Subscribes: async_track_time_interval (1 s tick)      │   │
+│  │    ├── Computes: power tree, history buckets, source ratios  │   │
+│  │    └── Pushes: async_write_ha_state() on every change        │   │
+│  │                                                               │   │
+│  │  Entities                                                     │   │
+│  │    sensor.helman_power_summary (attrs: full tree snapshot)   │   │
+│  │    sensor.helman_battery_time_to_target                      │   │
+│  │    sensor.helman_unmeasured_house_power                      │   │
+│  │                                                               │   │
+│  │  WebSocket commands                                           │   │
+│  │    helman/get_device_tree  → tree JSON                       │   │
+│  │    helman/get_history      → bucketed history JSON           │   │
+│  │    helman/get_config       → config JSON                     │   │
+│  │    helman/save_config      → persist config                  │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                        ↕  HA state machine                           │
+└───────────────────────────────────────┬─────────────────────────────┘
+                                        │ WebSocket (existing HA connection)
+                                ┌───────┴───────────────────────┐
+                                │  helman-card (Lovelace)        │
+                                │                                │
+                                │  On connect:                   │
+                                │    sendMessage(get_device_tree)│
+                                │    sendMessage(get_history)    │
+                                │                                │
+                                │  On hass setter:               │
+                                │    read sensor.helman_*        │
+                                │    update rendered power values │
+                                │                                │
+                                │  Render (unchanged UX):        │
+                                │    power-flow-arrows           │
+                                │    power-device (sources)      │
+                                │    power-house-devices-section │
+                                │    power-device-history-bars   │
+                                └────────────────────────────────┘
+```
+
+---
+
+## Configuration Schema (target)
+
+The YAML card config shrinks to a minimal reference:
+
+```yaml
+# helman-card: minimal future config
+type: custom:helman-card
+entity: sensor.helman_power_summary   # the backend entity to bind to
+```
+
+All content currently in the card YAML moves into the backend integration's config,
+stored in `.storage/helman/<entry_id>.json` via HA's `storage.Store` helper:
+
+```json
+{
+  "power_sensor_name_cleaner_regex": " Výkon$",
+  "history_buckets": 60,
+  "history_bucket_duration": 1,
+  "sources_title": "Zdroje energie",
+  "consumers_title": "Distribuce energie",
+  "others_group_label": "Ostatní",
+  "groups_title": "Seskupit:",
+  "device_label_text": { ... },
+  "power_devices": {
+    "solar": { "source_name": "FV Panely", "entities": { ... } },
+    "battery": { ... },
+    "grid": { ... },
+    "house": { ... }
+  }
+}
+```
+
+A companion config UI can be added as a custom panel (optional, Phase 2 extension)
+or via a YAML import flow. For now, `helman/save_config` WebSocket command lets the
+existing card write config directly during a one-time migration wizard step.
+
+---
+
+## Backward Compatibility
+
+- Phases 1–3 are **additive**: the card keeps working with full YAML config while the
+  backend is installed and running. The card detects whether the backend entity exists
+  and falls back to legacy mode automatically.
+- Phase 7 is the **breaking change** that removes legacy mode. A major semver bump
+  (`BREAKING CHANGE:`) is required at that point.
+
+---
+
+## Phased Detail Documents
+
+See the following files in this directory for detailed implementation notes:
+
+- [`phase1_backend_skeleton.md`](./phase1_backend_skeleton.md)
+- [`phase2_config_migration.md`](./phase2_config_migration.md)
+- [`phase3_device_tree.md`](./phase3_device_tree.md)
+- [`phase4_live_power.md`](./phase4_live_power.md)
+- [`phase5_history_aggregation.md`](./phase5_history_aggregation.md)
+- [`phase6_derived_sensors.md`](./phase6_derived_sensors.md)
+- [`phase7_frontend_cleanup.md`](./phase7_frontend_cleanup.md)
