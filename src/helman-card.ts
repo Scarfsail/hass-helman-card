@@ -134,7 +134,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     willUpdate(changedProperties: Map<string, any>): void {
         super.willUpdate(changedProperties);
         
-        // Recompute nodes only when _deviceTree changes
+        // Recompute nodes only when the _deviceTree reference changes (i.e., after
+        // _fetchCurrentData assigns a new array). Mutation-triggered renders
+        // (from periodicalPowerValuesUpdate / enrichDeviceTreeWithHistory) do NOT
+        // reach this branch — they rely on _computedNodes holding live object
+        // references into the tree, so render() sees updated values via the same refs.
         if (changedProperties.has('_deviceTree')) {
             const sourcesNode = this._deviceTree.find((device) => device.id === "sources");
             const sourcesChildren = sourcesNode?.children ?? EMPTY_ARRAY;
@@ -161,6 +165,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private async _fetchHistoricalData(): Promise<void> {
         try {
             await enrichDeviceTreeWithHistory(this._deviceTree, this._hass!, this.config.history_buckets, this.config.history_bucket_duration);
+            this.requestUpdate();
         } catch (error) {
             console.error('Error fetching device tree:', error);
         }

@@ -36,7 +36,7 @@ provides a short prompt to start the next session.
 | 2 | Config Migration | ✅ Tested & complete | |
 | 3 | Device Tree in Backend | ✅ Tested & complete | |
 | 4 | Live Power Subscription | ✅ Tested & complete | |
-| 5 | History Aggregation | ⬜ Not started | |
+| 5 | History Aggregation | ✅ Tested & complete | |
 | 6 | Derived Sensors | ⬜ Not started | |
 | 7 | Frontend Cleanup | ⬜ Not started | |
 
@@ -115,7 +115,27 @@ Filled in by the assistant at the end of each implementation session.
 10. Reload the integration (⋮ → Reload) → entity should reappear and resume pushing snapshots without errors.
 
 #### Phase 5 – History Aggregation
-_Populated when phase moves to 🧪._
+1. Copy the updated `hass-helman/custom_components/helman/` to `config/custom_components/` (it now contains `history_aggregator.py`; `coordinator.py`, `websockets.py`, and `manifest.json` are updated).
+2. Build the frontend (`npm run build-dev` in `hass-helman-card/`).
+3. Restart Home Assistant and verify it loads without errors in HA logs.
+4. Open browser console on your HA dashboard and run:
+   ```javascript
+   const result = await hass.connection.sendMessagePromise({ type: "helman/get_history" });
+   console.log(JSON.stringify(result, null, 2));
+   ```
+   Confirm the response contains:
+   - `buckets` (number, e.g. 60)
+   - `bucket_duration` (number, e.g. 1)
+   - `entity_history` — an object keyed by entity_id, each value an array of `buckets` floats (oldest first)
+   - `source_ratios` — an object keyed by non-source entity_id; each value is an object keyed by source entity_id with arrays of `buckets` floats
+5. Verify `entity_history` contains entries for all tracked power sensors (solar, battery, grid, house, and each house device).
+6. Verify `source_ratios` contains entries for all non-source sensors (house, each device) but NOT for sources themselves.
+7. Load the card in a dashboard in backend mode (sensor.helman_power_summary exists). Open the browser console and verify:
+   - No `history/history_during_period` calls appear in the Network tab or WS frames
+   - The card renders history bars for all devices (history bars visible in the house section)
+8. Verify the history bars show colored source segments (solar yellow, battery green, grid blue) for house devices.
+9. Reload the page and confirm history bars appear correctly after reconnect.
+10. Call `helman/save_config` with a changed config, then call `helman/get_history` again — verify fresh data is returned (cache was invalidated).
 
 #### Phase 6 – Derived Sensors
 _Populated when phase moves to 🧪._

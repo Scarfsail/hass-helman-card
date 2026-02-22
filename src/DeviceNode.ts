@@ -78,7 +78,13 @@ export class DeviceNode {
         this.powerValue = power;
 
         // --- Live Source Power Calculation ---
-        if (this.sourcePowerHistory && !this.isSource) {
+        if (!this.isSource && !this.isVirtual && !this.isUnmeasured && this.powerSensorId) {
+            if (!this.sourcePowerHistory) {
+                // Initialize with empty buckets matching current powerHistory so that
+                // updateHistoryBuckets can maintain the array from the very first live
+                // update — before the backend history fetch completes.
+                this.sourcePowerHistory = this.powerHistory.map(() => ({}));
+            }
             const totalSourcePower = sourceNodes.reduce((sum, s) => sum + (s.powerValue || 0), 0);
             const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
 

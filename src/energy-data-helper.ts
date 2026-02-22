@@ -450,12 +450,136 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
 
     collectNodes(deviceTree);
 
-    allNodes.forEach(n => n.powerHistory = []);
+    // In legacy (non-backend) mode only: reset histories before recalculating from
+    // HA recorder data.  In backend mode the direct `node.powerHistory = processedHistory`
+    // assignments below overwrite the arrays, so resetting here is unnecessary and would
+    // wipe the live-built buckets that `periodicalPowerValuesUpdate` added while the page
+    // first loaded — causing a brief flash of empty bars at startup.
+    if (!hass.states[BACKEND_AVAILABLE_ENTITY]) {
+        allNodes.forEach(n => n.powerHistory = []);
+    }
 
     if (nodesWithSensors.size === 0) {
         return;
     }
 
+    // Shared post-processing: compute virtual node histories by summing children
+    function calculateVirtualNodeHistory(node: DeviceNode) {
+        if (node.isVirtual) {
+            const childWithHistory = node.children.find(c => c.powerHistory && c.powerHistory.length > 0);
+            if (childWithHistory) {
+                const historyLength = childWithHistory.powerHistory.length;
+                node.powerHistory = Array(historyLength).fill(0);
+                for (let i = 0; i < historyLength; i++) {
+                    for (const child of node.children) {
+                        calculateVirtualNodeHistory(child);
+                        node.powerHistory[i] += (child.powerHistory && child.powerHistory[i]) || 0;
+                    }
+                }
+            }
+        } else {
+            for (const child of node.children) {
+                calculateVirtualNodeHistory(child);
+            }
+        }
+    }
+
+    if (hass.states[BACKEND_AVAILABLE_ENTITY]) {
+        // Backend mode: fetch pre-bucketed history from helman backend
+        const history = await hass.connection.sendMessagePromise<{
+            buckets: number;
+            bucket_duration: number;
+            entity_history: { [entityId: string]: number[] };
+            source_ratios: { [entityId: string]: { [sourceEntityId: string]: number[] } };
+        }>({
+            type: 'helman/get_history',
+        });
+
+        const { entity_history, source_ratios } = history;
+        const bucketCount = history.buckets;
+
+        // Assign powerHistory with valueType clamping.
+        // Also update node.historyBuckets to match the backend-authoritative bucket count
+        // so that updateHistoryBuckets' shift-guard uses the correct ceiling.
+        for (const [entityId, nodes] of nodesWithSensors) {
+            const rawHistory = entity_history[entityId];
+            if (!rawHistory) continue;
+            for (const node of nodes) {
+                let processedHistory = [...rawHistory];
+                if (node.valueType === 'positive') {
+                    processedHistory = processedHistory.map(v => Math.max(0, v));
+                } else if (node.valueType === 'negative') {
+                    processedHistory = processedHistory.map(v => Math.abs(Math.min(0, v)));
+                }
+                node.powerHistory = processedHistory;
+                node.historyBuckets = bucketCount;
+            }
+        }
+
+        for (const root of deviceTree) {
+            calculateVirtualNodeHistory(root);
+        }
+
+        // Build sourcePowerHistory from pre-computed backend source_ratios.
+        // source_ratios outer key = node.powerSensorId (power entity id).
+        // source_ratios inner key = source's powerSensorId (= source's .id, since
+        // tree_builder sets source node id == powerSensorId == entity_id).
+        // Output key is sourceNode.id (== sourceNode.powerSensorId for sources),
+        // matching the live-update key used in DeviceNode.updateLivePower.
+        for (const node of allNodes) {
+            if (node.isSource || !node.powerSensorId) continue;
+            const nodeRatios = source_ratios[node.powerSensorId];
+            if (!nodeRatios) continue;
+            node.sourcePowerHistory = [];
+            for (let i = 0; i < bucketCount; i++) {
+                const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
+                for (const sourceNode of sourceNodes) {
+                    if (!sourceNode.powerSensorId) continue;
+                    const sourcePowerValues = nodeRatios[sourceNode.powerSensorId];
+                    if (sourcePowerValues) {
+                        const power = sourcePowerValues[i] ?? 0;
+                        if (power > 0) {
+                            bucketSourcePower[sourceNode.id] = {
+                                power,
+                                color: sourceNode.color || 'grey',
+                            };
+                        }
+                    }
+                }
+                node.sourcePowerHistory.push(bucketSourcePower);
+            }
+        }
+
+        // Fallback: virtual nodes (no powerSensorId, e.g. "consumers") are skipped by
+        // source_ratios but do have powerHistory from calculateVirtualNodeHistory.
+        // Derive their sourcePowerHistory client-side from the normalised source powerHistories.
+        for (const node of allNodes) {
+            if (node.isSource || node.sourcePowerHistory || node.powerHistory.length === 0) continue;
+            node.sourcePowerHistory = [];
+            for (let i = 0; i < bucketCount; i++) {
+                const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
+                const totalSourcePower = sourceNodes.reduce((sum, s) => sum + (s.powerHistory[i] || 0), 0);
+                const nodePower = node.powerHistory[i] || 0;
+                if (totalSourcePower > 0 && nodePower > 0) {
+                    for (const sourceNode of sourceNodes) {
+                        const ratio = (sourceNode.powerHistory[i] || 0) / totalSourcePower;
+                        bucketSourcePower[sourceNode.id] = {
+                            power: nodePower * ratio,
+                            color: sourceNode.color || 'grey',
+                        };
+                    }
+                }
+                node.sourcePowerHistory.push(bucketSourcePower);
+            }
+        }
+
+        for (const node of allNodes) {
+            enrichUnmeasuredDeviceTreeWithHistory(node);
+        }
+        return;
+    }
+
+    // Legacy mode: fetch raw HA history and bucket client-side
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - historyIntervals * bucketDuration * 1000);
 
@@ -509,27 +633,6 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
         }
     }
 
-    // Calculate powerHistory for virtual nodes by summing up children
-    function calculateVirtualNodeHistory(node: DeviceNode) {
-        if (node.isVirtual) {
-            const childWithHistory = node.children.find(c => c.powerHistory && c.powerHistory.length > 0);
-            if (childWithHistory) {
-                const historyLength = childWithHistory.powerHistory.length;
-                node.powerHistory = Array(historyLength).fill(0);
-                for (let i = 0; i < historyLength; i++) {
-                    for (const child of node.children) {
-                        // First, ensure children have their history calculated if they are also virtual
-                        calculateVirtualNodeHistory(child);
-                        node.powerHistory[i] += (child.powerHistory && child.powerHistory[i]) || 0;
-                    }
-                }
-            }
-        } else {
-            for (const child of node.children) {
-                calculateVirtualNodeHistory(child);
-            }
-        }
-    }
     for (const root of deviceTree) {
         calculateVirtualNodeHistory(root);
     }
@@ -566,7 +669,6 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             node.sourcePowerHistory.push(bucketSourcePower);
         }
     }
-
 
     for (const node of allNodes) {
         enrichUnmeasuredDeviceTreeWithHistory(node);
