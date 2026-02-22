@@ -34,7 +34,7 @@ provides a short prompt to start the next session.
 |-------|------|--------|-------|
 | 1 | Backend Skeleton | ✅ Tested & complete | |
 | 2 | Config Migration | ✅ Tested & complete | |
-| 3 | Device Tree in Backend | ⬜ Not started | |
+| 3 | Device Tree in Backend | ✅ Tested & complete | |
 | 4 | Live Power Subscription | ⬜ Not started | |
 | 5 | History Aggregation | ⬜ Not started | |
 | 6 | Derived Sensors | ⬜ Not started | |
@@ -83,7 +83,20 @@ Filled in by the assistant at the end of each implementation session.
 7. Build the frontend (`npm run build-dev` in `hass-helman-card/`) and load the card in a dashboard **without** the `sensor.helman_power_summary` entity present — the card should fall back to YAML config (legacy mode).
 
 #### Phase 3 – Device Tree in Backend
-_Populated when phase moves to 🧪._
+1. Copy the updated `hass-helman/custom_components/helman/` to `config/custom_components/` (it now contains `tree_builder.py` and `coordinator.py`).
+2. Restart Home Assistant.
+3. Verify the integration loads without errors in HA logs.
+4. Open browser console on your HA dashboard and run:
+   ```javascript
+   const result = await hass.connection.sendMessagePromise({ type: "helman/get_device_tree" });
+   console.log(JSON.stringify(result, null, 2));
+   ```
+   Confirm the response contains `{ sources: [...], consumers: [...] }` with your configured solar/battery/grid sources and the house node with device children.
+5. Verify each device node has `displayName`, `powerSensorId`, `labels`, `color`, `icon` correctly set.
+6. Verify the house node's `children` contains all energy-dashboard-tracked devices with nested parent-child structure matching `energy/get_prefs` hierarchy.
+7. Trigger a cache invalidation: add a label to any entity in HA, then re-call `helman/get_device_tree` — the response should reflect the new label.
+8. Call `helman/save_config` with a changed config and re-call `helman/get_device_tree` — tree should rebuild (cache invalidated).
+9. The frontend card should still work normally (it uses the legacy path until `sensor.helman_power_summary` exists).
 
 #### Phase 4 – Live Power Subscription
 _Populated when phase moves to 🧪._

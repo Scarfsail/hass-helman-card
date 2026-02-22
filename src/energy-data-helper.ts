@@ -3,6 +3,84 @@ import { DeviceNode } from "./DeviceNode";
 import { HelmanCardConfig } from "./HelmanCardConfig";
 import { HouseDeviceConfig } from "./DeviceConfig";
 
+const BACKEND_AVAILABLE_ENTITY = "sensor.helman_power_summary";
+
+interface DeviceNodeDTO {
+    id: string;
+    displayName: string;
+    powerSensorId: string | null;
+    switchEntityId: string | null;
+    isSource: boolean;
+    isUnmeasured: boolean;
+    isVirtual: boolean;
+    valueType: 'default' | 'positive' | 'negative';
+    labels: string[];
+    labelBadgeTexts: string[];
+    sourceConfig: any | null;
+    color: string | null;
+    icon: string | null;
+    compact: boolean;
+    showAdditionalInfo: boolean;
+    childrenFullWidth: boolean;
+    hideChildren: boolean;
+    hideChildrenIndicator: boolean;
+    sortChildrenByPower: boolean;
+    children: DeviceNodeDTO[];
+}
+
+function hydrateNode(dto: DeviceNodeDTO, historyBuckets: number): DeviceNode {
+    const node = new DeviceNode(dto.id, dto.displayName, dto.powerSensorId, dto.switchEntityId, historyBuckets, dto.sourceConfig ?? undefined);
+    node.isSource = dto.isSource;
+    node.isUnmeasured = dto.isUnmeasured;
+    node.isVirtual = dto.isVirtual;
+    node.valueType = dto.valueType;
+    node.labels = dto.labels;
+    if (dto.labelBadgeTexts.length > 0) node.customLabelTexts = dto.labelBadgeTexts;
+    if (dto.color) node.color = dto.color;
+    if (dto.icon) node.icon = dto.icon;
+    node.compact = dto.compact;
+    node.show_additional_info = dto.showAdditionalInfo;
+    node.children_full_width = dto.childrenFullWidth;
+    node.hideChildren = dto.hideChildren;
+    node.hideChildrenIndicator = dto.hideChildrenIndicator;
+    node.sortChildrenByPower = dto.sortChildrenByPower;
+    node.children = dto.children.map(child => hydrateNode(child, historyBuckets));
+    return node;
+}
+
+function hydrateDeviceNodes(sourceDTOs: DeviceNodeDTO[], consumerDTOs: DeviceNodeDTO[], config: HelmanCardConfig): DeviceNode[] {
+    const historyBuckets = config.history_buckets;
+    const roots: DeviceNode[] = [];
+
+    if (sourceDTOs.length > 0) {
+        const sourcesNode = new DeviceNode("sources", config.sources_title ?? "Energy Sources", null, null, historyBuckets);
+        sourcesNode.isVirtual = true;
+        sourcesNode.childrenCollapsed = false;
+        sourcesNode.icon = 'mdi:lightning-bolt-outline';
+        sourcesNode.children = sourceDTOs.map(dto => hydrateNode(dto, historyBuckets));
+        roots.push(sourcesNode);
+    }
+
+    if (consumerDTOs.length > 0) {
+        const consumersNode = new DeviceNode("consumers", config.consumers_title ?? "Energy Consumers", null, null, historyBuckets);
+        consumersNode.isVirtual = true;
+        consumersNode.hideChildren = true;
+        consumersNode.hideChildrenIndicator = true;
+        consumersNode.icon = 'mdi:lightning-bolt-outline';
+        consumersNode.children = consumerDTOs.map(dto => hydrateNode(dto, historyBuckets));
+        roots.push(consumersNode);
+    }
+
+    return roots;
+}
+
+async function fetchDeviceTreeFromBackend(hass: HomeAssistant, config: HelmanCardConfig): Promise<DeviceNode[]> {
+    const payload = await hass.connection.sendMessagePromise<{ sources: DeviceNodeDTO[]; consumers: DeviceNodeDTO[] }>({
+        type: "helman/get_device_tree",
+    });
+    return hydrateDeviceNodes(payload.sources, payload.consumers, config);
+}
+
 interface EnergyPrefs {
     energy_sources: unknown[];
     device_consumption: DeviceConsumption[];
@@ -42,6 +120,13 @@ function cleanDeviceName(name: string, cleanerRegex?: string): string {
 }
 
 export async function fetchSourceAndConsumerRoots(hass: HomeAssistant, config: HelmanCardConfig): Promise<DeviceNode[]> {
+    if (hass.states[BACKEND_AVAILABLE_ENTITY]) {
+        return fetchDeviceTreeFromBackend(hass, config);
+    }
+    return fetchSourceAndConsumerRootsLegacy(hass, config);
+}
+
+async function fetchSourceAndConsumerRootsLegacy(hass: HomeAssistant, config: HelmanCardConfig): Promise<DeviceNode[]> {
     const {
         power_devices: { house, grid, battery, solar },
         history_buckets,
