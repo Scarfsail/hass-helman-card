@@ -31,9 +31,27 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         houseDevices: readonly DeviceNode[];
     };
     private _historyInterval?: number;
-    public set hass(value: HomeAssistant) {
-        this._hass = value;
+    private _backendMode = false;
+    public set hass(hass: HomeAssistant) {
+        const prevHass = this._hass;
+        this._hass = hass;
 
+        if (this._deviceTree.length === 0) return;
+
+        const summaryEntity = hass.states["sensor.helman_power_summary"];
+        if (!summaryEntity) return; // Legacy mode: setInterval handles updates
+
+        // Transition from legacy to backend mode: stop the interval if running
+        if (!this._backendMode) {
+            this._backendMode = true;
+            clearInterval(this._historyInterval);
+            this._historyInterval = undefined;
+        }
+
+        // Backend mode: trigger update only when the summary entity itself changes
+        if (summaryEntity !== prevHass?.states["sensor.helman_power_summary"]) {
+            this.periodicalPowerValuesUpdate();
+        }
     }
 
 
@@ -73,7 +91,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             await this._fetchCurrentData();
             this._sourceNodes = this._collectSourceNodes(this._deviceTree);
             this.requestUpdate();
-            this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
+            // Backend mode: hass setter drives updates via sensor.helman_power_summary changes.
+            // Legacy mode: fall back to interval-based polling.
+            if (!this._hass.states["sensor.helman_power_summary"]) {
+                this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
+            }
             this.periodicalPowerValuesUpdate();
             this._fetchHistoricalData();
         }
@@ -106,9 +128,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
-        if (this._historyInterval) {
-            clearInterval(this._historyInterval);
-        }
+        clearInterval(this._historyInterval);
     }
 
     willUpdate(changedProperties: Map<string, any>): void {

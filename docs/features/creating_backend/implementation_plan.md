@@ -35,7 +35,7 @@ provides a short prompt to start the next session.
 | 1 | Backend Skeleton | ✅ Tested & complete | |
 | 2 | Config Migration | ✅ Tested & complete | |
 | 3 | Device Tree in Backend | ✅ Tested & complete | |
-| 4 | Live Power Subscription | ⬜ Not started | |
+| 4 | Live Power Subscription | ✅ Tested & complete | |
 | 5 | History Aggregation | ⬜ Not started | |
 | 6 | Derived Sensors | ⬜ Not started | |
 | 7 | Frontend Cleanup | ⬜ Not started | |
@@ -99,7 +99,20 @@ Filled in by the assistant at the end of each implementation session.
 9. The frontend card should still work normally (it uses the legacy path until `sensor.helman_power_summary` exists).
 
 #### Phase 4 – Live Power Subscription
-_Populated when phase moves to 🧪._
+1. Copy the updated `hass-helman/custom_components/helman/` to `config/custom_components/` (it now contains `sensor.py`).
+2. Restart Home Assistant.
+3. Verify the integration loads without errors in the HA logs.
+4. Go to **Settings → Integrations → Helman Energy** — you should see `sensor.helman_power_summary` listed as a new entity.
+5. Open **Developer Tools → States** and verify `sensor.helman_power_summary` exists:
+   - State should show a numeric watt value (house power consumption)
+   - Attributes should include `house_power`, `solar_power`, `battery_power`, `grid_power`, `devices`, `timestamp`
+6. Verify `extra_state_attributes.devices` contains entries for each tracked device (keyed by node id with `power` and `name` fields).
+7. Open the browser console on your HA dashboard and verify the card loads normally:
+   - In backend mode (entity exists): **no `setInterval` is running** — verify by checking that history updates are driven by sensor state changes, not a timer
+   - In legacy mode: setInterval still runs as before
+8. Verify live power values on the card update when power sensors change (without needing to reload).
+9. Confirm the card transitions correctly if the entity appears after the card loads (backend entity appears → interval cleared → hass setter takes over).
+10. Reload the integration (⋮ → Reload) → entity should reappear and resume pushing snapshots without errors.
 
 #### Phase 5 – History Aggregation
 _Populated when phase moves to 🧪._
