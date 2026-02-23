@@ -160,70 +160,32 @@ export class PowerDeviceInfo extends LitElement {
         `;
     }
 
-    private _renderBatteryInfo(device: DeviceNode, cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
-        if (!device.powerHistory || device.powerHistory.length === 0) {
-            return nothing;
-        }
-        const currentPowerW = device.powerHistory.reduce((a, b) => a + b, 0) / device.powerHistory.length;
-
-        if (Math.abs(currentPowerW) < 1) return nothing; // Don't show if power is very low
-
-        const { remaining_energy: battery_remaining_energy_entity_id, min_soc: battery_min_soc_entity_id, max_soc: battery_max_soc_entity_id, capacity: battery_capacity_entity_id } = cfg.entities;
-
-        if (!battery_remaining_energy_entity_id || !battery_capacity_entity_id || !battery_min_soc_entity_id || !battery_max_soc_entity_id) {
+    private _renderBatteryInfo(_device: DeviceNode, _cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
+        const etaSensor = this.hass?.states["sensor.helman_battery_time_to_target"];
+        if (!etaSensor || etaSensor.state === "unavailable" || etaSensor.state === "unknown") {
             return nothing;
         }
 
-        const currentEnergyWhState = this.hass.states[battery_remaining_energy_entity_id];
-        const currentSoCState = this.hass.states[battery_capacity_entity_id];
-        const minSoCState = this.hass.states[battery_min_soc_entity_id];
-        const maxSoCState = this.hass.states[battery_max_soc_entity_id];
+        const totalMinutes = parseFloat(etaSensor.state);
+        if (isNaN(totalMinutes) || totalMinutes <= 0) return nothing;
 
-        if (!currentEnergyWhState || !currentSoCState || !minSoCState || !maxSoCState) return nothing;
+        const targetTime = new Date(etaSensor.attributes.target_time);
+        if (isNaN(targetTime.getTime())) return nothing;
 
-        const currentEnergyWh = parseFloat(currentEnergyWhState.state);
-        const currentSoC = parseFloat(currentSoCState.state);
-        const minSoC = parseFloat(minSoCState.state);
-        const maxSoC = parseFloat(maxSoCState.state);
+        const targetSoc = etaSensor.attributes.target_soc;
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.round(totalMinutes % 60);
 
-        if (isNaN(currentEnergyWh) || isNaN(currentSoC) || isNaN(minSoC) || isNaN(maxSoC) || currentSoC === 0) return nothing;
-
-        const totalCapacityWh = currentEnergyWh / (currentSoC / 100);
-        const minCapacityWh = totalCapacityWh * (minSoC / 100);
-        const maxCapacityWh = totalCapacityWh * (maxSoC / 100);
-
-        let timeHours;
-        let statusWord = "";
-        let targetCapacity = 0;
-        if (device.isSource) { // Discharging
-            targetCapacity = minSoC;
-            const remainingEnergyWh = currentEnergyWh - minCapacityWh;
-            if (remainingEnergyWh <= 0) return html`<span>🪫</span>`;
-            timeHours = remainingEnergyWh / currentPowerW;
-            statusWord = "empty";
-        } else { // Charging
-            targetCapacity = maxSoC;
-            const energyToFullWh = maxCapacityWh - currentEnergyWh;
-            if (energyToFullWh <= 0) return html`<span>🔋</span>`;
-            timeHours = energyToFullWh / currentPowerW;
-            statusWord = "full";
-        }
-
-        if (timeHours <= 0) return nothing;
-
-        const hours = Math.floor(timeHours);
-        const minutes = Math.round((timeHours - hours) * 60);
-
-        const targetDate = new Date(Date.now() + timeHours * 3600 * 1000);
-        const targetTime = targetDate.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
+        const targetTimeStr = targetTime.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
             hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',
         });
+
         return html`
-            <span>${targetCapacity}% ➜</span>
-            <span>🕓${targetTime}</span>
-            <span>⏳${hours}:${minutes}</span>
+            ${targetSoc != null ? html`<span>${targetSoc}% ➜</span>` : nothing}
+            <span>🕓${targetTimeStr}</span>
+            <span>⏳${hours}:${String(minutes).padStart(2, '0')}</span>
         `;
     }
 

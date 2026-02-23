@@ -37,7 +37,7 @@ provides a short prompt to start the next session.
 | 3 | Device Tree in Backend | ✅ Tested & complete | |
 | 4 | Live Power Subscription | ✅ Tested & complete | |
 | 5 | History Aggregation | ✅ Tested & complete | |
-| 6 | Derived Sensors | ⬜ Not started | |
+| 6 | Derived Sensors | ✅ Tested & complete | |
 | 7 | Frontend Cleanup | ⬜ Not started | |
 
 Status values: ⬜ Not started · 🔄 In progress · 🧪 Implemented – awaiting test · ✅ Tested & complete
@@ -138,7 +138,23 @@ Filled in by the assistant at the end of each implementation session.
 10. Call `helman/save_config` with a changed config, then call `helman/get_history` again — verify fresh data is returned (cache was invalidated).
 
 #### Phase 6 – Derived Sensors
-_Populated when phase moves to 🧪._
+1. Copy the updated `hass-helman/custom_components/helman/` to `config/custom_components/` (`sensor.py` and `coordinator.py` are updated).
+2. Build the frontend (`npm run build-dev` in `hass-helman-card/`).
+3. Restart Home Assistant and verify it loads without errors in HA logs.
+4. Go to **Settings → Integrations → Helman Energy** — you should now see **three** entities listed:
+   - `sensor.helman_power_summary`
+   - `sensor.helman_battery_time_to_target`
+   - `sensor.helman_unmeasured_house_power`
+5. Open **Developer Tools → States** and verify `sensor.helman_battery_time_to_target`:
+   - When battery is charging or discharging (power > 1 W): state shows a positive float (minutes to target), attributes include `target_time` (ISO string), `mode` (`"charging"` or `"discharging"`), and `target_soc` (integer, e.g. 90 or 20)
+   - When battery is idle: state shows `unavailable`
+6. Verify `sensor.helman_unmeasured_house_power`:
+   - State shows a non-negative integer watt value
+   - Value ≈ house power sensor reading minus sum of all tracked house device power readings
+7. Open the card in a dashboard in backend mode. When the battery is charging or discharging, verify the battery device info row shows the ETA: `${target_soc}% ➜ 🕓HH:MM ⏳H:MM`
+8. Verify minutes are zero-padded (e.g. `⏳1:05` not `⏳1:5`).
+9. When the battery is idle (power < 1 W), verify the ETA row is hidden.
+10. Reload the integration (⋮ → Reload) → all three entities should reappear and resume updating without errors.
 
 #### Phase 7 – Frontend Cleanup
 _Populated when phase moves to 🧪._
