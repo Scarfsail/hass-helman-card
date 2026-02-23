@@ -526,6 +526,11 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
         // tree_builder sets source node id == powerSensorId == entity_id).
         // Output key is sourceNode.id (== sourceNode.powerSensorId for sources),
         // matching the live-update key used in DeviceNode.updateLivePower.
+        //
+        // Assign sourcePowerHistory from pre-computed backend source_ratios.
+        // The backend now covers all real sensor nodes including dual-role battery/grid
+        // consumer nodes (same entity_id as their source counterpart, but bucketed with
+        // positive clamping on the consumer side).
         for (const node of allNodes) {
             if (node.isSource || !node.powerSensorId) continue;
             const nodeRatios = source_ratios[node.powerSensorId];
@@ -550,11 +555,12 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
             }
         }
 
-        // Fallback: virtual nodes (no powerSensorId, e.g. "consumers") are skipped by
-        // source_ratios but do have powerHistory from calculateVirtualNodeHistory.
-        // Derive their sourcePowerHistory client-side from the normalised source powerHistories.
+        // Virtual nodes (no powerSensorId, e.g. the "consumers" container) are not
+        // included in source_ratios.  Derive their sourcePowerHistory client-side by
+        // proportionally summing the already-assigned children power histories.
+        // This is pure arithmetic over data already received — no history fetch.
         for (const node of allNodes) {
-            if (node.isSource || node.sourcePowerHistory || node.powerHistory.length === 0) continue;
+            if (node.isSource || node.powerSensorId || node.powerHistory.length === 0) continue;
             node.sourcePowerHistory = [];
             for (let i = 0; i < bucketCount; i++) {
                 const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
