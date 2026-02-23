@@ -31,7 +31,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         houseDevices: readonly DeviceNode[];
     };
     private _historyInterval?: number;
-    private _backendMode = false;
     public set hass(hass: HomeAssistant) {
         const prevHass = this._hass;
         this._hass = hass;
@@ -41,16 +40,17 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         const summaryEntity = hass.states["sensor.helman_power_summary"];
         if (!summaryEntity) return; // Legacy mode: setInterval handles updates
 
-        // Transition from legacy to backend mode: stop the interval if running
-        if (!this._backendMode) {
-            this._backendMode = true;
-            clearInterval(this._historyInterval);
-            this._historyInterval = undefined;
-        }
-
-        // Backend mode: trigger update only when the summary entity itself changes
+        // Backend mode: the setInterval in connectedCallback is the clock for smooth
+        // bar advancement (same cadence as legacy mode).  The hass setter fires only
+        // when the HA state changes, which is event-driven and therefore irregular —
+        // using it to advance buckets causes bars to freeze when sensors are stable
+        // and jump when multiple changes arrive together.
+        //
+        // Here we only call requestUpdate() so that display fields driven directly
+        // from hass.states (battery %, ETA, additional-info) refresh immediately on
+        // every sensor change without inserting an extra history bucket.
         if (summaryEntity !== prevHass?.states["sensor.helman_power_summary"]) {
-            this.periodicalPowerValuesUpdate();
+            this.requestUpdate();
         }
     }
 
@@ -91,11 +91,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             await this._fetchCurrentData();
             this._sourceNodes = this._collectSourceNodes(this._deviceTree);
             this.requestUpdate();
-            // Backend mode: hass setter drives updates via sensor.helman_power_summary changes.
-            // Legacy mode: fall back to interval-based polling.
-            if (!this._hass.states["sensor.helman_power_summary"]) {
-                this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
-            }
+            // The interval is the clock for smooth, time-guaranteed bucket advancement
+            // in both legacy and backend mode.  In backend mode the hass setter also
+            // calls requestUpdate() on sensor changes for immediate display refresh,
+            // but bucket insertion must stay timer-driven to avoid irregular jumps.
+            this._historyInterval = window.setInterval(this.periodicalPowerValuesUpdate.bind(this), this.config.history_bucket_duration * 1000);
             this.periodicalPowerValuesUpdate();
             this._fetchHistoricalData();
         }
