@@ -425,7 +425,7 @@ function inspectNodeAndAddUnmeasuredNodeToChildren(node: DeviceNode, historyBuck
 }
 
 
-export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass: HomeAssistant, historyIntervals: number, bucketDuration: number): Promise<{ buckets: number; bucketDuration: number } | null> {
+export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass: HomeAssistant, historyIntervals: number, bucketDuration: number): Promise<void> {
     const nodesWithSensors = new Map<string, DeviceNode[]>();
     const allNodes: DeviceNode[] = [];
     const sourceNodes: DeviceNode[] = [];
@@ -582,17 +582,7 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
         for (const node of allNodes) {
             enrichUnmeasuredDeviceTreeWithHistory(node);
         }
-
-        // Sync historyBuckets on ALL nodes (including virtual) to the backend-authoritative
-        // value. Sensor nodes already got this above; virtual nodes (sources container,
-        // consumers container, etc.) still have the constructor-time value from the card
-        // config and must be updated so updateHistoryBuckets' shift-guard uses the right
-        // ceiling.
-        for (const node of allNodes) {
-            node.historyBuckets = bucketCount;
-        }
-
-        return { buckets: bucketCount, bucketDuration: history.bucket_duration };
+        return;
     }
 
     // Legacy mode: fetch raw HA history and bucket client-side
@@ -689,8 +679,6 @@ export async function enrichDeviceTreeWithHistory(deviceTree: DeviceNode[], hass
     for (const node of allNodes) {
         enrichUnmeasuredDeviceTreeWithHistory(node);
     }
-
-    return null;
 }
 
 function enrichUnmeasuredDeviceTreeWithHistory(parentNode: DeviceNode): void {
