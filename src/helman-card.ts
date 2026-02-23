@@ -33,8 +33,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private _historyInterval?: number;
     public set hass(hass: HomeAssistant) {
         this._hass = hass;
-        if (this._deviceTree.length === 0) return;
-        this.requestUpdate();
     }
 
 
