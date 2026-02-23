@@ -19,6 +19,9 @@ delegates all heavy work to the backend.
 - Replacing the custom Lovelace card with a built-in panel (keep HACS card approach)
 - Real-time streaming (standard HA entity push is sufficient)
 
+### Repositories (relative to this document's location)
+  - Backend: ../../../../hass-helman/custom_components/helman/
+  - Frontend: ../../../../hass-helman-card/src/
 ---
 
 ## Progress Tracking

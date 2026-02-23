@@ -32,26 +32,9 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     };
     private _historyInterval?: number;
     public set hass(hass: HomeAssistant) {
-        const prevHass = this._hass;
         this._hass = hass;
-
         if (this._deviceTree.length === 0) return;
-
-        const summaryEntity = hass.states["sensor.helman_power_summary"];
-        if (!summaryEntity) return; // Legacy mode: setInterval handles updates
-
-        // Backend mode: the setInterval in connectedCallback is the clock for smooth
-        // bar advancement (same cadence as legacy mode).  The hass setter fires only
-        // when the HA state changes, which is event-driven and therefore irregular —
-        // using it to advance buckets causes bars to freeze when sensors are stable
-        // and jump when multiple changes arrive together.
-        //
-        // Here we only call requestUpdate() so that display fields driven directly
-        // from hass.states (battery %, ETA, additional-info) refresh immediately on
-        // every sensor change without inserting an extra history bucket.
-        if (summaryEntity !== prevHass?.states["sensor.helman_power_summary"]) {
-            this.requestUpdate();
-        }
+        this.requestUpdate();
     }
 
 

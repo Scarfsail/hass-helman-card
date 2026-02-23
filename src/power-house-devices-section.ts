@@ -91,7 +91,6 @@ export class PowerHouseDevicesSection extends LitElement {
             const id = `group:${category}:${label}`;
             const emoji = mapping[label];
             const node = new DeviceNode(id, `${label} (${emoji})`, null, null, this.historyBuckets);
-            node.isVirtual = true;
             node.virtualType = 'labelCategory';
             node.groupCategory = category;
             node.groupLabel = label;
@@ -158,7 +157,6 @@ export class PowerHouseDevicesSection extends LitElement {
         }
         if ((this.config?.show_others_group ?? true) && unmatched.length > 0) {
             const others = new DeviceNode(`group:${category}:others`, this.config?.others_group_label || 'Others', null, null, this.historyBuckets);
-            others.isVirtual = true;
             others.virtualType = 'others';
             others.groupCategory = category;
             others.children_full_width = true;

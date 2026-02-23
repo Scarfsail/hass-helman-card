@@ -13,7 +13,6 @@ export class DeviceNode {
         this.historyBuckets = historyBuckets;
         this.powerHistory = [];
         this.valueType = 'default';
-        this.isVirtual = false;
         this.color = undefined;
         this.isSource = false;
         this.icon = undefined;
@@ -40,35 +39,26 @@ export class DeviceNode {
         this.updateLivePower(hass, sourceNodes);
     }
 
-    private updateLivePower(hass: HomeAssistant, sourceNodes: DeviceNode[], unmeasuredPower?: number) {
+    private updateLivePower(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
         let power: number = 0;
-        if (this.isVirtual) {
-            power = this.children.reduce((sum, child) => sum + (child.powerValue || 0), 0);
-        } else if (this.isUnmeasured) {
-            if (unmeasuredPower == undefined) {
-                return;
+        if (this.powerSensorId) {
+            const rawPower = parseFloat(hass!.states[this.powerSensorId]?.state ?? '0') || 0;
+            switch (this.valueType) {
+                case 'positive':
+                    power = Math.max(0, rawPower);
+                    break;
+                case 'negative':
+                    power = Math.abs(Math.min(0, rawPower));
+                    break;
+                default:
+                    power = rawPower;
+                    break;
             }
-            power = unmeasuredPower;
+        }
+        else if (this.powerValue !== undefined) {
+            power = this.powerValue;
         } else {
-            if (this.powerSensorId) {
-                const rawPower = parseFloat(hass!.states[this.powerSensorId].state) || 0;
-                switch (this.valueType) {
-                    case 'positive':
-                        power = Math.max(0, rawPower);
-                        break;
-                    case 'negative':
-                        power = Math.abs(Math.min(0, rawPower));
-                        break;
-                    default:
-                        power = rawPower;
-                        break;
-                }
-            }
-            else if (this.powerValue !== undefined) {
-                power = this.powerValue;
-            } else {
-                power = 0;
-            }
+            power = 0;
         }
         if (this.powerHistory.length === 0) {
             this.powerHistory.push(0); // Initialize with zero if empty
@@ -78,7 +68,7 @@ export class DeviceNode {
         this.powerValue = power;
 
         // --- Live Source Power Calculation ---
-        if (!this.isSource && !this.isVirtual && !this.isUnmeasured && this.powerSensorId) {
+        if (!this.isSource && this.powerSensorId) {
             if (!this.sourcePowerHistory) {
                 // Initialize with empty buckets matching current powerHistory so that
                 // updateHistoryBuckets can maintain the array from the very first live
@@ -102,18 +92,6 @@ export class DeviceNode {
         }
         // --- End Live Source Power Calculation ---
 
-        if (this.children.length > 0 && !this.isVirtual) {
-            const childrenPower = this.children.filter(child => !child.isUnmeasured).reduce((sum, child) => {
-                return sum + (child.powerValue || 0);
-            }, 0);
-
-            const unmeasuredPower = this.powerValue - childrenPower;
-            const unmeasuredNode = this.children.find(child => child.isUnmeasured);
-            if (unmeasuredNode) {
-                unmeasuredNode.updateLivePower(hass, sourceNodes, unmeasuredPower);
-            }
-        }
-
     }
     public id: string;
     public name: string;
@@ -128,7 +106,6 @@ export class DeviceNode {
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
     public valueType: 'positive' | 'negative' | 'default';
-    public isVirtual: boolean;
 
     public color?: string;
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
