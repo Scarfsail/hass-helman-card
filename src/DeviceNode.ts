@@ -1,4 +1,3 @@
-import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceConfig } from "./DeviceConfig";
 
 
@@ -19,80 +18,6 @@ export class DeviceNode {
         this.deviceConfig = deviceConfig;
     }
 
-    public updateHistoryBuckets(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
-        if (this.powerHistory.length > 0) {
-            this.powerHistory.push(this.powerHistory[this.powerHistory.length - 1]); // Push the last value
-            if (this.sourcePowerHistory) {
-                this.sourcePowerHistory.push(this.sourcePowerHistory[this.sourcePowerHistory.length - 1]);
-            }
-        }
-        if (this.powerHistory.length > this.historyBuckets) { // Keep history items based on config
-            this.powerHistory.shift();
-            if (this.sourcePowerHistory) {
-                this.sourcePowerHistory.shift();
-            }
-        }
-
-        for (const child of this.children) {
-            child.updateHistoryBuckets(hass, sourceNodes);
-        }
-        this.updateLivePower(hass, sourceNodes);
-    }
-
-    private updateLivePower(hass: HomeAssistant, sourceNodes: DeviceNode[]) {
-        let power: number = 0;
-        if (this.powerSensorId) {
-            const rawPower = parseFloat(hass!.states[this.powerSensorId]?.state ?? '0') || 0;
-            switch (this.valueType) {
-                case 'positive':
-                    power = Math.max(0, rawPower);
-                    break;
-                case 'negative':
-                    power = Math.abs(Math.min(0, rawPower));
-                    break;
-                default:
-                    power = rawPower;
-                    break;
-            }
-        }
-        else if (this.powerValue !== undefined) {
-            power = this.powerValue;
-        } else {
-            power = 0;
-        }
-        if (this.powerHistory.length === 0) {
-            this.powerHistory.push(0); // Initialize with zero if empty
-        }
-
-        this.powerHistory[this.powerHistory.length - 1] = power; // Update the last history entry with the new average
-        this.powerValue = power;
-
-        // --- Live Source Power Calculation ---
-        if (!this.isSource && this.powerSensorId) {
-            if (!this.sourcePowerHistory) {
-                // Initialize with empty buckets matching current powerHistory so that
-                // updateHistoryBuckets can maintain the array from the very first live
-                // update — before the backend history fetch completes.
-                this.sourcePowerHistory = this.powerHistory.map(() => ({}));
-            }
-            const totalSourcePower = sourceNodes.reduce((sum, s) => sum + (s.powerValue || 0), 0);
-            const bucketSourcePower: { [sourceName: string]: { power: number; color: string } } = {};
-
-            if (totalSourcePower > 0 && this.powerValue > 0) {
-                for (const sourceNode of sourceNodes) {
-                    const sourcePower = sourceNode.powerValue || 0;
-                    const ratio = sourcePower / totalSourcePower;
-                    bucketSourcePower[sourceNode.id] = {
-                        power: this.powerValue * ratio,
-                        color: sourceNode.color || 'grey'
-                    };
-                }
-            }
-            this.sourcePowerHistory[this.sourcePowerHistory.length - 1] = bucketSourcePower;
-        }
-        // --- End Live Source Power Calculation ---
-
-    }
     public id: string;
     public name: string;
     public powerSensorId: string | null;

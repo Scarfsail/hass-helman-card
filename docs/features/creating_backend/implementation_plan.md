@@ -41,7 +41,7 @@ provides a short prompt to start the next session.
 | 4 | Live Power Subscription | ✅ Tested & complete | |
 | 5 | History Aggregation | ✅ Tested & complete | |
 | 6 | Derived Sensors | ✅ Tested & complete | |
-| 7 | Frontend Cleanup | ⬜ Not started | |
+| 7 | Frontend Cleanup | 🧪 Implemented – awaiting test | |
 
 Status values: ⬜ Not started · 🔄 In progress · 🧪 Implemented – awaiting test · ✅ Tested & complete
 
@@ -160,7 +160,31 @@ Filled in by the assistant at the end of each implementation session.
 10. Reload the integration (⋮ → Reload) → all three entities should reappear and resume updating without errors.
 
 #### Phase 7 – Frontend Cleanup
-_Populated when phase moves to 🧪._
+
+**Backend**: Copy updated `hass-helman/custom_components/helman/` to `config/custom_components/` (`tree_builder.py` updated to include `uiConfig` in `get_device_tree` response).
+**Frontend**: Build the card (`npm run build-dev` in `hass-helman-card/`) and deploy.
+
+1. Restart Home Assistant and verify it loads without errors in HA logs.
+2. Open browser console on your HA dashboard and run:
+   ```javascript
+   const result = await hass.connection.sendMessagePromise({ type: "helman/get_device_tree" });
+   console.log(JSON.stringify(result.uiConfig, null, 2));
+   ```
+   Confirm the response now contains a `uiConfig` object with `sources_title`, `consumers_title`, `groups_title`, `device_label_text`, `history_buckets`, `history_bucket_duration`.
+3. Load the card in a dashboard. Verify it renders correctly with no console errors — power values, history bars, and source-colour segments should all be visible.
+4. Verify the card config in YAML now only requires:
+   ```yaml
+   type: custom:helman-card
+   ```
+   (No `power_devices`, `history_buckets`, etc. needed.)
+5. Wait ~10 seconds and confirm history bars are animating (rolling forward) driven by the frontend timer.
+6. Verify power values update in real-time when sensors change (driven by the timer reading from `hass.states`).
+7. Verify history bars show colored source segments (solar/battery/grid breakdown).
+8. Verify the battery ETA row (`${targetSoc}% ➜ 🕓HH:MM ⏳H:MM`) still shows when battery is active.
+9. Verify category chips (Group by: …) still appear and filter devices when `device_label_text` is configured.
+10. Navigate away from the dashboard and back — card should reload data correctly, no stale intervals or duplicate timers.
+11. Verify no `setInterval`-style polling remains for data fetching (only one timer for bucket advancement).
+12. Confirm `energy-data-helper.ts` and `config-loader.ts` no longer exist in `src/`.
 
 ---
 

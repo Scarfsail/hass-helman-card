@@ -3,7 +3,6 @@ import { keyed } from 'lit/directives/keyed.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
-import { sortDevicesByPowerAndName } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";

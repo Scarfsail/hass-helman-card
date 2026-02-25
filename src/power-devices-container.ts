@@ -1,8 +1,16 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
-import { sortDevicesByPowerAndName } from "./energy-data-helper";
 import { DeviceNode } from "./DeviceNode";
+
+function sortDevicesByPowerAndName(devices: DeviceNode[]): DeviceNode[] {
+    return [...devices].sort((a, b) => {
+        const powerA = a.powerHistory.reduce((acc, val) => acc + val, 0);
+        const powerB = b.powerHistory.reduce((acc, val) => acc + val, 0);
+        if (powerB !== powerA) return powerB - powerA;
+        return a.name.localeCompare(b.name);
+    });
+}
 import "./power-device";
 
 @customElement("power-devices-container")

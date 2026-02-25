@@ -3,7 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import "./power-devices-container";
-import type { HelmanCardConfig } from "./HelmanCardConfig";
+import type { HelmanUiConfig } from "./HelmanCardConfig";
 
 @customElement("power-house-devices-section")
 export class PowerHouseDevicesSection extends LitElement {
@@ -13,7 +13,7 @@ export class PowerHouseDevicesSection extends LitElement {
     @property({ type: Number }) public historyBucketDuration!: number;
     @property({ type: Number }) public currentParentPower?: number;
     @property({ attribute: false }) public parentPowerHistory?: number[];
-    @property({ attribute: false }) public config?: HelmanCardConfig;
+    @property({ attribute: false }) public uiConfig?: HelmanUiConfig;
 
     // Display options passthrough
     @property({ type: Boolean }) public devices_full_width: boolean = true;
@@ -78,12 +78,12 @@ export class PowerHouseDevicesSection extends LitElement {
     // No label filtering anymore – grouping replaces it
 
     private _getCategories(): string[] {
-        const mapping = this.config?.device_label_text || {};
+        const mapping = this.uiConfig?.device_label_text || {};
         return Object.keys(mapping);
     }
 
     private _groupByCategory(devices: DeviceNode[], category: string): DeviceNode[] {
-        const mapping = this.config?.device_label_text?.[category];
+        const mapping = this.uiConfig?.device_label_text?.[category];
         if (!mapping) return devices;
         const order = Object.keys(mapping);
         const groups: Record<string, DeviceNode> = {};
@@ -150,13 +150,13 @@ export class PowerHouseDevicesSection extends LitElement {
         const result: DeviceNode[] = [];
         for (const label of order) {
             const node = groups[label];
-            if (node.children.length > 0 || this.config?.show_empty_groups) {
+            if (node.children.length > 0 || this.uiConfig?.show_empty_groups) {
                 aggregateGroup(node);
                 result.push(node);
             }
         }
-        if ((this.config?.show_others_group ?? true) && unmatched.length > 0) {
-            const others = new DeviceNode(`group:${category}:others`, this.config?.others_group_label || 'Others', null, null, this.historyBuckets);
+        if ((this.uiConfig?.show_others_group ?? true) && unmatched.length > 0) {
+            const others = new DeviceNode(`group:${category}:others`, this.uiConfig?.others_group_label || 'Others', null, null, this.historyBuckets);
             others.virtualType = 'others';
             others.groupCategory = category;
             others.children_full_width = true;
@@ -180,7 +180,7 @@ export class PowerHouseDevicesSection extends LitElement {
             <div class="house-section">
                 ${categories.length > 0 ? html`
                     <div class="categories-row">
-                        <div class="categories-title">${this.config?.groups_title ?? 'Group by'}</div>
+                        <div class="categories-title">${this.uiConfig?.groups_title ?? 'Group by'}</div>
                         <div>
                             ${categories.map((c) => {
                                 const active = this._activeCategory === c;
