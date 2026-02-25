@@ -32,6 +32,8 @@ interface DeviceNodeDTO {
     hideChildrenIndicator: boolean;
     sortChildrenByPower: boolean;
     children: DeviceNodeDTO[];
+    ratioSensorId: string | null;
+    sourceType: string | null;
 }
 
 interface TreePayload {
@@ -45,7 +47,6 @@ interface HistoryPayload {
     buckets: number;
     bucket_duration: number;
     entity_history: Record<string, number[]>;
-    source_ratios: Record<string, Record<string, number[]>>;
 }
 
 @customElement("helman-card")
@@ -225,6 +226,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         node.hideChildren = dto.hideChildren;
         node.hideChildrenIndicator = dto.hideChildrenIndicator;
         node.sortChildrenByPower = dto.sortChildrenByPower;
+        if (dto.ratioSensorId) node.ratioSensorId = dto.ratioSensorId;
         node.children = dto.children.map(child => this._hydrateNode(child));
         return node;
     }
@@ -269,7 +271,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     private _applyHistory(history: HistoryPayload): void {
-        const { entity_history, source_ratios, buckets } = history;
+        const { entity_history, buckets } = history;
         const allNodes = this._walkTree(this._deviceTree);
 
         for (const node of allNodes) {
@@ -285,17 +287,17 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             }
 
             if (node.isSource) continue;
-            const nodeRatios = source_ratios[node.powerSensorId];
-            if (!nodeRatios) continue;
             node.sourcePowerHistory = [];
+            if (!rawHistory) continue;
             for (let i = 0; i < buckets; i++) {
                 const bucket: { [sourceId: string]: { power: number; color: string } } = {};
+                const consumerPower = node.powerHistory[i] ?? 0;
                 for (const src of this._sourceNodes) {
-                    if (!src.powerSensorId) continue;
-                    const vals = nodeRatios[src.powerSensorId];
-                    if (vals) {
-                        const p = vals[i] ?? 0;
-                        if (p > 0) bucket[src.id] = { power: p, color: src.color || 'grey' };
+                    if (!src.ratioSensorId) continue;
+                    const ratioHistory = entity_history[src.ratioSensorId];
+                    const ratio = (ratioHistory?.[i] ?? 0) / 100;
+                    if (ratio > 0 && consumerPower > 0) {
+                        bucket[src.id] = { power: consumerPower * ratio, color: src.color || 'grey' };
                     }
                 }
                 node.sourcePowerHistory.push(bucket);
@@ -356,13 +358,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
             // Compute source ratio for the newest bucket (non-source nodes only)
             if (!node.isSource && node.powerSensorId && node.sourcePowerHistory && node.sourcePowerHistory.length > 0) {
-                const totalSourcePower = this._sourceNodes.reduce((sum, s) => sum + (s.powerValue || 0), 0);
                 const bucket: { [sourceId: string]: { power: number; color: string } } = {};
                 const powerVal = node.powerValue || 0;
-                if (totalSourcePower > 0 && powerVal > 0) {
+                if (powerVal > 0) {
                     for (const src of this._sourceNodes) {
-                        const ratio = (src.powerValue || 0) / totalSourcePower;
-                        bucket[src.id] = { power: powerVal * ratio, color: src.color || 'grey' };
+                        if (!src.ratioSensorId) continue;
+                        const ratio = parseFloat(this._hass!.states[src.ratioSensorId]?.state ?? '0') / 100;
+                        if (ratio > 0) bucket[src.id] = { power: powerVal * ratio, color: src.color || 'grey' };
                     }
                 }
                 node.sourcePowerHistory[node.sourcePowerHistory.length - 1] = bucket;

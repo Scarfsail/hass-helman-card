@@ -35,6 +35,7 @@ export class DeviceNode {
     public color?: string;
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];
     public isSource: boolean;
+    public ratioSensorId?: string;
     public icon?: string;
     public sortChildrenByPower?: boolean;
     public deviceConfig?: DeviceConfig;
