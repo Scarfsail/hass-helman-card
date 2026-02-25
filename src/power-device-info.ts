@@ -160,8 +160,11 @@ export class PowerDeviceInfo extends LitElement {
         `;
     }
 
-    private _renderBatteryInfo(_device: DeviceNode, _cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
-        const etaSensor = this.hass?.states["sensor.helman_battery_time_to_target"];
+    private _renderBatteryInfo(device: DeviceNode, _cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
+        const entityId = device.isSource
+            ? "sensor.helman_battery_time_to_empty"
+            : "sensor.helman_battery_time_to_full";
+        const etaSensor = this.hass?.states[entityId];
         if (!etaSensor || etaSensor.state === "unavailable" || etaSensor.state === "unknown") {
             return nothing;
         }
