@@ -39,7 +39,8 @@ interface DeviceNodeDTO {
 interface TreePayload {
     sources: DeviceNodeDTO[];
     consumers: DeviceNodeDTO[];
-    totalPowerSensorId: string | null;
+    consumptionTotalSensorId: string | null;
+    productionTotalSensorId: string | null;
     uiConfig: HelmanUiConfig;
 }
 
@@ -232,7 +233,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     private _hydrateDeviceNodes(payload: TreePayload): DeviceNode[] {
-        const { sources, consumers, totalPowerSensorId, uiConfig } = payload;
+        const { sources, consumers, consumptionTotalSensorId, productionTotalSensorId, uiConfig } = payload;
         const historyBuckets = uiConfig.history_buckets;
         const roots: DeviceNode[] = [];
 
@@ -240,7 +241,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             const sourcesNode = new DeviceNode("sources", uiConfig.sources_title, null, null, historyBuckets);
             sourcesNode.childrenCollapsed = false;
             sourcesNode.icon = 'mdi:lightning-bolt-outline';
-            sourcesNode.powerSensorId = totalPowerSensorId;
+            sourcesNode.powerSensorId = productionTotalSensorId;
             sourcesNode.children = sources.map(dto => this._hydrateNode(dto));
             roots.push(sourcesNode);
         }
@@ -250,7 +251,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             consumersNode.hideChildren = true;
             consumersNode.hideChildrenIndicator = true;
             consumersNode.icon = 'mdi:lightning-bolt-outline';
-            consumersNode.powerSensorId = totalPowerSensorId;
+            consumersNode.powerSensorId = consumptionTotalSensorId;
             consumersNode.children = consumers.map(dto => this._hydrateNode(dto));
             roots.push(consumersNode);
         }
