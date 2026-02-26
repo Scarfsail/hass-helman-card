@@ -1,6 +1,7 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { sharedStyles } from "./shared-styles";
+import { formatPower } from "./power-format";
 
 @customElement("power-device-power-display")
 export class PowerDevicePowerDisplay extends LitElement {
@@ -62,8 +63,7 @@ export class PowerDevicePowerDisplay extends LitElement {
             ? () => this._showMoreInfo(this.powerSensorId!)
             : () => { }; // No-op if no sensor
 
-        const powerValue = currentPower >= 1000 ? (currentPower / 1000).toFixed(1) : currentPower.toFixed(0);
-        const powerUnit = currentPower >= 1000 ? "kW" : "W";
+        const { value: powerValue, unit: powerUnit } = formatPower(currentPower);
 
         return html`<div class="powerDisplay ${this.powerSensorId ? 'has-sensor' : ''}" @click=${onPowerClick}>
                         <div class="powerValue">${powerValue} <span class="units">${powerUnit}</span></div>
