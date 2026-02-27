@@ -41,8 +41,8 @@ export class SimpleCardBattery extends LitElement {
             filter: drop-shadow(0 0 6px #22c55e88);
         }
         .battery-body.active-discharge {
-            stroke: #f59e0b;
-            filter: drop-shadow(0 0 6px #f59e0b88);
+            stroke: #f97316;
+            filter: drop-shadow(0 0 6px #f9731688);
         }
         .battery-body.low {
             stroke: #ef4444;
@@ -53,7 +53,7 @@ export class SimpleCardBattery extends LitElement {
             transition: fill 0.6s;
         }
         .battery-terminal.active-charge { fill: #22c55e; }
-        .battery-terminal.active-discharge { fill: #f59e0b; }
+        .battery-terminal.active-discharge { fill: #f97316; }
         .battery-terminal.low { fill: #ef4444; }
 
         .fill-charging {
@@ -61,7 +61,7 @@ export class SimpleCardBattery extends LitElement {
             animation: charge-pulse 1.8s ease-in-out infinite;
         }
         .fill-discharging {
-            fill: #f59e0b;
+            fill: #f97316;
             animation: discharge-pulse 1.8s ease-in-out infinite;
         }
         .fill-low {
@@ -77,7 +77,7 @@ export class SimpleCardBattery extends LitElement {
         }
         @keyframes discharge-pulse {
             0%, 100% { opacity: 0.8; }
-            50% { opacity: 1; filter: drop-shadow(0 0 4px #fbbf2488); }
+            50% { opacity: 1; filter: drop-shadow(0 0 4px #fb923c88); }
         }
 
         .soc-label {
@@ -96,7 +96,7 @@ export class SimpleCardBattery extends LitElement {
             line-height: 1.3;
         }
         .power-label.charge { color: #22c55e; }
-        .power-label.discharge { color: #f59e0b; }
+        .power-label.discharge { color: #f97316; }
         .power-label.low { color: #ef4444; }
         .unit {
             font-size: 0.7em;

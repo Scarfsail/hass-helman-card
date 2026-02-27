@@ -37,8 +37,8 @@ export class SimpleCardSolar extends LitElement {
             transition: fill 0.6s, filter 0.6s;
         }
         .core.active {
-            fill: #f59e0b;
-            filter: drop-shadow(0 0 10px #fbbf24) drop-shadow(0 0 20px #f59e0b99);
+            fill: #facc15;
+            filter: drop-shadow(0 0 10px #fde047) drop-shadow(0 0 20px #facc1599);
         }
         .ray {
             fill: #6b7280;
@@ -46,7 +46,7 @@ export class SimpleCardSolar extends LitElement {
             transition: fill 0.6s;
         }
         .ray.active {
-            fill: #fcd34d;
+            fill: #fef08a;
             opacity: 0.9;
         }
         .power-label {
@@ -58,7 +58,7 @@ export class SimpleCardSolar extends LitElement {
             line-height: 1.3;
         }
         .power-label.active {
-            color: #f59e0b;
+            color: #facc15;
         }
         .unit {
             font-size: 0.7em;
