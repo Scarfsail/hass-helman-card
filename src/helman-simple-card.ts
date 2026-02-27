@@ -37,6 +37,9 @@ interface EnergyEntityMap {
     batterySocEntityId:   string | null;
     batteryMinSocEntityId:string | null;
     housePowerEntityId:   string | null;
+    solarMaxPower:        number;
+    gridMaxPower:         number;
+    batteryMaxPower:      number;
 }
 
 interface EnergyValues {
@@ -103,13 +106,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
         /* Animated flow track */
         .flow-track { position: relative; border-radius: 3px; overflow: hidden; }
-        .flow-track-h { width: 100%; height: 6px; }
-        .flow-track-v { width: 6px; height: 28px; }
+        .flow-track-h { width: 100%; }
+        .flow-track-v { height: 28px; }
 
         .flow-dot {
             position: absolute;
             border-radius: 50%;
-            width: 6px; height: 6px;
             animation-duration: 1.6s;
             animation-timing-function: linear;
             animation-iteration-count: infinite;
@@ -131,7 +133,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
         .flow-dot-v { left: 0; }
         @keyframes flow-v {
-            0%   { top: -6px;  opacity: 0; }
+            0%   { top: -22px; opacity: 0; }
             15%  { opacity: 1; }
             85%  { opacity: 1; }
             100% { top: 100%; opacity: 0; }
@@ -140,7 +142,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             0%   { top: 100%; opacity: 0; }
             15%  { opacity: 1; }
             85%  { opacity: 1; }
-            100% { top: -8px;  opacity: 0; }
+            100% { top: -22px; opacity: 0; }
         }
 
         .color-solar             { background: #f59e0b; box-shadow: 0 0 6px #f59e0baa; }
@@ -206,18 +208,34 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
     // 10. Render method
     render() {
-        if (this._loading) {
+        if (this._loading || !this._entityMap) {
             return html`<ha-card><div class="loading">Loading energy data…</div></ha-card>`;
         }
 
         const { solarPower, gridPower, housePower, batteryPower,
                 batterySoc, batteryMinSoc } = this._energy;
 
-        const solarActive   = solarPower > 5;
-        const gridImport    = gridPower > 5;
-        const gridExport    = gridPower < -5;
-        const battCharge    = batteryPower > 5;
-        const battDischarge = batteryPower < -5;
+        const solarActive   = solarPower > 20;
+        const gridImport    = gridPower > 20;
+        const gridExport    = gridPower < -20;
+        const battCharge    = batteryPower > 20;
+        const battDischarge = batteryPower < -20;
+
+        const em = this._entityMap;
+        const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
+        const thick = (i: number) => 2 + i * 10;
+
+        const solarI = intensity(solarPower,   em.solarMaxPower);
+        const gridI  = intensity(gridPower,    em.gridMaxPower);
+        const battI  = intensity(batteryPower, em.batteryMaxPower);
+
+        const solarT = thick(solarI);
+        const gridT  = thick(gridI);
+        const battT  = thick(battI);
+
+        const gridSvgW = 1 + gridI * 5;
+        const battSvgW = 1 + battI * 5;
+
         return html`
             <ha-card>
                 <div class="card-content">
@@ -228,7 +246,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${(solarActive && gridExport) ? this._flowH("color-grid-out", false) : ""}
+                            ${(solarActive && gridExport) ? this._flowH("color-grid-out", false, solarT) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-grid .power=${gridPower}></simple-card-grid>
@@ -236,11 +254,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV("color-solar", false) : ""}
+                            ${solarActive ? this._flowV("color-solar", false, solarT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV("color-battery-charge", false) : ""}
+                            ${(gridImport && battCharge) ? this._flowV("color-battery-charge", false, gridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -248,7 +266,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-house .power=${housePower}></simple-card-house>
                         </div>
                         <div class="connector-h">
-                            ${(battCharge && solarActive) ? this._flowH("color-solar", false) : ""}
+                            ${(battCharge && solarActive) ? this._flowH("color-solar", false, battT) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-battery
@@ -258,7 +276,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${(gridImport || battDischarge) ? this._renderFlowOverlay(gridImport, battDischarge) : ""}
+                        ${(gridImport || battDischarge) ? this._renderFlowOverlay(gridImport, battDischarge, gridSvgW, battSvgW) : ""}
 
                     </div>
                 </div>
@@ -299,6 +317,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             batterySocEntityId:    battCfg.capacity           ?? null,
             batteryMinSocEntityId: battCfg.min_soc            ?? null,
             housePowerEntityId:    houseNode?.powerSensorId   ?? null,
+            solarMaxPower:   Math.max(1, solarNode?.sourceConfig?.max_power   ?? 5000),
+            gridMaxPower:    Math.max(1, gridNode?.sourceConfig?.max_power    ?? 11500),
+            batteryMaxPower: Math.max(1, batteryNode?.sourceConfig?.max_power ?? 5000),
         };
     }
 
@@ -334,7 +355,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         };
     }
 
-    private _renderFlowOverlay(gridImport: boolean, battDischarge: boolean) {
+    private _renderFlowOverlay(gridImport: boolean, battDischarge: boolean, gridStrokeWidth: number, battStrokeWidth: number) {
         // SVG overlays the full energy-grid (viewBox 0 0 200 168).
         // Column centers: House=45, Grid/Battery=155. Row centers: top≈35, bottom≈133.
         return html`
@@ -344,7 +365,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 ${ gridImport ? svg`
                     <line x1="138" y1="48" x2="62" y2="120"
                           stroke="#38bdf8"
-                          stroke-width="3"
+                          stroke-width=${gridStrokeWidth}
                           stroke-linecap="round"
                           stroke-dasharray="6 12"
                           style="animation: flow-diagonal 1.6s linear infinite;
@@ -353,7 +374,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 ${ battDischarge ? svg`
                     <line x1="130" y1="133" x2="70" y2="133"
                           stroke="#f59e0b"
-                          stroke-width="3"
+                          stroke-width=${battStrokeWidth}
                           stroke-linecap="round"
                           stroke-dasharray="6 12"
                           style="animation: flow-diagonal 1.6s linear infinite;
@@ -362,24 +383,31 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             </svg>`;
     }
 
-    private _flowH(colorClass: string, reverse: boolean) {
+    private _flowH(colorClass: string, reverse: boolean, thickness: number) {
+        const dotSize = Math.round(thickness);
         const anim = reverse ? "flow-h-rev" : "flow-h";
         return html`
-            <div class="flow-track flow-track-h">
+            <div class="flow-track flow-track-h" style="height: ${thickness}px">
                 ${[0, 0.45, 0.9].map(delay => html`
                     <div class="flow-dot flow-dot-h ${colorClass}"
-                         style="animation-name: ${anim}; animation-delay: ${delay}s"></div>
+                         style="width: ${dotSize}px; height: ${dotSize}px;
+                                animation-name: ${anim}; animation-delay: ${delay}s"></div>
                 `)}
             </div>`;
     }
 
-    private _flowV(colorClass: string, reverse: boolean) {
+    private _flowV(colorClass: string, reverse: boolean, thickness: number) {
+        const dotW = Math.round(thickness);
+        const dotH = Math.round(thickness * 2.5); // elongated pill for dash appearance
         const anim = reverse ? "flow-v-rev" : "flow-v";
+        // 5 evenly spaced dots (1.6s / 5 = 0.32s apart) for smooth continuous flow
         return html`
-            <div class="flow-track flow-track-v">
-                ${[0, 0.45, 0.9].map(delay => html`
+            <div class="flow-track flow-track-v" style="width: ${thickness}px">
+                ${[0, 0.32, 0.64, 0.96, 1.28].map(delay => html`
                     <div class="flow-dot flow-dot-v ${colorClass}"
-                         style="animation-name: ${anim}; animation-delay: ${delay}s"></div>
+                         style="width: ${dotW}px; height: ${dotH}px;
+                                border-radius: 3px;
+                                animation-name: ${anim}; animation-delay: ${delay}s"></div>
                 `)}
             </div>`;
     }
