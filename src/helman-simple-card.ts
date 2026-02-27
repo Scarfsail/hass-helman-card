@@ -187,17 +187,27 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
         const thick = (i: number) => 2 + i * 10;
 
-        const solarI = intensity(solarPower,           em.solarMaxPower);
         const gridI  = intensity(effectiveGridPower,   em.gridMaxPower);
         const battI  = intensity(batteryPower,         em.batteryMaxPower);
 
-        const solarT = thick(solarI);
-        const gridT  = thick(gridI);
-        const battT  = thick(battI);
+        // Distribute solar power proportionally among its destinations
+        const solarToBattPower  = solarActive && battCharge ? Math.max(0, batteryPower) : 0;
+        const solarToGridPower  = solarExportingToGrid ? solarToGrid : 0;
+        const solarToHousePower = Math.max(0, solarPower - solarToBattPower - solarToGridPower);
 
-        const gridSvgW  = 1 + gridI  * 5;
-        const battSvgW  = 1 + battI  * 5;
-        const solarSvgW = 1 + solarI * 5;
+        const solarToHouseI = intensity(solarToHousePower, em.solarMaxPower);
+        const solarToGridI  = intensity(solarToGridPower,  em.solarMaxPower);
+        const solarToBattI  = intensity(solarToBattPower,  em.solarMaxPower);
+
+        const solarToHouseT = thick(solarToHouseI);
+        const solarToGridT  = thick(solarToGridI);
+        const solarToBattT  = thick(solarToBattI);
+        const gridT         = thick(gridI);
+        const battT         = thick(battI);
+
+        const gridSvgW      = 1 + gridI      * 5;
+        const battSvgW      = 1 + battI      * 5;
+        const solarToBattSvgW = 1 + solarToBattI * 5;
 
         return html`
             <ha-card>
@@ -209,7 +219,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${solarExportingToGrid ? this._flowH("#f59e0b", "#f59e0baa", false, solarT) : ""}
+                            ${solarExportingToGrid ? this._flowH("#f59e0b", "#f59e0baa", false, solarToGridT) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-grid .power=${effectiveGridPower}></simple-card-grid>
@@ -217,7 +227,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV("#f59e0b", "#f59e0baa", false, solarT) : ""}
+                            ${solarActive ? this._flowV("#f59e0b", "#f59e0baa", false, solarToHouseT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
@@ -237,7 +247,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${(gridImport || battDischarge || (solarActive && battCharge)) ? this._renderFlowOverlay(gridImport, battDischarge, solarActive && battCharge, gridSvgW, battSvgW, solarSvgW) : ""}
+                        ${(gridImport || battDischarge || (solarActive && battCharge)) ? this._renderFlowOverlay(gridImport, battDischarge, solarActive && battCharge, gridSvgW, battSvgW, solarToBattSvgW) : ""}
 
                     </div>
                 </div>
