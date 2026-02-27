@@ -170,9 +170,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
         const solarActive   = solarPower > 20;
         const gridImport    = gridPower > 20;
-        const gridExport    = gridPower < -20;
         const battCharge    = batteryPower > 20;
         const battDischarge = batteryPower < -20;
+
+        // Infer solar→grid export from power balance (sign-convention independent)
+        const solarToGrid = Math.max(0, solarPower - housePower - Math.max(0, batteryPower));
+        const solarExportingToGrid = solarToGrid > 20;
 
         const em = this._entityMap;
         const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
@@ -200,7 +203,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${(solarActive && gridExport) ? this._flowH("#4ade80", "#4ade80aa", false, solarT) : ""}
+                            ${solarExportingToGrid ? this._flowH("#4ade80", "#4ade80aa", false, solarT) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-grid .power=${gridPower}></simple-card-grid>
