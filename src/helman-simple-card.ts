@@ -405,16 +405,13 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private _flowV(colorClass: string, reverse: boolean, thickness: number) {
-        const dotW = Math.round(thickness);
-        const dotH = Math.round(thickness * 2.5); // elongated pill for dash appearance
+        const dotSize = Math.round(thickness);
         const anim = reverse ? "flow-v-rev" : "flow-v";
-        // 5 evenly spaced dots (1.6s / 5 = 0.32s apart) for smooth continuous flow
         return html`
             <div class="flow-track flow-track-v" style="width: ${thickness}px">
-                ${[0, 0.32, 0.64, 0.96, 1.28].map(delay => html`
+                ${[0, 0.53, 1.06].map(delay => html`
                     <div class="flow-dot flow-dot-v ${colorClass}"
-                         style="width: ${dotW}px; height: ${dotH}px;
-                                border-radius: 3px;
+                         style="width: ${dotSize}px; height: ${dotSize}px;
                                 animation-name: ${anim}; animation-delay: ${delay}s"></div>
                 `)}
             </div>`;
