@@ -233,8 +233,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const gridT  = thick(gridI);
         const battT  = thick(battI);
 
-        const gridSvgW = 1 + gridI * 5;
-        const battSvgW = 1 + battI * 5;
+        const gridSvgW  = 1 + gridI  * 5;
+        const battSvgW  = 1 + battI  * 5;
+        const solarSvgW = 1 + solarI * 5;
 
         return html`
             <ha-card>
@@ -265,9 +266,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                         <div class="node-cell">
                             <simple-card-house .power=${housePower}></simple-card-house>
                         </div>
-                        <div class="connector-h">
-                            ${(battCharge && solarActive) ? this._flowH("color-solar", false, battT) : ""}
-                        </div>
+                        <div class="connector-h"></div>
                         <div class="node-cell">
                             <simple-card-battery
                                 .power=${batteryPower}
@@ -276,7 +275,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${(gridImport || battDischarge) ? this._renderFlowOverlay(gridImport, battDischarge, gridSvgW, battSvgW) : ""}
+                        ${(gridImport || battDischarge || (solarActive && battCharge)) ? this._renderFlowOverlay(gridImport, battDischarge, solarActive && battCharge, gridSvgW, battSvgW, solarSvgW) : ""}
 
                     </div>
                 </div>
@@ -355,13 +354,22 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         };
     }
 
-    private _renderFlowOverlay(gridImport: boolean, battDischarge: boolean, gridStrokeWidth: number, battStrokeWidth: number) {
+    private _renderFlowOverlay(gridImport: boolean, battDischarge: boolean, solarToBattery: boolean, gridStrokeWidth: number, battStrokeWidth: number, solarStrokeWidth: number) {
         // SVG overlays the full energy-grid (viewBox 0 0 200 168).
         // Column centers: House=45, Grid/Battery=155. Row centers: top≈35, bottom≈133.
         return html`
             <svg class="diagonal-overlay" viewBox="0 0 200 168"
                  preserveAspectRatio="none"
                  xmlns="http://www.w3.org/2000/svg">
+                ${ solarToBattery ? svg`
+                    <line x1="62" y1="48" x2="138" y2="120"
+                          stroke="#f59e0b"
+                          stroke-width=${solarStrokeWidth}
+                          stroke-linecap="round"
+                          stroke-dasharray="6 12"
+                          style="animation: flow-diagonal 1.6s linear infinite;
+                                 filter: drop-shadow(0 0 3px #f59e0baa)" />
+                ` : ""}
                 ${ gridImport ? svg`
                     <line x1="138" y1="48" x2="62" y2="120"
                           stroke="#38bdf8"
