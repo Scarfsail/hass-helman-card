@@ -81,12 +81,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         /* 3×3 CSS grid: node | connector | node */
         .energy-grid {
             display: grid;
-            grid-template-columns: minmax(0, 90px) 20px minmax(0, 90px);
+            grid-template-columns: 90px 20px 90px;
             grid-template-rows: auto 28px auto;
             align-items: center;
             justify-items: center;
             margin: 0 auto;
-            width: fit-content;
+            width: 200px;
             position: relative;
         }
         .node-cell {
@@ -219,7 +219,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${solarExportingToGrid ? this._flowH("#f59e0b", "#f59e0baa", false, solarToGridT) : ""}
+                            ${solarExportingToGrid ? this._flowH("#f59e0b", "#f59e0baa", false, solarToGridT, 22.5, 33) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-grid .power=${effectiveGridPower}></simple-card-grid>
@@ -363,10 +363,14 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             </svg>`;
     }
 
-    private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number) {
+    private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
         const sw = Math.max(2, Math.round(strokeWidth));
-        const x1 = reverse ? "100%" : "0%";
-        const x2 = reverse ? "0%" : "100%";
+        // connectorW matches the 20px CSS grid connector column so absolute SVG
+        // coordinates (no viewBox) map 1:1 to pixels, letting us reach actual
+        // picture borders on both sides via overflow:visible.
+        const connectorW = 20;
+        const x1 = reverse ? connectorW + rightOverhang : -leftOverhang;
+        const x2 = reverse ? -leftOverhang : connectorW + rightOverhang;
         return html`
             <svg width="100%" height="100%" style="display:block; overflow:visible">
                 <line x1="${x1}" y1="50%" x2="${x2}" y2="50%"
