@@ -104,54 +104,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         .connector-h { width: 100%; height: 12px; flex-direction: row; }
         .connector-v { width: 20px; height: 100%; flex-direction: column; align-self: stretch; justify-content: center; }
 
-        /* Animated flow track */
-        .flow-track { position: relative; border-radius: 3px; overflow: hidden; }
-        .flow-track-h { width: 100%; }
-        .flow-track-v { height: 28px; }
-
-        .flow-dot {
-            position: absolute;
-            border-radius: 50%;
-            animation-duration: 1.6s;
-            animation-timing-function: linear;
-            animation-iteration-count: infinite;
-        }
-
-        .flow-dot-h { top: 0; }
-        @keyframes flow-h {
-            0%   { left: -6px;  opacity: 0; }
-            15%  { opacity: 1; }
-            85%  { opacity: 1; }
-            100% { left: 100%; opacity: 0; }
-        }
-        @keyframes flow-h-rev {
-            0%   { left: 100%; opacity: 0; }
-            15%  { opacity: 1; }
-            85%  { opacity: 1; }
-            100% { left: -6px;  opacity: 0; }
-        }
-
-        .flow-dot-v { left: 0; }
-        @keyframes flow-v {
-            0%   { top: -22px; opacity: 0; }
-            15%  { opacity: 1; }
-            85%  { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
-        }
-        @keyframes flow-v-rev {
-            0%   { top: 100%; opacity: 0; }
-            15%  { opacity: 1; }
-            85%  { opacity: 1; }
-            100% { top: -22px; opacity: 0; }
-        }
-
-        .color-solar             { background: #f59e0b; box-shadow: 0 0 6px #f59e0baa; }
-        .color-grid-in           { background: #38bdf8; box-shadow: 0 0 6px #38bdf8aa; }
-        .color-grid-out          { background: #4ade80; box-shadow: 0 0 6px #4ade80aa; }
-        .color-battery-charge    { background: #22c55e; box-shadow: 0 0 6px #22c55eaa; }
-        .color-battery-discharge { background: #f59e0b; box-shadow: 0 0 6px #f59e0baa; }
-
-        /* Diagonal grid→house overlay */
+        /* SVG flow overlay (all flows use this) */
         .diagonal-overlay {
             position: absolute;
             top: 0; left: 0;
@@ -247,7 +200,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${(solarActive && gridExport) ? this._flowH("color-grid-out", false, solarT) : ""}
+                            ${(solarActive && gridExport) ? this._flowH("#4ade80", "#4ade80aa", false, solarT) : ""}
                         </div>
                         <div class="node-cell">
                             <simple-card-grid .power=${gridPower}></simple-card-grid>
@@ -255,11 +208,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV("color-solar", false, solarT) : ""}
+                            ${solarActive ? this._flowV("#f59e0b", "#f59e0baa", false, solarT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV("color-battery-charge", false, gridT) : ""}
+                            ${(gridImport && battCharge) ? this._flowV("#22c55e", "#22c55eaa", false, gridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -366,7 +319,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                           stroke="#f59e0b"
                           stroke-width=${solarStrokeWidth}
                           stroke-linecap="round"
-                          stroke-dasharray="6 12"
+                          stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px #f59e0baa)" />
                 ` : ""}
@@ -375,7 +328,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                           stroke="#38bdf8"
                           stroke-width=${gridStrokeWidth}
                           stroke-linecap="round"
-                          stroke-dasharray="6 12"
+                          stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px #38bdf8aa)" />
                 ` : ""}
@@ -384,37 +337,39 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                           stroke="#f59e0b"
                           stroke-width=${battStrokeWidth}
                           stroke-linecap="round"
-                          stroke-dasharray="6 12"
+                          stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px #f59e0baa)" />
                 ` : ""}
             </svg>`;
     }
 
-    private _flowH(colorClass: string, reverse: boolean, thickness: number) {
-        const dotSize = Math.round(thickness);
-        const anim = reverse ? "flow-h-rev" : "flow-h";
+    private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number) {
+        const sw = Math.max(2, Math.round(strokeWidth));
+        const x1 = reverse ? "100%" : "0%";
+        const x2 = reverse ? "0%" : "100%";
         return html`
-            <div class="flow-track flow-track-h" style="height: ${thickness}px">
-                ${[0, 0.45, 0.9].map(delay => html`
-                    <div class="flow-dot flow-dot-h ${colorClass}"
-                         style="width: ${dotSize}px; height: ${dotSize}px;
-                                animation-name: ${anim}; animation-delay: ${delay}s"></div>
-                `)}
-            </div>`;
+            <svg width="100%" height="100%" style="display:block; overflow:visible">
+                <line x1="${x1}" y1="50%" x2="${x2}" y2="50%"
+                      stroke="${color}" stroke-width="${sw}"
+                      stroke-linecap="round" stroke-dasharray="2 16"
+                      style="animation: flow-diagonal 1.6s linear infinite;
+                             filter: drop-shadow(0 0 3px ${glow})" />
+            </svg>`;
     }
 
-    private _flowV(colorClass: string, reverse: boolean, thickness: number) {
-        const dotSize = Math.round(thickness);
-        const anim = reverse ? "flow-v-rev" : "flow-v";
+    private _flowV(color: string, glow: string, reverse: boolean, strokeWidth: number) {
+        const sw = Math.max(2, Math.round(strokeWidth));
+        const y1 = reverse ? "100%" : "0%";
+        const y2 = reverse ? "0%" : "100%";
         return html`
-            <div class="flow-track flow-track-v" style="width: ${thickness}px">
-                ${[0, 0.53, 1.06].map(delay => html`
-                    <div class="flow-dot flow-dot-v ${colorClass}"
-                         style="width: ${dotSize}px; height: ${dotSize}px;
-                                animation-name: ${anim}; animation-delay: ${delay}s"></div>
-                `)}
-            </div>`;
+            <svg width="100%" height="100%" style="display:block; overflow:visible">
+                <line x1="50%" y1="${y1}" x2="50%" y2="${y2}"
+                      stroke="${color}" stroke-width="${sw}"
+                      stroke-linecap="round" stroke-dasharray="2 16"
+                      style="animation: flow-diagonal 1.6s linear infinite;
+                             filter: drop-shadow(0 0 3px ${glow})" />
+            </svg>`;
     }
 }
 
