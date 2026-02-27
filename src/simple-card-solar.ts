@@ -21,7 +21,7 @@ export class SimpleCardSolar extends LitElement {
             justify-content: center;
         }
         svg {
-            overflow: hidden;
+            overflow: visible;
         }
         .rays {
             transform-origin: 40px 40px;
