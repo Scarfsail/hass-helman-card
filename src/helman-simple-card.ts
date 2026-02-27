@@ -67,13 +67,28 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         return { type: "custom:helman-simple-card" };
     }
 
+    public static getConfigForm() {
+        return {
+            schema: [
+                {
+                    name: "width",
+                    selector: { number: { min: 100, max: 800, step: 10, mode: "box", unit_of_measurement: "px" } },
+                },
+                {
+                    name: "height",
+                    selector: { number: { min: 100, max: 800, step: 10, mode: "box", unit_of_measurement: "px" } },
+                },
+            ],
+        };
+    }
+
     // 2. Static styles
     static styles = css`
         :host { display: block; }
         ha-card { overflow: hidden; }
         .card-content {
             padding: 8px;
-            max-width: 500px;
+            max-width: 850px;
             margin: 0 auto;
             box-sizing: border-box;
         }
@@ -81,7 +96,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         /* 3×3 CSS grid: node | connector | node */
         .energy-grid {
             display: grid;
-            grid-template-columns: 90px 20px 90px;
+            grid-template-columns: 1fr 20px 1fr;
             grid-template-rows: auto 28px auto;
             align-items: center;
             justify-items: center;
@@ -209,10 +224,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battSvgW      = 1 + battI      * 5;
         const solarToBattSvgW = 1 + solarToBattI * 5;
 
+        const gridStyle = this._buildGridStyle();
+
         return html`
             <ha-card>
                 <div class="card-content">
-                    <div class="energy-grid">
+                    <div class="energy-grid" style=${gridStyle}>
 
                         <!-- ── Row 1: Solar  ─── connector ─── Grid ── -->
                         <div class="node-cell">
@@ -256,6 +273,15 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     // 12. Private helper methods
+
+    private _buildGridStyle(): string {
+        const w = this._config?.width;
+        const h = this._config?.height;
+        const parts: string[] = [];
+        if (w !== undefined) parts.push(`width: ${w}px`);
+        if (h !== undefined) parts.push(`height: ${h}px`, `grid-template-rows: 1fr 28px 1fr`);
+        return parts.join("; ");
+    }
 
     private async _loadFromBackend(): Promise<void> {
         try {
