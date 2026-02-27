@@ -6,4 +6,6 @@ export interface HelmanSimpleCardConfig extends LovelaceCardConfig {
     width?: number;
     /** Overall card grid height in pixels. Default: auto (content-sized). */
     height?: number;
+    /** When true, the card background is transparent. Default: false. */
+    transparent_background?: boolean;
 }

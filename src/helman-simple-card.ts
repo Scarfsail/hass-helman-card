@@ -78,6 +78,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     name: "height",
                     selector: { number: { min: 100, max: 800, step: 10, mode: "box", unit_of_measurement: "px" } },
                 },
+                {
+                    name: "transparent_background",
+                    selector: { boolean: {} },
+                },
             ],
         };
     }
@@ -86,6 +90,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     static styles = css`
         :host { display: block; }
         ha-card { overflow: hidden; }
+        ha-card.transparent {
+            background: transparent;
+            box-shadow: none;
+            border: none;
+        }
         .card-content {
             padding: 8px;
             max-width: 850px;
@@ -177,7 +186,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 10. Render method
     render() {
         if (this._loading || !this._entityMap) {
-            return html`<ha-card><div class="loading">Loading energy data…</div></ha-card>`;
+            return html`<ha-card class=${this._config?.transparent_background ? "transparent" : ""}><div class="loading">Loading energy data…</div></ha-card>`;
         }
 
         const { solarPower, gridPower, housePower, batteryPower,
@@ -227,7 +236,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const gridStyle = this._buildGridStyle();
 
         return html`
-            <ha-card>
+            <ha-card class=${this._config?.transparent_background ? "transparent" : ""}>
                 <div class="card-content">
                     <div class="energy-grid" style=${gridStyle}>
 
