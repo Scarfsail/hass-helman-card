@@ -38,23 +38,50 @@ export class SimpleCardBattery extends LitElement {
         }
         .battery-body.active-charge {
             stroke: #22c55e;
-            filter: drop-shadow(0 0 6px #22c55e88);
+            animation: cover-charge-pulse 1.8s ease-in-out infinite;
         }
         .battery-body.active-discharge {
             stroke: #f97316;
-            filter: drop-shadow(0 0 6px #f9731688);
+            animation: cover-discharge-pulse 1.8s ease-in-out infinite;
         }
         .battery-body.low {
             stroke: #ef4444;
-            filter: drop-shadow(0 0 6px #ef444488);
+            animation: cover-low-pulse 1.2s ease-in-out infinite;
         }
+        /* --cover-color is set inline when sourceColor is provided */
+        @keyframes cover-charge-pulse {
+            0%, 100% { filter: drop-shadow(0 0 3px var(--cover-color, #22c55e)); }
+            50%       { filter: drop-shadow(0 0 10px var(--cover-color, #22c55e)) drop-shadow(0 0 18px var(--cover-color, #22c55e88)); }
+        }
+        @keyframes cover-discharge-pulse {
+            0%, 100% { filter: drop-shadow(0 0 3px #f97316); }
+            50%       { filter: drop-shadow(0 0 10px #f97316) drop-shadow(0 0 18px #f9731688); }
+        }
+        @keyframes cover-low-pulse {
+            0%, 100% { filter: drop-shadow(0 0 3px #ef4444); }
+            50%       { filter: drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488); }
+        }
+
         .battery-terminal {
             fill: #6b7280;
             transition: fill 0.6s;
         }
-        .battery-terminal.active-charge { fill: #22c55e; }
-        .battery-terminal.active-discharge { fill: #f97316; }
-        .battery-terminal.low { fill: #ef4444; }
+        .battery-terminal.active-charge {
+            fill: #22c55e;
+            animation: terminal-pulse 1.8s ease-in-out infinite;
+        }
+        .battery-terminal.active-discharge {
+            fill: #f97316;
+            animation: terminal-pulse 1.8s ease-in-out infinite;
+        }
+        .battery-terminal.low {
+            fill: #ef4444;
+            animation: terminal-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes terminal-pulse {
+            0%, 100% { opacity: 0.8; }
+            50%       { opacity: 1; }
+        }
 
         .fill-charging {
             fill: #22c55e;
@@ -109,6 +136,8 @@ export class SimpleCardBattery extends LitElement {
     @property({ type: Number }) public power = 0;
     @property({ type: Number }) public soc = 0;
     @property({ type: Number }) public minSoc = 10;
+    /** When charging: color of the energy source (solar yellow, grid blue, or blended). */
+    @property({ type: String }) public sourceColor?: string;
 
     // Render method
     render() {
@@ -140,12 +169,14 @@ export class SimpleCardBattery extends LitElement {
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
                     <rect class="battery-terminal ${bodyStateClass}"
-                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"/>
+                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"
+                        style="${isCharging && this.sourceColor ? `fill: ${this.sourceColor}` : ''}"/>
 
                     <!-- Battery body outline -->
                     <rect class="battery-body ${bodyStateClass}"
                         x="${BODY_X}" y="${BODY_TOP}"
-                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"/>
+                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"
+                        style="${isCharging && this.sourceColor ? `stroke: ${this.sourceColor}; --cover-color: ${this.sourceColor}` : ''}"/>
 
                     <!-- Fill level -->
                     <clipPath id="battery-clip">

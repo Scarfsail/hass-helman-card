@@ -88,16 +88,20 @@ export class SimpleCardHouse extends LitElement {
 
     // Public properties
     @property({ type: Number }) public power = 0;
+    /** Blended source color based on power ratios from solar/grid/battery. */
+    @property({ type: String }) public sourceColor?: string;
 
     // Render method
     render() {
         const active = this.power > 10;
         const { value, unit } = formatPower(this.power);
+        // Use sourceColor for border/glow when active, fall back to default yellow
+        const borderColor = (active && this.sourceColor) ? this.sourceColor : undefined;
 
         return html`
             <div class="svg-wrapper">
                 <svg viewBox="-15 -14 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg">
-                    ${this._renderHouse(active)}
+                    ${this._renderHouse(active, borderColor)}
                 </svg>
             </div>
             <div class="power-label ${active ? 'active' : ''}">
@@ -107,36 +111,44 @@ export class SimpleCardHouse extends LitElement {
     }
 
     // Private helper methods
-    private _renderHouse(active: boolean) {
+    private _renderHouse(active: boolean, borderColor?: string) {
         const a = active ? 'active' : '';
+        // Dynamic border styles when we have a source color
+        const bodyStyle = (active && borderColor)
+            ? `stroke: ${borderColor}; filter: drop-shadow(0 0 8px ${borderColor}44)`
+            : '';
+        const roofStyle = (active && borderColor) ? `stroke: ${borderColor}` : '';
+        const doorStyle = (active && borderColor) ? `stroke: ${borderColor}88` : '';
+        const crossColor = active ? (borderColor ? `${borderColor}66` : '#fde68a66') : '#374151';
+        const knobColor  = active ? (borderColor ? `${borderColor}88` : '#fde68a88') : '#4b5563';
         return svg`
             <!-- Chimney -->
             <rect class="chimney" x="52" y="15" width="7" height="16" rx="1.5"/>
 
             <!-- Roof -->
-            <polygon class="roof ${a}" points="40,6 73,36 7,36"/>
+            <polygon class="roof ${a}" style="${roofStyle}" points="40,6 73,36 7,36"/>
 
             <!-- House body -->
-            <rect class="house-body ${a}" x="13" y="35" width="54" height="41" rx="2"/>
+            <rect class="house-body ${a}" style="${bodyStyle}" x="13" y="35" width="54" height="41" rx="2"/>
 
             <!-- Left window -->
             <rect class="window ${a}" x="19" y="42" width="15" height="13" rx="2"/>
-            <line stroke="${active ? '#fde68a66' : '#374151'}" stroke-width="1"
+            <line stroke="${crossColor}" stroke-width="1"
                   x1="26" y1="42" x2="26" y2="55"/>
-            <line stroke="${active ? '#fde68a66' : '#374151'}" stroke-width="1"
+            <line stroke="${crossColor}" stroke-width="1"
                   x1="19" y1="48" x2="34" y2="48"/>
 
             <!-- Right window -->
             <rect class="window ${a}" x="46" y="42" width="15" height="13" rx="2"/>
-            <line stroke="${active ? '#fde68a66' : '#374151'}" stroke-width="1"
+            <line stroke="${crossColor}" stroke-width="1"
                   x1="53" y1="42" x2="53" y2="55"/>
-            <line stroke="${active ? '#fde68a66' : '#374151'}" stroke-width="1"
+            <line stroke="${crossColor}" stroke-width="1"
                   x1="46" y1="48" x2="61" y2="48"/>
 
             <!-- Door -->
-            <rect class="door ${a}" x="32" y="54" width="16" height="22" rx="2"/>
+            <rect class="door ${a}" style="${doorStyle}" x="32" y="54" width="16" height="22" rx="2"/>
             <!-- Door knob -->
-            <circle fill="${active ? '#fde68a88' : '#4b5563'}" cx="45" cy="65" r="1.5"/>
+            <circle fill="${knobColor}" cx="45" cy="65" r="1.5"/>
         `;
     }
 }

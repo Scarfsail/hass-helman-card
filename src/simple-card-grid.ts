@@ -27,15 +27,14 @@ export class SimpleCardGrid extends LitElement {
         .pole.export { fill: #4ade80; filter: drop-shadow(0 0 6px #4ade8099); }
 
         .wire { stroke: #4b5563; stroke-width: 1.5; fill: none; transition: stroke 0.6s; }
-        .wire.import { stroke: #38bdf8; }
-        .wire.export { stroke: #4ade80; }
+        /* wire color when active is set dynamically via sourceColor prop */
 
         .dot-import {
             fill: #7dd3fc;
             animation: flow-in 1.6s linear infinite;
         }
+        /* export dot color is set dynamically via sourceColor prop */
         .dot-export {
-            fill: #86efac;
             animation: flow-out 1.6s linear infinite;
         }
 
@@ -70,6 +69,8 @@ export class SimpleCardGrid extends LitElement {
     // Public properties
     /** Positive = importing from grid, negative = exporting to grid */
     @property({ type: Number }) public power = 0;
+    /** When exporting: color of the energy source supplying the export (e.g. solar yellow). */
+    @property({ type: String }) public sourceColor?: string;
 
     // Render method
     render() {
@@ -79,12 +80,14 @@ export class SimpleCardGrid extends LitElement {
         const stateClass = importing ? 'import' : exporting ? 'export' : '';
         const absPower = Math.abs(this.power);
         const { value, unit } = formatPower(absPower);
+        // Wire/dot color when exporting comes from sourceColor; import stays blue via CSS
+        const wireColor = (exporting && this.sourceColor) ? this.sourceColor : undefined;
 
         return html`
             <div class="svg-wrapper">
                 <svg viewBox="-15 -8 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg">
-                    ${this._renderPylon(stateClass)}
-                    ${isActive ? this._renderFlowDots(importing) : ''}
+                    ${this._renderPylon(stateClass, wireColor)}
+                    ${isActive ? this._renderFlowDots(importing, wireColor) : ''}
                 </svg>
             </div>
             <div class="power-label ${stateClass}">
@@ -94,7 +97,8 @@ export class SimpleCardGrid extends LitElement {
     }
 
     // Private helper methods
-    private _renderPylon(stateClass: string) {
+    private _renderPylon(stateClass: string, wireColor?: string) {
+        const wireStyle = wireColor ? `stroke: ${wireColor}; filter: drop-shadow(0 0 4px ${wireColor}99)` : '';
         return svg`
             <!-- Base -->
             <rect class="pole ${stateClass}" x="32" y="68" width="16" height="9" rx="2"/>
@@ -110,28 +114,29 @@ export class SimpleCardGrid extends LitElement {
             <circle class="pole ${stateClass}" cx="40" cy="21" r="3"/>
             <circle class="pole ${stateClass}" cx="63" cy="26" r="3"/>
             <!-- Wires -->
-            <path class="wire ${stateClass}" d="M17,29 Q14,46 13,58"/>
-            <path class="wire ${stateClass}" d="M40,24 Q40,44 40,58"/>
-            <path class="wire ${stateClass}" d="M63,29 Q66,46 67,58"/>
+            <path class="wire" style="${wireStyle}" d="M17,29 Q14,46 13,58"/>
+            <path class="wire" style="${wireStyle}" d="M40,24 Q40,44 40,58"/>
+            <path class="wire" style="${wireStyle}" d="M63,29 Q66,46 67,58"/>
         `;
     }
 
-    private _renderFlowDots(importing: boolean) {
+    private _renderFlowDots(importing: boolean, wireColor?: string) {
         const dotClass = importing ? 'dot-import' : 'dot-export';
+        const dotStyle = (!importing && wireColor) ? `fill: ${wireColor}` : '';
         return svg`
-            <circle class="dot ${dotClass}" r="3">
+            <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
                     <mpath href="#wl"/>
                 </animateMotion>
             </circle>
-            <circle class="dot ${dotClass}" r="3">
+            <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.4s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
                     <mpath href="#wc"/>
                 </animateMotion>
             </circle>
-            <circle class="dot ${dotClass}" r="3">
+            <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.8s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
                     <mpath href="#wr"/>

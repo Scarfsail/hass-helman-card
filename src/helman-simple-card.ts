@@ -8,6 +8,28 @@ import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
 
+// ──────────────────────────────── Color constants ─────────────────────────────
+
+const SOLAR_COLOR = '#facc15'; // yellow-400 — matches solar component
+const GRID_COLOR  = '#38bdf8'; // sky-400    — matches grid import
+const BATT_COLOR  = '#22c55e'; // green-500  — matches battery producer/charging border
+
+/** Weighted RGB average of hex color values. Returns gray if no active inputs. */
+function blendHex(colors: { hex: string; weight: number }[]): string {
+    const active = colors.filter(c => c.weight > 0);
+    if (active.length === 0) return '#6b7280';
+    if (active.length === 1) return active[0].hex;
+    const total = active.reduce((s, c) => s + c.weight, 0);
+    let r = 0, g = 0, b = 0;
+    for (const { hex, weight } of active) {
+        const n = parseInt(hex.slice(1), 16);
+        r += ((n >> 16) & 0xff) * weight / total;
+        g += ((n >> 8)  & 0xff) * weight / total;
+        b += (n         & 0xff) * weight / total;
+    }
+    return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
 // ──────────────────────────────── Backend DTO types ───────────────────────────
 
 type ValueType = "default" | "positive" | "negative";
@@ -215,7 +237,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battI  = intensity(batteryPower,         em.batteryMaxPower);
 
         // Distribute solar power proportionally among its destinations
-        const solarToBattPower  = solarActive && battCharge ? Math.max(0, batteryPower) : 0;
+        // Cap solarToBatt at actual solar output (battery may also be charging from grid)
+        const solarToBattPower  = solarActive && battCharge ? Math.min(solarPower, Math.max(0, batteryPower)) : 0;
         const solarToGridPower  = solarExportingToGrid ? solarToGrid : 0;
         const solarToHousePower = Math.max(0, solarPower - solarToBattPower - solarToGridPower);
 
@@ -233,6 +256,28 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battSvgW      = 1 + battI      * 5;
         const solarToBattSvgW = 1 + solarToBattI * 5;
 
+        // ── Source colors for consumer components ──────────────────────────────
+        // Battery source: solar contributes min(solar, battPower), grid covers the rest
+        const solarPortionToBatt = solarActive && battCharge ? Math.min(solarPower, batteryPower) : 0;
+        const gridPortionToBatt  = battCharge ? Math.max(0, batteryPower - solarPortionToBatt) : 0;
+        const battSourceColor = battCharge
+            ? blendHex([{ hex: SOLAR_COLOR, weight: solarPortionToBatt }, { hex: GRID_COLOR, weight: gridPortionToBatt }])
+            : undefined;
+
+        // Grid source color when exporting: always solar in current model
+        const gridSourceColor = solarExportingToGrid ? SOLAR_COLOR : undefined;
+
+        // House source: solar direct, battery discharge, remainder from grid
+        const battToHousePower  = battDischarge ? Math.abs(batteryPower) : 0;
+        const gridToHousePower  = Math.max(0, housePower - solarToHousePower - battToHousePower);
+        const houseSourceColor  = housePower > 10
+            ? blendHex([
+                { hex: SOLAR_COLOR, weight: solarToHousePower },
+                { hex: GRID_COLOR,  weight: gridToHousePower  },
+                { hex: BATT_COLOR,  weight: battToHousePower  },
+            ])
+            : undefined;
+
         const gridStyle = this._buildGridStyle();
 
         return html`
@@ -245,24 +290,24 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${solarExportingToGrid ? this._flowH("#f59e0b", "#f59e0baa", false, solarToGridT, 22.5, 33) : ""}
+                            ${solarExportingToGrid ? this._flowH(SOLAR_COLOR, `${SOLAR_COLOR}aa`, false, solarToGridT, 22.5, 33) : ""}
                         </div>
                         <div class="node-cell">
-                            <simple-card-grid .power=${effectiveGridPower}></simple-card-grid>
+                            <simple-card-grid .power=${effectiveGridPower} .sourceColor=${gridSourceColor}></simple-card-grid>
                         </div>
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV("#f59e0b", "#f59e0baa", false, solarToHouseT) : ""}
+                            ${solarActive ? this._flowV(SOLAR_COLOR, `${SOLAR_COLOR}aa`, false, solarToHouseT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV("#38bdf8", "#38bdf8aa", false, gridT) : ""}
+                            ${(gridImport && battCharge) ? this._flowV(GRID_COLOR, `${GRID_COLOR}aa`, false, gridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
                         <div class="node-cell">
-                            <simple-card-house .power=${housePower}></simple-card-house>
+                            <simple-card-house .power=${housePower} .sourceColor=${houseSourceColor}></simple-card-house>
                         </div>
                         <div class="connector-h"></div>
                         <div class="node-cell">
@@ -270,6 +315,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                                 .power=${batteryPower}
                                 .soc=${batterySoc}
                                 .minSoc=${batteryMinSoc}
+                                .sourceColor=${battSourceColor}
                             ></simple-card-battery>
                         </div>
 
@@ -370,30 +416,30 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                  xmlns="http://www.w3.org/2000/svg">
                 ${ solarToBattery ? svg`
                     <line x1="62" y1="48" x2="138" y2="120"
-                          stroke="#f59e0b"
+                          stroke="${SOLAR_COLOR}"
                           stroke-width=${solarStrokeWidth}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px #f59e0baa)" />
+                                 filter: drop-shadow(0 0 3px ${SOLAR_COLOR}aa)" />
                 ` : ""}
                 ${ gridImport ? svg`
                     <line x1="138" y1="48" x2="62" y2="120"
-                          stroke="#38bdf8"
+                          stroke="${GRID_COLOR}"
                           stroke-width=${gridStrokeWidth}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px #38bdf8aa)" />
+                                 filter: drop-shadow(0 0 3px ${GRID_COLOR}aa)" />
                 ` : ""}
                 ${ battDischarge ? svg`
                     <line x1="130" y1="133" x2="70" y2="133"
-                          stroke="#f59e0b"
+                          stroke="${BATT_COLOR}"
                           stroke-width=${battStrokeWidth}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px #f59e0baa)" />
+                                 filter: drop-shadow(0 0 3px ${BATT_COLOR}aa)" />
                 ` : ""}
             </svg>`;
     }
