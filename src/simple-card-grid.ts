@@ -72,7 +72,8 @@ export class SimpleCardGrid extends LitElement {
 
     // Render method
     render() {
-        const importing = this.power > 5;
+        const showImport = this.power > 5;          // show value
+        const importing = this.power > 50;          // animate + glow
         const exporting = this.power < -5;
         const isActive = importing || exporting;
         const stateClass = importing ? 'import' : exporting ? 'export' : '';
@@ -89,7 +90,7 @@ export class SimpleCardGrid extends LitElement {
                 </svg>
             </div>
             <div class="power-label ${stateClass}">
-                ${isActive ? html`${value} <span class="unit">${unit}</span>` : html`—`}
+                ${(isActive || showImport) ? html`${value} <span class="unit">${unit}</span>` : html`—`}
             </div>
         `;
     }

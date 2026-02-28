@@ -228,7 +228,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const effectiveGridPower = (Math.abs(gridPower) < 20 && solarExportingToGrid)
             ? -solarToGrid
             : gridPower;
-        const gridImport = effectiveGridPower > 5;
+        const gridImport = effectiveGridPower > 50;
 
         const em = this._entityMap;
         const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
@@ -309,7 +309,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                         <div></div>
                         <div class="connector-v">
                             ${(gridImport && battCharge) ? this._flowV(GRID_COLOR, `${GRID_COLOR}aa`, false, gridToBattT) : ""}
-                            ${battToGridPower > 5 ? this._flowV(BATT_COLOR, `${BATT_COLOR}aa`, true, battToGridT) : ""}
+                            ${battToGridPower > 50 ? this._flowV(BATT_COLOR, `${BATT_COLOR}aa`, true, battToGridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -326,7 +326,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${this._renderFlowOverlay(solarToBattPower > 5, gridToHousePower > 5, battToHousePower > 5, solarToBattT, gridToHouseT, battToHouseT)}
+                        ${this._renderFlowOverlay(solarToBattPower > 5, gridToHousePower > 50, battToHousePower > 50, solarToBattT, gridToHouseT, battToHouseT)}
 
                     </div>
                 </div>

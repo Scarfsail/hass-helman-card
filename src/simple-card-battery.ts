@@ -137,7 +137,8 @@ export class SimpleCardBattery extends LitElement {
     // Render method
     render() {
         const isCharging = this.power > 5;
-        const isDischarging = this.power < -5;
+        const isDischarging = this.power < -5;          // show value
+        const isDischargeActive = this.power < -50;     // animate + glow
         const isLow = this.soc <= 20 && !isCharging;
         const isActive = isCharging || isDischarging;
 
@@ -145,8 +146,8 @@ export class SimpleCardBattery extends LitElement {
         const fillHeight = BODY_HEIGHT * socClamped / 100;
         const fillY = BODY_TOP + BODY_HEIGHT - fillHeight;
 
-        const bodyStateClass = isLow ? 'low' : isCharging ? 'active-charge' : isDischarging ? 'active-discharge' : '';
-        const fillClass = isLow ? 'fill-low' : isCharging ? 'fill-charging' : isDischarging ? 'fill-discharging' : 'fill-idle';
+        const bodyStateClass = isLow ? 'low' : isCharging ? 'active-charge' : isDischargeActive ? 'active-discharge' : '';
+        const fillClass = isLow ? 'fill-low' : isCharging ? 'fill-charging' : isDischargeActive ? 'fill-discharging' : 'fill-idle';
         const powerClass = isLow ? 'low' : isCharging ? 'charge' : 'discharge';
 
         const absPower = Math.abs(this.power);
