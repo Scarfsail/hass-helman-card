@@ -48,6 +48,10 @@ export class SimpleCardBattery extends LitElement {
             stroke: #ef4444;
             animation: cover-low-pulse 1.2s ease-in-out infinite;
         }
+        .battery-body.low-orange {
+            stroke: #f97316;
+            animation: cover-orange-pulse 1.2s ease-in-out infinite;
+        }
         /* --cover-color is set inline when sourceColor is provided */
         @keyframes cover-charge-pulse {
             0%, 100% { filter: drop-shadow(0 0 3px var(--cover-color, #22c55e)); }
@@ -60,6 +64,10 @@ export class SimpleCardBattery extends LitElement {
         @keyframes cover-low-pulse {
             0%, 100% { filter: drop-shadow(0 0 3px #ef4444); }
             50%       { filter: drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488); }
+        }
+        @keyframes cover-orange-pulse {
+            0%, 100% { filter: drop-shadow(0 0 3px #f97316); }
+            50%       { filter: drop-shadow(0 0 10px #f97316) drop-shadow(0 0 18px #f9731688); }
         }
 
         .battery-terminal {
@@ -78,29 +86,25 @@ export class SimpleCardBattery extends LitElement {
             fill: #ef4444;
             animation: terminal-pulse 1.2s ease-in-out infinite;
         }
+        .battery-terminal.low-orange {
+            fill: #f97316;
+            animation: terminal-pulse 1.2s ease-in-out infinite;
+        }
         @keyframes terminal-pulse {
             0%, 100% { opacity: 0.8; }
             50%       { opacity: 1; }
         }
 
-        .fill-charging {
-            fill: #22c55e;
-            animation: charge-pulse 1.8s ease-in-out infinite;
-        }
-        .fill-discharging {
-            fill: #22c55e;
-            animation: charge-pulse 1.8s ease-in-out infinite;
-        }
-        .fill-low {
-            fill: #22c55e;
-            animation: charge-pulse 1.2s ease-in-out infinite;
-        }
-        .fill-idle {
-            fill: #4b5563;
-        }
-        @keyframes charge-pulse {
+        /* Fill bar color: gray when idle at normal SoC, SoC-based when low or active */
+        .fill-idle   { fill: #4b5563; }
+        .fill-green  { fill: #22c55e; }
+        .fill-orange { fill: #f97316; }
+        .fill-red    { fill: #ef4444; }
+        /* Active pulse overlaid on color class when charging or discharging */
+        .fill-active { animation: fill-pulse 1.8s ease-in-out infinite; }
+        @keyframes fill-pulse {
             0%, 100% { opacity: 0.75; }
-            50% { opacity: 1; filter: drop-shadow(0 0 4px #4ade8088); }
+            50%       { opacity: 1; }
         }
         .soc-label {
             font-size: 1.125rem;
@@ -112,14 +116,13 @@ export class SimpleCardBattery extends LitElement {
         .power-label {
             font-size: 0.78rem;
             font-weight: 700;
-            color: var(--primary-text-color);
+            color: #6b7280;
             min-height: 1.1em;
             text-align: center;
             line-height: 1.3;
         }
         .power-label.charge { color: #22c55e; }
         .power-label.discharge { color: #22c55e; }
-        .power-label.low { color: #ef4444; }
         .unit {
             font-size: 0.7em;
             font-weight: 400;
@@ -136,19 +139,27 @@ export class SimpleCardBattery extends LitElement {
 
     // Render method
     render() {
-        const isCharging = this.power > 5;
-        const isDischarging = this.power < -5;          // show value
-        const isDischargeActive = this.power < -50;     // animate + glow
-        const isLow = this.soc <= 20 && !isCharging;
-        const isActive = isCharging || isDischarging;
+        const isCharging = this.power > 50;
+        const isDischarging = this.power < -50;
 
         const socClamped = Math.max(0, Math.min(100, this.soc));
         const fillHeight = BODY_HEIGHT * socClamped / 100;
         const fillY = BODY_TOP + BODY_HEIGHT - fillHeight;
 
-        const bodyStateClass = isLow ? 'low' : isCharging ? 'active-charge' : isDischargeActive ? 'active-discharge' : '';
-        const fillClass = isLow ? 'fill-low' : isCharging ? 'fill-charging' : isDischargeActive ? 'fill-discharging' : 'fill-idle';
-        const powerClass = isLow ? 'low' : isCharging ? 'charge' : 'discharge';
+        // Cover: charge/discharge state takes priority; SoC warning only when idle
+        const coverClass = isCharging ? 'active-charge'
+            : isDischarging ? 'active-discharge'
+            : socClamped < 20 ? 'low'
+            : socClamped < 30 ? 'low-orange'
+            : '';
+
+        // Fill bar: dark gray when idle at normal SoC; SoC color when low or active
+        const fillColorClass = socClamped < 20 ? 'fill-red' : socClamped < 30 ? 'fill-orange' : 'fill-green';
+        const fillClass = (isCharging || isDischarging)
+            ? `${fillColorClass} fill-active`
+            : (socClamped < 30 ? fillColorClass : 'fill-idle');
+
+        const powerClass = isCharging ? 'charge' : isDischarging ? 'discharge' : '';
 
         const absPower = Math.abs(this.power);
         const { value, unit } = formatPower(absPower);
@@ -164,12 +175,12 @@ export class SimpleCardBattery extends LitElement {
                      width="50" height="50"
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
-                    <rect class="battery-terminal ${bodyStateClass}"
+                    <rect class="battery-terminal ${coverClass}"
                         x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"
                         style="${isCharging && this.sourceColor ? `fill: ${this.sourceColor}` : ''}"/>
 
                     <!-- Battery body outline -->
-                    <rect class="battery-body ${bodyStateClass}"
+                    <rect class="battery-body ${coverClass}"
                         x="${BODY_X}" y="${BODY_TOP}"
                         width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"
                         style="${isCharging && this.sourceColor ? `stroke: ${this.sourceColor}; --cover-color: ${this.sourceColor}` : ''}"/>
@@ -193,10 +204,10 @@ export class SimpleCardBattery extends LitElement {
                     </text>
                 </svg>
             </div>
-            <div class="power-label ${isActive ? powerClass : ''}">
-                ${isActive
-                    ? html`${isCharging ? '↑' : '↓'} ${value} <span class="unit">${unit}</span>`
-                    : html`—`}
+            <div class="power-label ${powerClass}">
+                ${isCharging ? html`↑ ${value} <span class="unit">${unit}</span>`
+                    : isDischarging ? html`↓ ${value} <span class="unit">${unit}</span>`
+                    : html`${value} <span class="unit">${unit}</span>`}
             </div>
         `;
     }

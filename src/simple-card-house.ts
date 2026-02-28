@@ -60,13 +60,12 @@ export class SimpleCardHouse extends LitElement {
             transition: fill 0.6s, filter 0.6s;
         }
         .window.active {
-            fill: #fef08a;
-            filter: drop-shadow(0 0 6px #fef08a) drop-shadow(0 0 12px #fbbf24cc);
+            fill: var(--window-color, #fef08a);
             animation: window-glow 2.4s ease-in-out infinite;
         }
         @keyframes window-glow {
-            0%, 100% { fill: #fef08a; filter: drop-shadow(0 0 4px #fef08a) drop-shadow(0 0 8px #fbbf24aa); }
-            50%       { fill: #fde047; filter: drop-shadow(0 0 8px #fef08a) drop-shadow(0 0 16px #f59e0bcc); }
+            0%, 100% { filter: drop-shadow(0 0 4px var(--window-color, #fef08a)); opacity: 0.85; }
+            50%       { filter: drop-shadow(0 0 10px var(--window-color, #fef08a)); opacity: 1; }
         }
         .chimney {
             fill: #4b5563;
@@ -77,7 +76,7 @@ export class SimpleCardHouse extends LitElement {
         .power-label {
             font-size: 0.78rem;
             font-weight: 700;
-            color: var(--primary-text-color);
+            color: #6b7280;
             min-height: 1.1em;
             text-align: center;
             line-height: 1.3;
@@ -93,19 +92,20 @@ export class SimpleCardHouse extends LitElement {
 
     // Render method
     render() {
-        const active = this.power > 10;
+        const active = this.power > 50;
         const { value, unit } = formatPower(this.power);
-        // Use sourceColor for border/glow when active, fall back to default yellow
         const borderColor = (active && this.sourceColor) ? this.sourceColor : undefined;
 
         return html`
             <div class="svg-wrapper">
-                <svg viewBox="-15 -14 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="-15 -14 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg"
+                     style="${borderColor ? `--window-color: ${borderColor}` : ''}">
                     ${this._renderHouse(active, borderColor)}
                 </svg>
             </div>
-            <div class="power-label ${active ? 'active' : ''}">
-                ${active ? html`${value} <span class="unit">${unit}</span>` : html`—`}
+            <div class="power-label ${active ? 'active' : ''}"
+                 style="${borderColor ? `color: ${borderColor}` : ''}">
+                ${value} <span class="unit">${unit}</span>
             </div>
         `;
     }

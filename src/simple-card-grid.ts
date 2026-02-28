@@ -55,7 +55,7 @@ export class SimpleCardGrid extends LitElement {
         .power-label {
             font-size: 0.78rem;
             font-weight: 700;
-            color: var(--primary-text-color);
+            color: #6b7280;
             min-height: 1.1em;
             text-align: center;
             line-height: 1.3;
@@ -72,15 +72,14 @@ export class SimpleCardGrid extends LitElement {
 
     // Render method
     render() {
-        const showImport = this.power > 5;          // show value
-        const importing = this.power > 50;          // animate + glow
-        const exporting = this.power < -5;
+        const importing = this.power > 50;
+        const exporting = this.power < -50;
         const isActive = importing || exporting;
         const stateClass = importing ? 'import' : exporting ? 'export' : '';
         const absPower = Math.abs(this.power);
         const { value, unit } = formatPower(absPower);
-        // Wire/dot color when exporting comes from sourceColor; import stays blue via CSS
-        const wireColor = (exporting && this.sourceColor) ? this.sourceColor : undefined;
+        // When importing: wires are grid blue; when exporting: wires are sourceColor
+        const wireColor = importing ? '#38bdf8' : (exporting && this.sourceColor) ? this.sourceColor : undefined;
 
         return html`
             <div class="svg-wrapper">
@@ -90,7 +89,7 @@ export class SimpleCardGrid extends LitElement {
                 </svg>
             </div>
             <div class="power-label ${stateClass}">
-                ${(isActive || showImport) ? html`${value} <span class="unit">${unit}</span>` : html`—`}
+                ${value} <span class="unit">${unit}</span>
             </div>
         `;
     }

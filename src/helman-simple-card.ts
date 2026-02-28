@@ -214,14 +214,14 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const { solarPower, gridPower, housePower, batteryPower,
                 batterySoc, batteryMinSoc } = this._energy;
 
-        // Thresholds match consumer component activation levels (solar/battery/grid: 5 W, house: 10 W)
-        const solarActive   = solarPower > 5;
-        const battCharge    = batteryPower > 5;
-        const battDischarge = batteryPower < -5;
+        // All activation thresholds: 50 W
+        const solarActive   = solarPower > 50;
+        const battCharge    = batteryPower > 50;
+        const battDischarge = batteryPower < -50;
 
         // Infer solar→grid export from power balance (sign-convention independent)
         const solarToGrid = Math.max(0, solarPower - housePower - Math.max(0, batteryPower));
-        const solarExportingToGrid = solarToGrid > 5;
+        const solarExportingToGrid = solarToGrid > 50;
 
         // Effective grid power: if the sensor reads ≈0 but solar is clearly exporting,
         // derive the export value from the power balance (negative = exporting)
@@ -276,7 +276,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             ? blendHex([{ hex: SOLAR_COLOR, weight: solarToBattPower }, { hex: GRID_COLOR, weight: gridToBattPower }])
             : undefined;
         const gridSourceColor = solarExportingToGrid ? SOLAR_COLOR : undefined;
-        const houseSourceColor = housePower > 10
+        const houseSourceColor = housePower > 50
             ? blendHex([
                 { hex: SOLAR_COLOR, weight: solarToHousePower },
                 { hex: GRID_COLOR,  weight: gridToHousePower  },
@@ -326,7 +326,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${this._renderFlowOverlay(solarToBattPower > 5, gridToHousePower > 50, battToHousePower > 50, solarToBattT, gridToHouseT, battToHouseT)}
+                        ${this._renderFlowOverlay(solarToBattPower > 50, gridToHousePower > 50, battToHousePower > 50, solarToBattT, gridToHouseT, battToHouseT)}
 
                     </div>
                 </div>

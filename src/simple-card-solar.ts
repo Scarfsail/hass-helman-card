@@ -52,7 +52,7 @@ export class SimpleCardSolar extends LitElement {
         .power-label {
             font-size: 0.78rem;
             font-weight: 700;
-            color: var(--primary-text-color);
+            color: #6b7280;
             min-height: 1.1em;
             text-align: center;
             line-height: 1.3;
@@ -72,7 +72,7 @@ export class SimpleCardSolar extends LitElement {
 
     // Render method
     render() {
-        const active = this.power > 5;
+        const active = this.power > 50;
         const { value, unit } = formatPower(this.power);
 
         return html`
@@ -92,7 +92,7 @@ export class SimpleCardSolar extends LitElement {
                 </svg>
             </div>
             <div class="power-label ${active ? 'active' : ''}">
-                ${active ? html`${value} <span class="unit">${unit}</span>` : html`—`}
+                ${value} <span class="unit">${unit}</span>
             </div>
         `;
     }
