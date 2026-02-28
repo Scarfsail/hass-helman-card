@@ -4,6 +4,7 @@ import type { HomeAssistant } from "../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import "./power-devices-container";
 import type { HelmanUiConfig } from "./HelmanCardConfig";
+import { getLocalizeFunction, LocalizeFunction } from "./localize/localize";
 
 @customElement("power-house-devices-section")
 export class PowerHouseDevicesSection extends LitElement {
@@ -22,6 +23,13 @@ export class PowerHouseDevicesSection extends LitElement {
 
     @state() private _activeCategory?: string;
     @state() private _showAll: boolean = false;
+    private _localize?: LocalizeFunction;
+
+    willUpdate(changedProperties: Map<string, unknown>): void {
+        if (!this._localize && changedProperties.has('hass') && this.hass) {
+            this._localize = getLocalizeFunction(this.hass);
+        }
+    }
 
     static get styles() {
         return css`
@@ -156,7 +164,7 @@ export class PowerHouseDevicesSection extends LitElement {
             }
         }
         if ((this.uiConfig?.show_others_group ?? true) && unmatched.length > 0) {
-            const others = new DeviceNode(`group:${category}:others`, this.uiConfig?.others_group_label || 'Others', null, null, this.historyBuckets);
+            const others = new DeviceNode(`group:${category}:others`, this.uiConfig?.others_group_label || this._localize?.('house_section.others') || 'Ostatní', null, null, this.historyBuckets);
             others.virtualType = 'others';
             others.groupCategory = category;
             others.children_full_width = true;
@@ -180,7 +188,7 @@ export class PowerHouseDevicesSection extends LitElement {
             <div class="house-section">
                 ${categories.length > 0 ? html`
                     <div class="categories-row">
-                        <div class="categories-title">${this.uiConfig?.groups_title ?? 'Group by'}</div>
+                        <div class="categories-title">${this.uiConfig?.groups_title ?? this._localize?.('house_section.group_by') ?? 'Seskupit podle'}</div>
                         <div>
                             ${categories.map((c) => {
                                 const active = this._activeCategory === c;

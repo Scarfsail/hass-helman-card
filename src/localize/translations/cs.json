@@ -1,0 +1,9 @@
+{
+  "card": {
+    "loading": "Načítání energetických dat…"
+  },
+  "house_section": {
+    "group_by": "Seskupit podle",
+    "others": "Ostatní"
+  }
+}

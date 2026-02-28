@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../hass-frontend/src/types";
 import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
+import { getLocalizeFunction, LocalizeFunction } from "./localize/localize";
 import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
@@ -176,6 +177,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 3. Private properties
     private _config!: HelmanSimpleCardConfig;
     private _entityMap: EnergyEntityMap | null = null;
+    private _localize?: LocalizeFunction;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
@@ -185,6 +187,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
         this._hass = value;
+        if (!this._localize) this._localize = getLocalizeFunction(value);
         if (this._entityMap) {
             this._energy = this._readEnergyValues(value, this._entityMap);
         }
@@ -208,7 +211,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 10. Render method
     render() {
         if (this._loading || !this._entityMap) {
-            return html`<ha-card class=${this._config?.transparent_background ? "transparent" : ""}><div class="loading">Loading energy data…</div></ha-card>`;
+            return html`<ha-card class=${this._config?.transparent_background ? "transparent" : ""}><div class="loading">${this._localize?.('card.loading') ?? 'Loading energy data…'}</div></ha-card>`;
         }
 
         const { solarPower, gridPower, housePower, batteryPower,
