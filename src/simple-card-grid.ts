@@ -23,8 +23,7 @@ export class SimpleCardGrid extends LitElement {
         svg { overflow: hidden; }
 
         .pole { fill: #6b7280; transition: fill 0.6s; }
-        .pole.import { fill: #38bdf8; filter: drop-shadow(0 0 6px #38bdf899); }
-        .pole.export { fill: #4ade80; filter: drop-shadow(0 0 6px #4ade8099); }
+        .pole.import, .pole.export { fill: #38bdf8; filter: drop-shadow(0 0 6px #38bdf899); }
 
         .wire { stroke: #4b5563; stroke-width: 1.5; fill: none; transition: stroke 0.6s; }
         /* wire color when active is set dynamically via sourceColor prop */
@@ -61,8 +60,7 @@ export class SimpleCardGrid extends LitElement {
             text-align: center;
             line-height: 1.3;
         }
-        .power-label.import { color: #38bdf8; }
-        .power-label.export { color: #4ade80; }
+        .power-label.import, .power-label.export { color: #38bdf8; }
         .unit { font-size: 0.7em; font-weight: 400; opacity: 0.8; }
     `;
 
