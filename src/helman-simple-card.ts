@@ -223,18 +223,6 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const solarToGrid = Math.max(0, solarPower - housePower - Math.max(0, batteryPower));
         const solarExportingToGrid = solarToGrid > 50;
 
-        // Effective grid power: if the sensor reads ≈0 but solar is clearly exporting,
-        // derive the export value from the power balance (negative = exporting)
-        const effectiveGridPower = (Math.abs(gridPower) < 20 && solarExportingToGrid)
-            ? -solarToGrid
-            : gridPower;
-        const gridImport = effectiveGridPower > 50;
-
-        const em = this._entityMap;
-        const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
-        // Stroke width scales linearly from 1.5 to 12 px based on the power ratio; minimum ensures visibility.
-        const thick = (i: number) => Math.max(1.5, i * 12);
-
         // ── Solar distribution (house load has priority over battery charging) ──
         const solarToGridPower  = solarExportingToGrid ? solarToGrid : 0;
         // Solar covers house first, then remaining excess charges battery
@@ -248,6 +236,18 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const houseRemainingAfterSolar = Math.max(0, housePower - solarToHousePower);
         const battToHousePower = battDischarge ? Math.min(Math.abs(batteryPower), houseRemainingAfterSolar) : 0;
         const battToGridPower  = battDischarge ? Math.max(0, Math.abs(batteryPower) - battToHousePower) : 0;
+
+        // Effective grid power: if the sensor reads ≈0 but solar or battery is clearly exporting,
+        // derive the export value from the power balance (negative = exporting)
+        const effectiveGridPower = (Math.abs(gridPower) < 20 && (solarExportingToGrid || battToGridPower > 50))
+            ? -(solarToGridPower + battToGridPower)
+            : gridPower;
+        const gridImport = effectiveGridPower > 50;
+
+        const em = this._entityMap;
+        const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
+        // Stroke width scales linearly from 1.5 to 12 px based on the power ratio; minimum ensures visibility.
+        const thick = (i: number) => Math.max(1.5, i * 12);
 
         // ── Grid distribution ──────────────────────────────────────────────────
         const gridToBattPower  = battCharge ? Math.max(0, batteryPower - solarToBattPower) : 0;
@@ -275,7 +275,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battSourceColor = battCharge
             ? blendHex([{ hex: SOLAR_COLOR, weight: solarToBattPower }, { hex: GRID_COLOR, weight: gridToBattPower }])
             : undefined;
-        const gridSourceColor = solarExportingToGrid ? SOLAR_COLOR : undefined;
+        const gridSourceColor = (solarExportingToGrid && battToGridPower > 50)
+            ? blendHex([{ hex: SOLAR_COLOR, weight: solarToGridPower }, { hex: BATT_COLOR, weight: battToGridPower }])
+            : solarExportingToGrid ? SOLAR_COLOR
+            : battToGridPower > 50 ? BATT_COLOR
+            : undefined;
         const houseSourceColor = housePower > 50
             ? blendHex([
                 { hex: SOLAR_COLOR, weight: solarToHousePower },
