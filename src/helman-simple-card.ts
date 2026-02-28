@@ -214,63 +214,69 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const { solarPower, gridPower, housePower, batteryPower,
                 batterySoc, batteryMinSoc } = this._energy;
 
-        const solarActive   = solarPower > 20;
-        const battCharge    = batteryPower > 20;
-        const battDischarge = batteryPower < -20;
+        // Thresholds match consumer component activation levels (solar/battery/grid: 5 W, house: 10 W)
+        const solarActive   = solarPower > 5;
+        const battCharge    = batteryPower > 5;
+        const battDischarge = batteryPower < -5;
 
         // Infer solar→grid export from power balance (sign-convention independent)
         const solarToGrid = Math.max(0, solarPower - housePower - Math.max(0, batteryPower));
-        const solarExportingToGrid = solarToGrid > 20;
+        const solarExportingToGrid = solarToGrid > 5;
 
         // Effective grid power: if the sensor reads ≈0 but solar is clearly exporting,
         // derive the export value from the power balance (negative = exporting)
         const effectiveGridPower = (Math.abs(gridPower) < 20 && solarExportingToGrid)
             ? -solarToGrid
             : gridPower;
-        const gridImport = effectiveGridPower > 20;
+        const gridImport = effectiveGridPower > 5;
 
         const em = this._entityMap;
         const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
-        const thick = (i: number) => 2 + i * 10;
+        // Stroke width scales linearly from 0 to 12 px based on the power ratio; no artificial minimum.
+        const thick = (i: number) => i * 12;
 
-        const gridI  = intensity(effectiveGridPower,   em.gridMaxPower);
-        const battI  = intensity(batteryPower,         em.batteryMaxPower);
-
-        // Distribute solar power proportionally among its destinations
-        // Cap solarToBatt at actual solar output (battery may also be charging from grid)
-        const solarToBattPower  = solarActive && battCharge ? Math.min(solarPower, Math.max(0, batteryPower)) : 0;
+        // ── Solar distribution (house load has priority over battery charging) ──
         const solarToGridPower  = solarExportingToGrid ? solarToGrid : 0;
-        const solarToHousePower = Math.max(0, solarPower - solarToBattPower - solarToGridPower);
+        // Solar covers house first, then remaining excess charges battery
+        const solarToHousePower = solarActive ? Math.max(0, Math.min(solarPower - solarToGridPower, housePower)) : 0;
+        const solarToBattPower  = solarActive && battCharge
+            ? Math.min(Math.max(0, solarPower - solarToHousePower - solarToGridPower), Math.max(0, batteryPower))
+            : 0;
 
+        // ── Battery distribution (when discharging) ────────────────────────────
+        // Battery fills remaining house demand first; any excess is exported to grid
+        const houseRemainingAfterSolar = Math.max(0, housePower - solarToHousePower);
+        const battToHousePower = battDischarge ? Math.min(Math.abs(batteryPower), houseRemainingAfterSolar) : 0;
+        const battToGridPower  = battDischarge ? Math.max(0, Math.abs(batteryPower) - battToHousePower) : 0;
+
+        // ── Grid distribution ──────────────────────────────────────────────────
+        const gridToBattPower  = battCharge ? Math.max(0, batteryPower - solarToBattPower) : 0;
+        const gridToHousePower = Math.max(0, housePower - solarToHousePower - battToHousePower);
+
+        // ── Intensities: ratio of each flow's power to its source's max power ──
         const solarToHouseI = intensity(solarToHousePower, em.solarMaxPower);
         const solarToGridI  = intensity(solarToGridPower,  em.solarMaxPower);
         const solarToBattI  = intensity(solarToBattPower,  em.solarMaxPower);
+        const gridToBattI   = intensity(gridToBattPower,   em.gridMaxPower);
+        const gridToHouseI  = intensity(gridToHousePower,  em.gridMaxPower);
+        const battToHouseI  = intensity(battToHousePower,  em.batteryMaxPower);
+        const battToGridI   = intensity(battToGridPower,   em.batteryMaxPower);
 
+        // ── Stroke widths (px, unified scale for all flows) ────────────────────
         const solarToHouseT = thick(solarToHouseI);
         const solarToGridT  = thick(solarToGridI);
         const solarToBattT  = thick(solarToBattI);
-        const gridT         = thick(gridI);
-        const battT         = thick(battI);
-
-        const gridSvgW      = 1 + gridI      * 5;
-        const battSvgW      = 1 + battI      * 5;
-        const solarToBattSvgW = 1 + solarToBattI * 5;
+        const gridToBattT   = thick(gridToBattI);
+        const gridToHouseT  = thick(gridToHouseI);
+        const battToHouseT  = thick(battToHouseI);
+        const battToGridT   = thick(battToGridI);
 
         // ── Source colors for consumer components ──────────────────────────────
-        // Battery source: solar contributes min(solar, battPower), grid covers the rest
-        const solarPortionToBatt = solarActive && battCharge ? Math.min(solarPower, batteryPower) : 0;
-        const gridPortionToBatt  = battCharge ? Math.max(0, batteryPower - solarPortionToBatt) : 0;
         const battSourceColor = battCharge
-            ? blendHex([{ hex: SOLAR_COLOR, weight: solarPortionToBatt }, { hex: GRID_COLOR, weight: gridPortionToBatt }])
+            ? blendHex([{ hex: SOLAR_COLOR, weight: solarToBattPower }, { hex: GRID_COLOR, weight: gridToBattPower }])
             : undefined;
-
-        // Grid source color when exporting: always solar in current model
         const gridSourceColor = solarExportingToGrid ? SOLAR_COLOR : undefined;
-
-        // House source: solar direct, battery discharge, remainder from grid
-        const battToHousePower  = battDischarge ? Math.abs(batteryPower) : 0;
-        const gridToHousePower  = Math.max(0, housePower - solarToHousePower - battToHousePower);
-        const houseSourceColor  = housePower > 10
+        const houseSourceColor = housePower > 10
             ? blendHex([
                 { hex: SOLAR_COLOR, weight: solarToHousePower },
                 { hex: GRID_COLOR,  weight: gridToHousePower  },
@@ -302,7 +308,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV(GRID_COLOR, `${GRID_COLOR}aa`, false, gridT) : ""}
+                            ${(gridImport && battCharge) ? this._flowV(GRID_COLOR, `${GRID_COLOR}aa`, false, gridToBattT) : ""}
+                            ${battToGridPower > 5 ? this._flowV(BATT_COLOR, `${BATT_COLOR}aa`, true, battToGridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -319,7 +326,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             ></simple-card-battery>
                         </div>
 
-                        ${(gridImport || battDischarge || (solarActive && battCharge)) ? this._renderFlowOverlay(gridImport, battDischarge, solarActive && battCharge, gridSvgW, battSvgW, solarToBattSvgW) : ""}
+                        ${this._renderFlowOverlay(solarToBattPower > 5, gridToHousePower > 5, battToHousePower > 5, solarToBattT, gridToHouseT, battToHouseT)}
 
                     </div>
                 </div>
@@ -407,37 +414,43 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         };
     }
 
-    private _renderFlowOverlay(gridImport: boolean, battDischarge: boolean, solarToBattery: boolean, gridStrokeWidth: number, battStrokeWidth: number, solarStrokeWidth: number) {
+    private _renderFlowOverlay(solarToBatt: boolean, gridToHouse: boolean, battToHouse: boolean, solarToBattT: number, gridToHouseT: number, battToHouseT: number) {
+        if (!solarToBatt && !gridToHouse && !battToHouse) return "";
         // SVG overlays the full energy-grid (viewBox 0 0 200 168).
         // Column centers: House=45, Grid/Battery=155. Row centers: top≈35, bottom≈133.
+        // vector-effect="non-scaling-stroke" keeps stroke-width in screen pixels,
+        // matching the same scale used by the straight connector flows.
         return html`
             <svg class="diagonal-overlay" viewBox="0 0 200 168"
                  preserveAspectRatio="none"
                  xmlns="http://www.w3.org/2000/svg">
-                ${ solarToBattery ? svg`
+                ${ solarToBatt ? svg`
                     <line x1="62" y1="48" x2="138" y2="120"
                           stroke="${SOLAR_COLOR}"
-                          stroke-width=${solarStrokeWidth}
+                          stroke-width=${solarToBattT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
+                          vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px ${SOLAR_COLOR}aa)" />
                 ` : ""}
-                ${ gridImport ? svg`
+                ${ gridToHouse ? svg`
                     <line x1="138" y1="48" x2="62" y2="120"
                           stroke="${GRID_COLOR}"
-                          stroke-width=${gridStrokeWidth}
+                          stroke-width=${gridToHouseT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
+                          vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px ${GRID_COLOR}aa)" />
                 ` : ""}
-                ${ battDischarge ? svg`
+                ${ battToHouse ? svg`
                     <line x1="130" y1="133" x2="70" y2="133"
                           stroke="${BATT_COLOR}"
-                          stroke-width=${battStrokeWidth}
+                          stroke-width=${battToHouseT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
+                          vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
                                  filter: drop-shadow(0 0 3px ${BATT_COLOR}aa)" />
                 ` : ""}
@@ -445,7 +458,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
-        const sw = Math.max(2, Math.round(strokeWidth));
+        const sw = strokeWidth;
         // connectorW matches the 20px CSS grid connector column so absolute SVG
         // coordinates (no viewBox) map 1:1 to pixels, letting us reach actual
         // picture borders on both sides via overflow:visible.
@@ -463,7 +476,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private _flowV(color: string, glow: string, reverse: boolean, strokeWidth: number) {
-        const sw = Math.max(2, Math.round(strokeWidth));
+        const sw = strokeWidth;
         const y1 = reverse ? "100%" : "0%";
         const y2 = reverse ? "0%" : "100%";
         return html`
