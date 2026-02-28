@@ -232,8 +232,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
         const em = this._entityMap;
         const intensity = (power: number, max: number) => Math.min(Math.abs(power) / max, 1);
-        // Stroke width scales linearly from 0 to 12 px based on the power ratio; no artificial minimum.
-        const thick = (i: number) => i * 12;
+        // Stroke width scales linearly from 1.5 to 12 px based on the power ratio; minimum ensures visibility.
+        const thick = (i: number) => Math.max(1.5, i * 12);
 
         // ── Solar distribution (house load has priority over battery charging) ──
         const solarToGridPower  = solarExportingToGrid ? solarToGrid : 0;
