@@ -5,5 +5,42 @@
   "house_section": {
     "group_by": "Seskupit podle",
     "others": "Ostatní"
+  },
+  "node_detail": {
+    "close": "Zavřít",
+    "title": {
+      "solar":   "Solární panely",
+      "battery": "Baterie",
+      "grid":    "Síť",
+      "house":   "Dům"
+    },
+    "battery": {
+      "mode":               "Režim",
+      "mode_charging":      "Nabíjení",
+      "mode_discharging":   "Vybíjení",
+      "mode_idle":          "Nečinnost",
+      "power":              "Výkon",
+      "soc":                "Nabití",
+      "min_soc":            "Min. nabití",
+      "max_soc":            "Max. nabití",
+      "remaining_energy":   "Zbývající energie",
+      "eta_section":        "Předpověď",
+      "target_soc":         "Cílové nabití",
+      "target_time":        "Čas dosažení",
+      "remaining_time":     "Zbývající čas"
+    },
+    "solar": {
+      "power":        "Výkon",
+      "today_energy": "Dnes",
+      "forecast":     "Zbývající předpověď"
+    },
+    "grid": {
+      "power":        "Výkon",
+      "today_import": "Dnes odebráno",
+      "today_export": "Dnes dodáno"
+    },
+    "house": {
+      "power": "Výkon"
+    }
   }
 }

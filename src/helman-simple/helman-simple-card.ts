@@ -5,6 +5,9 @@ import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
 import { ValueType, DeviceNodeDTO, TreePayload, applyValueType } from "../helman-api";
+import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
+import type { NodeType, NodeDetailParams } from "./node-detail-dialog";
+import "./node-detail-dialog";
 import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
@@ -124,6 +127,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             display: flex;
             justify-content: center;
             padding: 2px 0;
+            cursor: pointer;
         }
         .connector-h,
         .connector-v {
@@ -161,11 +165,16 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _config!: HelmanSimpleCardConfig;
     private _entityMap: EnergyEntityMap | null = null;
     private _localize?: LocalizeFunction;
+    private _solarDTO:   DeviceNodeDTO | null = null;
+    private _gridDTO:    DeviceNodeDTO | null = null;
+    private _batteryDTO: DeviceNodeDTO | null = null;
+    private _houseDTO:   DeviceNodeDTO | null = null;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
     @state() private _energy: EnergyValues = EMPTY_ENERGY;
     @state() private _loading = true;
+    @state() private _dialogNodeType: NodeType | null = null;
 
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
@@ -282,13 +291,13 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     <div class="energy-grid" style=${gridStyle}>
 
                         <!-- ── Row 1: Solar  ─── connector ─── Grid ── -->
-                        <div class="node-cell">
+                        <div class="node-cell" @click=${() => this._dialogNodeType = 'solar'}>
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
                             ${solarExportingToGrid ? this._flowH(SOLAR_COLOR, `${SOLAR_COLOR}aa`, false, solarToGridT, 22.5, 33) : ""}
                         </div>
-                        <div class="node-cell">
+                        <div class="node-cell" @click=${() => this._dialogNodeType = 'grid'}>
                             <simple-card-grid .power=${effectiveGridPower} .sourceColor=${gridSourceColor}></simple-card-grid>
                         </div>
 
@@ -303,11 +312,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
-                        <div class="node-cell">
+                        <div class="node-cell" @click=${() => this._dialogNodeType = 'house'}>
                             <simple-card-house .power=${housePower} .sourceColor=${houseSourceColor}></simple-card-house>
                         </div>
                         <div class="connector-h"></div>
-                        <div class="node-cell">
+                        <div class="node-cell" @click=${() => this._dialogNodeType = 'battery'}>
                             <simple-card-battery
                                 .power=${batteryPower}
                                 .soc=${batterySoc}
@@ -321,6 +330,15 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     </div>
                 </div>
             </ha-card>
+            ${this._dialogNodeType !== null ? html`
+                <node-detail-dialog
+                    .hass=${this._hass!}
+                    .localize=${this._localize!}
+                    .open=${true}
+                    .params=${this._buildDialogParams(this._dialogNodeType)}
+                    @closed=${() => { this._dialogNodeType = null; }}
+                ></node-detail-dialog>
+            ` : ''}
         `;
     }
 
@@ -355,6 +373,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const batteryNode = payload.sources.find(n => n.sourceType === "battery");
         const houseNode   = this._findHouseNode(payload.consumers);
 
+        this._solarDTO   = solarNode   ?? null;
+        this._gridDTO    = gridNode    ?? null;
+        this._batteryDTO = batteryNode ?? null;
+        this._houseDTO   = houseNode   ?? null;
+
         const battCfg = batteryNode?.sourceConfig?.entities ?? {};
 
         return {
@@ -380,6 +403,49 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             if (found) return found;
         }
         return undefined;
+    }
+
+    private _buildDialogParams(nodeType: NodeType): NodeDetailParams {
+        const e = this._energy;
+        const em = this._entityMap!;
+        switch (nodeType) {
+            case 'battery': {
+                const cfg = (this._batteryDTO?.sourceConfig?.entities ?? {}) as BatteryDeviceConfig['entities'];
+                return {
+                    nodeType: 'battery',
+                    power: e.batteryPower,
+                    powerEntityId: em.batteryPowerEntityId,
+                    soc: e.batterySoc,
+                    socEntityId: em.batterySocEntityId,
+                    minSoc: e.batteryMinSoc,
+                    minSocEntityId: em.batteryMinSocEntityId,
+                    maxSocEntityId: cfg.max_soc ?? null,
+                    remainingEnergyEntityId: cfg.remaining_energy ?? null,
+                };
+            }
+            case 'solar': {
+                const cfg = (this._solarDTO?.sourceConfig?.entities ?? {}) as SolarDeviceConfig['entities'];
+                return {
+                    nodeType: 'solar',
+                    power: e.solarPower,
+                    powerEntityId: em.solarPowerEntityId,
+                    todayEnergyEntityId: cfg.today_energy ?? null,
+                    forecastEntityId: cfg.remaining_today_energy_forecast ?? null,
+                };
+            }
+            case 'grid': {
+                const cfg = (this._gridDTO?.sourceConfig?.entities ?? {}) as GridDeviceConfig['entities'];
+                return {
+                    nodeType: 'grid',
+                    power: e.gridPower,
+                    powerEntityId: em.gridPowerEntityId,
+                    todayImportEntityId: cfg.today_import ?? null,
+                    todayExportEntityId: cfg.today_export ?? null,
+                };
+            }
+            case 'house':
+                return { nodeType: 'house', power: e.housePower, powerEntityId: em.housePowerEntityId };
+        }
     }
 
     private _readEnergyValues(hass: HomeAssistant, map: EnergyEntityMap): EnergyValues {
