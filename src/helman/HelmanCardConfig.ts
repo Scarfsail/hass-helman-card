@@ -1,4 +1,4 @@
-import type { LovelaceCardConfig } from "../hass-frontend/src/data/lovelace/config/card";
+import type { LovelaceCardConfig } from "../../hass-frontend/src/data/lovelace/config/card";
 
 export interface HelmanUiConfig {
     sources_title: string;

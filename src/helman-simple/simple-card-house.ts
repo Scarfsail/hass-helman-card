@@ -1,6 +1,6 @@
 import { LitElement, css, html, svg } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
-import { formatPower } from "./power-format";
+import { formatPower } from "../power-format";
 
 @customElement("simple-card-house")
 export class SimpleCardHouse extends LitElement {

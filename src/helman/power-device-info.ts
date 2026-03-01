@@ -3,7 +3,7 @@ import { customElement, property } from "lit/decorators.js";
 import { DeviceNode } from "./DeviceNode";
 import { nothing, TemplateResult } from "lit-html";
 import { BatteryDeviceConfig, GridDeviceConfig, SolarDeviceConfig } from "./DeviceConfig";
-import type { HomeAssistant } from "../hass-frontend/src/types";
+import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { sharedStyles } from "./shared-styles";
 import { convertToKWh, getDisplayEnergyUnit } from "./energy-unit-converter";
 

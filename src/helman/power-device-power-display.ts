@@ -1,7 +1,7 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { sharedStyles } from "./shared-styles";
-import { formatPower } from "./power-format";
+import { formatPower } from "../power-format";
 
 @customElement("power-device-power-display")
 export class PowerDevicePowerDisplay extends LitElement {

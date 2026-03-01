@@ -1,6 +1,6 @@
 import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
-import type { HomeAssistant } from "../hass-frontend/src/types";
+import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
 import { sharedStyles } from "./shared-styles";

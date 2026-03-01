@@ -2,7 +2,7 @@ import { LitElement, TemplateResult, css, html, nothing } from "lit-element";
 import { keyed } from 'lit/directives/keyed.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { customElement, property, state } from "lit/decorators.js";
-import type { HomeAssistant } from "../hass-frontend/src/types";
+import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";

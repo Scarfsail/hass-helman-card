@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
     return {
         build: {
             lib: {
-                entry: "./src/helman-simple-card.ts",
+                entry: "./src/helman-simple/helman-simple-card.ts",
                 formats: ["es"],
                 fileName: () => `helman-simple-card-${isProduction ? "prod" : "dev"}.js`,
             },

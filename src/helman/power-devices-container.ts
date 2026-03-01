@@ -1,6 +1,6 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
-import type { HomeAssistant } from "../hass-frontend/src/types";
+import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 
 function sortDevicesByPowerAndName(devices: DeviceNode[]): DeviceNode[] {

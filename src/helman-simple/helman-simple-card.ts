@@ -1,9 +1,9 @@
 import { LitElement, css, html, svg } from "lit-element";
 import { customElement, state } from "lit/decorators.js";
-import type { HomeAssistant } from "../hass-frontend/src/types";
-import type { LovelaceCard } from "../hass-frontend/src/panels/lovelace/types";
+import type { HomeAssistant } from "../../hass-frontend/src/types";
+import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
-import { getLocalizeFunction, LocalizeFunction } from "./localize/localize";
+import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
 import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";

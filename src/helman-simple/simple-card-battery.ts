@@ -1,6 +1,6 @@
 import { LitElement, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
-import { formatPower } from "./power-format";
+import { formatPower } from "../power-format";
 
 const BODY_TOP = 10;
 const BODY_HEIGHT = 70;
