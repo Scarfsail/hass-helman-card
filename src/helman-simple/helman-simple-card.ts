@@ -4,7 +4,8 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
-import { ValueType, DeviceNodeDTO, TreePayload, applyValueType } from "../helman-api";
+import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, applyValueType } from "../helman-api";
+import { DeviceNode } from "../helman/DeviceNode";
 import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
 import type { NodeType, NodeDetailParams } from "./node-detail-dialog";
 import "./node-detail-dialog";
@@ -169,12 +170,17 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _gridDTO:    DeviceNodeDTO | null = null;
     private _batteryDTO: DeviceNodeDTO | null = null;
     private _houseDTO:   DeviceNodeDTO | null = null;
+    private _sourceNodes: DeviceNode[] = [];
+    private _houseNode: DeviceNode | null = null;
+    private _historyInterval?: number;
+    private _uiConfig?: HelmanUiConfig;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
     @state() private _energy: EnergyValues = EMPTY_ENERGY;
     @state() private _loading = true;
     @state() private _dialogNodeType: NodeType | null = null;
+    @state() private _houseDevices: DeviceNode[] = [];
 
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
@@ -198,6 +204,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         if (this._hass) {
             await this._loadFromBackend();
         }
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        clearInterval(this._historyInterval);
     }
 
     // 10. Render method
@@ -354,12 +365,35 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private async _loadFromBackend(): Promise<void> {
+        clearInterval(this._historyInterval);
         try {
             const payload = await this._hass!.connection.sendMessagePromise<TreePayload>({
                 type: "helman/get_device_tree",
             });
+            this._uiConfig = payload.uiConfig;
             this._entityMap = this._buildEntityMap(payload);
             this._energy = this._readEnergyValues(this._hass!, this._entityMap);
+
+            const histBuckets = payload.uiConfig.history_buckets;
+            this._sourceNodes = [this._solarDTO, this._gridDTO, this._batteryDTO]
+                .filter((dto): dto is DeviceNodeDTO => dto !== null)
+                .map(dto => this._hydrateNode(dto, histBuckets));
+
+            if (this._houseDTO) {
+                this._houseNode = this._hydrateNode(this._houseDTO, histBuckets);
+                this._houseDevices = this._houseNode.children;
+            }
+
+            const history = await this._hass!.connection.sendMessagePromise<HistoryPayload>({
+                type: 'helman/get_history',
+            });
+            this._applyHistory(history);
+
+            this._historyInterval = window.setInterval(
+                this._advanceBuckets.bind(this),
+                (this._uiConfig.history_bucket_duration ?? 1) * 1000
+            );
+            this._advanceBuckets();
         } catch (err) {
             console.error("helman-simple-card: failed to load backend data", err);
         } finally {
@@ -444,7 +478,16 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 };
             }
             case 'house':
-                return { nodeType: 'house', power: e.housePower, powerEntityId: em.housePowerEntityId };
+                return {
+                    nodeType: 'house',
+                    power: e.housePower,
+                    powerEntityId: em.housePowerEntityId,
+                    devices: this._houseDevices,
+                    parentPowerHistory: this._houseNode?.powerHistory,
+                    historyBuckets: this._uiConfig?.history_buckets ?? 60,
+                    historyBucketDuration: this._uiConfig?.history_bucket_duration ?? 60,
+                    uiConfig: this._uiConfig,
+                };
         }
     }
 
@@ -537,6 +580,115 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                       style="animation: flow-diagonal 1.6s linear infinite;
                              filter: drop-shadow(0 0 3px ${glow})" />
             </svg>`;
+    }
+
+    private _hydrateNode(dto: DeviceNodeDTO, historyBuckets: number): DeviceNode {
+        const node = new DeviceNode(dto.id, dto.displayName, dto.powerSensorId, dto.switchEntityId, historyBuckets, dto.sourceConfig ?? undefined);
+        node.isSource = dto.isSource;
+        node.isUnmeasured = dto.isUnmeasured;
+        node.valueType = dto.valueType;
+        node.labels = dto.labels;
+        if (dto.labelBadgeTexts.length > 0) node.customLabelTexts = dto.labelBadgeTexts;
+        if (dto.color) node.color = dto.color;
+        if (dto.icon) node.icon = dto.icon;
+        node.compact = dto.compact;
+        node.show_additional_info = dto.showAdditionalInfo;
+        node.children_full_width = dto.childrenFullWidth;
+        node.hideChildren = dto.hideChildren;
+        node.hideChildrenIndicator = dto.hideChildrenIndicator;
+        node.sortChildrenByPower = dto.sortChildrenByPower;
+        if (dto.ratioSensorId) node.ratioSensorId = dto.ratioSensorId;
+        node.children = dto.children.map(child => this._hydrateNode(child, historyBuckets));
+        return node;
+    }
+
+    private _walkTree(nodes: DeviceNode[]): DeviceNode[] {
+        const result: DeviceNode[] = [];
+        const walk = (list: DeviceNode[]) => {
+            for (const node of list) {
+                result.push(node);
+                walk(node.children);
+            }
+        };
+        walk(nodes);
+        return result;
+    }
+
+    private _applyHistory(history: HistoryPayload): void {
+        const { entity_history, buckets } = history;
+        const houseNodes = this._houseNode ? this._walkTree([this._houseNode]) : [];
+        for (const node of [...this._sourceNodes, ...houseNodes]) {
+            if (!node.powerSensorId) continue;
+            const rawHistory = entity_history[node.powerSensorId];
+            if (rawHistory) {
+                let h = [...rawHistory];
+                if (node.valueType === 'positive') h = h.map(v => Math.max(0, v));
+                else if (node.valueType === 'negative') h = h.map(v => Math.abs(Math.min(0, v)));
+                node.powerHistory = h;
+                node.historyBuckets = buckets;
+            }
+            if (node.isSource) continue;
+            node.sourcePowerHistory = [];
+            if (!rawHistory) continue;
+            for (let i = 0; i < buckets; i++) {
+                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
+                const consumerPower = node.powerHistory[i] ?? 0;
+                for (const src of this._sourceNodes) {
+                    if (!src.ratioSensorId) continue;
+                    const ratioHistory = entity_history[src.ratioSensorId];
+                    const ratio = (ratioHistory?.[i] ?? 0) / 100;
+                    if (ratio > 0 && consumerPower > 0) {
+                        bucket[src.id] = { power: consumerPower * ratio, color: src.color || 'grey' };
+                    }
+                }
+                node.sourcePowerHistory.push(bucket);
+            }
+        }
+    }
+
+    private _advanceBuckets(): void {
+        if (!this._hass) return;
+        const nodes: DeviceNode[] = [...this._sourceNodes];
+        if (this._houseNode) nodes.push(this._houseNode);
+        if (nodes.length === 0) return;
+        this._advanceTree(nodes);
+        this.requestUpdate();
+    }
+
+    private _advanceTree(nodes: DeviceNode[]): void {
+        const maxBuckets = this._uiConfig?.history_buckets ?? 60;
+        for (const node of nodes) {
+            if (node.powerHistory.length > 0) {
+                node.powerHistory.push(node.powerHistory[node.powerHistory.length - 1]);
+                if (node.sourcePowerHistory) {
+                    node.sourcePowerHistory.push(node.sourcePowerHistory[node.sourcePowerHistory.length - 1]);
+                }
+            }
+            if (node.powerHistory.length > maxBuckets) {
+                node.powerHistory.shift();
+                node.sourcePowerHistory?.shift();
+            }
+            if (node.powerSensorId) {
+                const rawPower = parseFloat(this._hass!.states[node.powerSensorId]?.state ?? '0') || 0;
+                const power = applyValueType(rawPower, node.valueType);
+                if (node.powerHistory.length === 0) node.powerHistory.push(0);
+                node.powerHistory[node.powerHistory.length - 1] = power;
+                node.powerValue = power;
+            }
+            this._advanceTree(node.children);
+            if (!node.isSource && node.powerSensorId && node.sourcePowerHistory && node.sourcePowerHistory.length > 0) {
+                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
+                const powerVal = node.powerValue || 0;
+                if (powerVal > 0) {
+                    for (const src of this._sourceNodes) {
+                        if (!src.ratioSensorId) continue;
+                        const ratio = parseFloat(this._hass!.states[src.ratioSensorId]?.state ?? '0') / 100;
+                        if (ratio > 0) bucket[src.id] = { power: powerVal * ratio, color: src.color || 'grey' };
+                    }
+                }
+                node.sourcePowerHistory[node.sourcePowerHistory.length - 1] = bucket;
+            }
+        }
     }
 }
 

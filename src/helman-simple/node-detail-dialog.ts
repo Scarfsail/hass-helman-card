@@ -5,6 +5,9 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LocalizeFunction } from "../localize/localize";
 import { convertToKWh, getDisplayEnergyUnit } from "../helman/energy-unit-converter";
 import { formatPower } from "../power-format";
+import { DeviceNode } from "../helman/DeviceNode";
+import type { HelmanUiConfig } from "../helman-api";
+import "../helman/power-house-devices-section";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +45,11 @@ export interface HouseDetailParams {
     nodeType: 'house';
     power: number;                        // watts
     powerEntityId: string | null;
+    devices: DeviceNode[];
+    parentPowerHistory?: number[];
+    historyBuckets: number;
+    historyBucketDuration: number;
+    uiConfig?: HelmanUiConfig;
 }
 
 export type NodeDetailParams =
@@ -295,6 +303,20 @@ export class NodeDetailDialog extends LitElement {
                 <span class="label">${this.localize('node_detail.house.power')}</span>
                 <span class="value">${powerFmt.display}</span>
             </div>
+            ${p.devices.length > 0 ? html`
+                <power-house-devices-section
+                    .hass=${this.hass}
+                    .devices=${p.devices}
+                    .historyBuckets=${p.historyBuckets}
+                    .historyBucketDuration=${p.historyBucketDuration}
+                    .currentParentPower=${p.power}
+                    .parentPowerHistory=${p.parentPowerHistory}
+                    .devices_full_width=${true}
+                    .sortChildrenByPower=${true}
+                    .initial_show_only_top_children=${5}
+                    .uiConfig=${p.uiConfig}
+                ></power-house-devices-section>
+            ` : nothing}
         `;
     }
 
