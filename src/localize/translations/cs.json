@@ -24,10 +24,8 @@
       "min_soc":            "Min. nabití",
       "max_soc":            "Max. nabití",
       "remaining_energy":   "Zbývající energie",
-      "eta_section":        "Předpověď",
-      "target_soc":         "Cílové nabití",
-      "target_time":        "Čas dosažení",
-      "remaining_time":     "Zbývající čas"
+      "section_producer":   "Vybíjení",
+      "section_consumer":   "Nabíjení"
     },
     "solar": {
       "power":        "Výkon",
@@ -35,9 +33,11 @@
       "forecast":     "Zbývající předpověď"
     },
     "grid": {
-      "power":        "Výkon",
-      "today_import": "Dnes odebráno",
-      "today_export": "Dnes dodáno"
+      "power":            "Výkon",
+      "today_import":     "Dnes odebráno",
+      "today_export":     "Dnes dodáno",
+      "section_producer": "Export",
+      "section_consumer": "Import"
     },
     "house": {
       "power": "Výkon"

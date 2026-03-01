@@ -166,12 +166,18 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _config!: HelmanSimpleCardConfig;
     private _entityMap: EnergyEntityMap | null = null;
     private _localize?: LocalizeFunction;
-    private _solarDTO:   DeviceNodeDTO | null = null;
-    private _gridDTO:    DeviceNodeDTO | null = null;
-    private _batteryDTO: DeviceNodeDTO | null = null;
-    private _houseDTO:   DeviceNodeDTO | null = null;
-    private _sourceNodes: DeviceNode[] = [];
-    private _houseNode: DeviceNode | null = null;
+    private _solarDTO:           DeviceNodeDTO | null = null;
+    private _gridDTO:            DeviceNodeDTO | null = null;
+    private _batteryDTO:         DeviceNodeDTO | null = null;
+    private _houseDTO:           DeviceNodeDTO | null = null;
+    private _batteryConsumerDTO: DeviceNodeDTO | null = null;
+    private _gridConsumerDTO:    DeviceNodeDTO | null = null;
+    private _solarNode:          DeviceNode | null = null;
+    private _gridProducerNode:   DeviceNode | null = null;
+    private _batteryProducerNode: DeviceNode | null = null;
+    private _batteryConsumerNode: DeviceNode | null = null;
+    private _gridConsumerNode:   DeviceNode | null = null;
+    private _houseNode:          DeviceNode | null = null;
     private _historyInterval?: number;
     private _uiConfig?: HelmanUiConfig;
 
@@ -375,9 +381,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             this._energy = this._readEnergyValues(this._hass!, this._entityMap);
 
             const histBuckets = payload.uiConfig.history_buckets;
-            this._sourceNodes = [this._solarDTO, this._gridDTO, this._batteryDTO]
-                .filter((dto): dto is DeviceNodeDTO => dto !== null)
-                .map(dto => this._hydrateNode(dto, histBuckets));
+            this._solarNode          = this._solarDTO          ? this._hydrateNode(this._solarDTO,          histBuckets) : null;
+            this._gridProducerNode   = this._gridDTO            ? this._hydrateNode(this._gridDTO,            histBuckets) : null;
+            this._batteryProducerNode = this._batteryDTO        ? this._hydrateNode(this._batteryDTO,        histBuckets) : null;
+            this._batteryConsumerNode = this._batteryConsumerDTO ? this._hydrateNode(this._batteryConsumerDTO, histBuckets) : null;
+            this._gridConsumerNode   = this._gridConsumerDTO    ? this._hydrateNode(this._gridConsumerDTO,    histBuckets) : null;
 
             if (this._houseDTO) {
                 this._houseNode = this._hydrateNode(this._houseDTO, histBuckets);
@@ -412,6 +420,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         this._batteryDTO = batteryNode ?? null;
         this._houseDTO   = houseNode   ?? null;
 
+        this._batteryConsumerDTO = this._findConsumerById(payload.consumers, this._batteryDTO?.id ?? null) ?? null;
+        this._gridConsumerDTO    = this._findConsumerById(payload.consumers, this._gridDTO?.id   ?? null) ?? null;
+
         const battCfg = batteryNode?.sourceConfig?.entities ?? {};
 
         return {
@@ -439,9 +450,22 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         return undefined;
     }
 
+    /** Recursively finds a non-source consumer node by entity id in the consumers tree. */
+    private _findConsumerById(nodes: DeviceNodeDTO[], id: string | null): DeviceNodeDTO | undefined {
+        if (!id) return undefined;
+        for (const node of nodes) {
+            if (!node.isSource && node.id === id) return node;
+            const found = this._findConsumerById(node.children, id);
+            if (found) return found;
+        }
+        return undefined;
+    }
+
     private _buildDialogParams(nodeType: NodeType): NodeDetailParams {
         const e = this._energy;
         const em = this._entityMap!;
+        const historyBuckets = this._uiConfig?.history_buckets ?? 60;
+        const historyBucketDuration = this._uiConfig?.history_bucket_duration ?? 60;
         switch (nodeType) {
             case 'battery': {
                 const cfg = (this._batteryDTO?.sourceConfig?.entities ?? {}) as BatteryDeviceConfig['entities'];
@@ -455,6 +479,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     minSocEntityId: em.batteryMinSocEntityId,
                     maxSocEntityId: cfg.max_soc ?? null,
                     remainingEnergyEntityId: cfg.remaining_energy ?? null,
+                    batteryProducerNode: this._batteryProducerNode,
+                    batteryConsumerNode: this._batteryConsumerNode,
+                    historyBuckets,
+                    historyBucketDuration,
                 };
             }
             case 'solar': {
@@ -465,6 +493,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     powerEntityId: em.solarPowerEntityId,
                     todayEnergyEntityId: cfg.today_energy ?? null,
                     forecastEntityId: cfg.remaining_today_energy_forecast ?? null,
+                    solarNode: this._solarNode,
+                    historyBuckets,
+                    historyBucketDuration,
                 };
             }
             case 'grid': {
@@ -475,6 +506,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     powerEntityId: em.gridPowerEntityId,
                     todayImportEntityId: cfg.today_import ?? null,
                     todayExportEntityId: cfg.today_export ?? null,
+                    gridProducerNode: this._gridProducerNode,
+                    gridConsumerNode: this._gridConsumerNode,
+                    historyBuckets,
+                    historyBucketDuration,
                 };
             }
             case 'house':
@@ -484,9 +519,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     powerEntityId: em.housePowerEntityId,
                     devices: this._houseDevices,
                     parentPowerHistory: this._houseNode?.powerHistory,
-                    historyBuckets: this._uiConfig?.history_buckets ?? 60,
-                    historyBucketDuration: this._uiConfig?.history_bucket_duration ?? 60,
+                    historyBuckets,
+                    historyBucketDuration,
                     uiConfig: this._uiConfig,
+                    houseNode: this._houseNode,
                 };
         }
     }
@@ -602,6 +638,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         return node;
     }
 
+    private get _sourceNodes(): DeviceNode[] {
+        return [this._solarNode, this._gridProducerNode, this._batteryProducerNode]
+            .filter((n): n is DeviceNode => n !== null);
+    }
+
     private _walkTree(nodes: DeviceNode[]): DeviceNode[] {
         const result: DeviceNode[] = [];
         const walk = (list: DeviceNode[]) => {
@@ -617,7 +658,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _applyHistory(history: HistoryPayload): void {
         const { entity_history, buckets } = history;
         const houseNodes = this._houseNode ? this._walkTree([this._houseNode]) : [];
-        for (const node of [...this._sourceNodes, ...houseNodes]) {
+        const consumerNodes = [this._batteryConsumerNode, this._gridConsumerNode]
+            .filter((n): n is DeviceNode => n !== null);
+        for (const node of [...this._sourceNodes, ...houseNodes, ...consumerNodes]) {
             if (!node.powerSensorId) continue;
             const rawHistory = entity_history[node.powerSensorId];
             if (rawHistory) {
@@ -650,6 +693,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         if (!this._hass) return;
         const nodes: DeviceNode[] = [...this._sourceNodes];
         if (this._houseNode) nodes.push(this._houseNode);
+        if (this._batteryConsumerNode) nodes.push(this._batteryConsumerNode);
+        if (this._gridConsumerNode) nodes.push(this._gridConsumerNode);
         if (nodes.length === 0) return;
         this._advanceTree(nodes);
         this.requestUpdate();

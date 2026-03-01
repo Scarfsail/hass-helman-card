@@ -4,10 +4,10 @@ import { nothing, TemplateResult } from "lit-html";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LocalizeFunction } from "../localize/localize";
 import { convertToKWh, getDisplayEnergyUnit } from "../helman/energy-unit-converter";
-import { formatPower } from "../power-format";
 import { DeviceNode } from "../helman/DeviceNode";
 import type { HelmanUiConfig } from "../helman-api";
 import "../helman/power-house-devices-section";
+import "../helman/power-device";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,10 @@ export interface BatteryDetailParams {
     minSocEntityId: string | null;
     maxSocEntityId: string | null;
     remainingEnergyEntityId: string | null;
+    batteryProducerNode: DeviceNode | null;
+    batteryConsumerNode: DeviceNode | null;
+    historyBuckets: number;
+    historyBucketDuration: number;
 }
 
 export interface SolarDetailParams {
@@ -31,6 +35,9 @@ export interface SolarDetailParams {
     powerEntityId: string | null;
     todayEnergyEntityId: string | null;
     forecastEntityId: string | null;
+    solarNode: DeviceNode | null;
+    historyBuckets: number;
+    historyBucketDuration: number;
 }
 
 export interface GridDetailParams {
@@ -39,6 +46,10 @@ export interface GridDetailParams {
     powerEntityId: string | null;
     todayImportEntityId: string | null;
     todayExportEntityId: string | null;
+    gridProducerNode: DeviceNode | null;
+    gridConsumerNode: DeviceNode | null;
+    historyBuckets: number;
+    historyBucketDuration: number;
 }
 
 export interface HouseDetailParams {
@@ -50,6 +61,7 @@ export interface HouseDetailParams {
     historyBuckets: number;
     historyBucketDuration: number;
     uiConfig?: HelmanUiConfig;
+    houseNode: DeviceNode | null;
 }
 
 export type NodeDetailParams =
@@ -103,6 +115,24 @@ export class NodeDetailDialog extends LitElement {
             letter-spacing: 0.05em;
             margin-top: 4px;
         }
+        .power-device-wrapper {
+            display: flex;
+            width: 100%;
+        }
+        .power-devices-dual {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        .power-device-section {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 160px;
+            gap: 4px;
+        }
     `;
 
     // 4. Public properties
@@ -146,163 +176,122 @@ export class NodeDetailDialog extends LitElement {
     }
 
     private _renderBattery(p: BatteryDetailParams): TemplateResult {
-        const power = Math.abs(p.power);
         const mode = p.power > 50 ? 'charging' : p.power < -50 ? 'discharging' : 'idle';
-        const powerFmt = formatPower(power);
-        const powerDisplay = mode === 'charging'    ? `↑ ${powerFmt.display}`
-                           : mode === 'discharging' ? `↓ ${powerFmt.display}`
-                           : powerFmt.display;
 
-        // ETA sensor
-        const etaEntityId = mode === 'discharging' ? 'sensor.helman_battery_time_to_empty'
-                          : mode === 'charging'    ? 'sensor.helman_battery_time_to_full'
-                          : null;
-        const etaSensor = etaEntityId ? this.hass.states[etaEntityId] : null;
-        const totalMinutes = etaSensor ? parseFloat(etaSensor.state) : NaN;
-        const etaAvailable = !!etaSensor
-            && etaSensor.state !== 'unavailable'
-            && etaSensor.state !== 'unknown'
-            && !isNaN(totalMinutes)
-            && totalMinutes > 0;
-
-        let targetTimeStr = '';
-        let targetSoc: number | null = null;
-        let hours = 0;
-        let remainMinutes = 0;
-        if (etaAvailable) {
-            hours = Math.floor(totalMinutes / 60);
-            remainMinutes = Math.round(totalMinutes % 60);
-            const targetTime = new Date(etaSensor!.attributes.target_time);
-            if (!isNaN(targetTime.getTime())) {
-                targetTimeStr = targetTime.toLocaleTimeString(
-                    this.hass.locale?.language || navigator.language,
-                    { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' },
-                );
-            }
-            targetSoc = etaSensor!.attributes.target_soc ?? null;
-        }
-
-        // Optional rows
         const maxSocState = this._readState(p.maxSocEntityId);
         const maxSocValue = maxSocState ? parseFloat(maxSocState.state) : NaN;
         const remainingKwh = this._readKWh(p.remainingEnergyEntityId);
         const remainingDisplay = remainingKwh !== null ? getDisplayEnergyUnit(remainingKwh) : null;
 
         return html`
+            ${p.batteryProducerNode || p.batteryConsumerNode ? html`
+                <div class="power-devices-dual">
+                    ${p.batteryProducerNode ? html`
+                        <div class="power-device-section">
+                            <div class="section-title">${this.localize('node_detail.battery.section_producer')}</div>
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${p.batteryProducerNode}
+                                .historyBuckets=${p.historyBuckets}
+                                .historyBucketDuration=${p.historyBucketDuration}
+                            ></power-device>
+                        </div>
+                    ` : nothing}
+                    ${p.batteryConsumerNode ? html`
+                        <div class="power-device-section">
+                            <div class="section-title">${this.localize('node_detail.battery.section_consumer')}</div>
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${p.batteryConsumerNode}
+                                .historyBuckets=${p.historyBuckets}
+                                .historyBucketDuration=${p.historyBucketDuration}
+                            ></power-device>
+                        </div>
+                    ` : nothing}
+                </div>
+            ` : nothing}
             <div class="detail-row">
                 <span class="label">${this.localize('node_detail.battery.mode')}</span>
                 <span class="value">${this.localize(`node_detail.battery.mode_${mode}`)}</span>
             </div>
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.powerEntityId)}>
-                <span class="label">${this.localize('node_detail.battery.power')}</span>
-                <span class="value">${powerDisplay}</span>
-            </div>
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.socEntityId)}>
-                <span class="label">${this.localize('node_detail.battery.soc')}</span>
-                <span class="value">${Math.round(p.soc)}%</span>
-            </div>
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.minSocEntityId)}>
-                <span class="label">${this.localize('node_detail.battery.min_soc')}</span>
-                <span class="value">${Math.round(p.minSoc)}%</span>
-            </div>
-            ${p.maxSocEntityId && !isNaN(maxSocValue) ? html`
-                <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.maxSocEntityId)}>
-                    <span class="label">${this.localize('node_detail.battery.max_soc')}</span>
-                    <span class="value">${Math.round(maxSocValue)}%</span>
-                </div>
-            ` : nothing}
             ${remainingDisplay ? html`
                 <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.remainingEnergyEntityId)}>
                     <span class="label">${this.localize('node_detail.battery.remaining_energy')}</span>
                     <span class="value">${remainingDisplay.value.toFixed(1)} ${remainingDisplay.unit}</span>
                 </div>
             ` : nothing}
-            ${etaAvailable ? html`
-                <div class="section-title">${this.localize('node_detail.battery.eta_section')}</div>
-                ${targetSoc !== null ? html`
-                    <div class="detail-row clickable" @click=${() => this._showMoreInfo(etaEntityId)}>
-                        <span class="label">${this.localize('node_detail.battery.target_soc')}</span>
-                        <span class="value">${targetSoc}%</span>
-                    </div>
-                ` : nothing}
-                ${targetTimeStr ? html`
-                    <div class="detail-row clickable" @click=${() => this._showMoreInfo(etaEntityId)}>
-                        <span class="label">${this.localize('node_detail.battery.target_time')}</span>
-                        <span class="value">${targetTimeStr}</span>
-                    </div>
-                ` : nothing}
-                <div class="detail-row">
-                    <span class="label">${this.localize('node_detail.battery.remaining_time')}</span>
-                    <span class="value">${hours}:${String(remainMinutes).padStart(2, '0')}</span>
-                </div>
-            ` : nothing}
         `;
     }
 
     private _renderSolar(p: SolarDetailParams): TemplateResult {
-        const powerFmt = formatPower(p.power);
         const todayKwh = this._readKWh(p.todayEnergyEntityId);
         const todayDisplay = todayKwh !== null ? getDisplayEnergyUnit(todayKwh) : null;
         const forecastKwh = this._readKWh(p.forecastEntityId);
         const forecastDisplay = forecastKwh !== null ? getDisplayEnergyUnit(forecastKwh) : null;
 
         return html`
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.powerEntityId)}>
-                <span class="label">${this.localize('node_detail.solar.power')}</span>
-                <span class="value">${powerFmt.display}</span>
-            </div>
-            ${todayDisplay ? html`
-                <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.todayEnergyEntityId)}>
-                    <span class="label">${this.localize('node_detail.solar.today_energy')}</span>
-                    <span class="value">${todayDisplay.value.toFixed(1)} ${todayDisplay.unit}</span>
-                </div>
-            ` : nothing}
-            ${forecastDisplay ? html`
-                <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.forecastEntityId)}>
-                    <span class="label">${this.localize('node_detail.solar.forecast')}</span>
-                    <span class="value">${forecastDisplay.value.toFixed(1)} ${forecastDisplay.unit}</span>
+            ${p.solarNode ? html`
+                <div class="power-device-wrapper">
+                    <power-device
+                        .hass=${this.hass}
+                        .device=${p.solarNode}
+                        .historyBuckets=${p.historyBuckets}
+                        .historyBucketDuration=${p.historyBucketDuration}
+                    ></power-device>
                 </div>
             ` : nothing}
         `;
     }
 
     private _renderGrid(p: GridDetailParams): TemplateResult {
-        const powerFmt = formatPower(Math.abs(p.power));
-        const arrow = p.power > 50 ? '← ' : p.power < -50 ? '→ ' : '';
-        const powerDisplay = `${arrow}${powerFmt.display}`;
-
         const importKwh = this._readKWh(p.todayImportEntityId);
         const importDisplay = importKwh !== null ? getDisplayEnergyUnit(importKwh) : null;
         const exportKwh = this._readKWh(p.todayExportEntityId);
         const exportDisplay = exportKwh !== null ? getDisplayEnergyUnit(exportKwh) : null;
 
         return html`
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.powerEntityId)}>
-                <span class="label">${this.localize('node_detail.grid.power')}</span>
-                <span class="value">${powerDisplay}</span>
-            </div>
-            ${importDisplay ? html`
-                <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.todayImportEntityId)}>
-                    <span class="label">${this.localize('node_detail.grid.today_import')}</span>
-                    <span class="value">${importDisplay.value.toFixed(1)} ${importDisplay.unit}</span>
+            ${p.gridProducerNode || p.gridConsumerNode ? html`
+                <div class="power-devices-dual">
+                    ${p.gridProducerNode ? html`
+                        <div class="power-device-section">
+                            <div class="section-title">${this.localize('node_detail.grid.section_producer')}</div>
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${p.gridProducerNode}
+                                .historyBuckets=${p.historyBuckets}
+                                .historyBucketDuration=${p.historyBucketDuration}
+                            ></power-device>
+                        </div>
+                    ` : nothing}
+                    ${p.gridConsumerNode ? html`
+                        <div class="power-device-section">
+                            <div class="section-title">${this.localize('node_detail.grid.section_consumer')}</div>
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${p.gridConsumerNode}
+                                .historyBuckets=${p.historyBuckets}
+                                .historyBucketDuration=${p.historyBucketDuration}
+                            ></power-device>
+                        </div>
+                    ` : nothing}
                 </div>
             ` : nothing}
-            ${exportDisplay ? html`
-                <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.todayExportEntityId)}>
-                    <span class="label">${this.localize('node_detail.grid.today_export')}</span>
-                    <span class="value">${exportDisplay.value.toFixed(1)} ${exportDisplay.unit}</span>
-                </div>
-            ` : nothing}
+
         `;
     }
 
     private _renderHouse(p: HouseDetailParams): TemplateResult {
-        const powerFmt = formatPower(p.power);
         return html`
-            <div class="detail-row clickable" @click=${() => this._showMoreInfo(p.powerEntityId)}>
-                <span class="label">${this.localize('node_detail.house.power')}</span>
-                <span class="value">${powerFmt.display}</span>
-            </div>
+            ${p.houseNode ? html`
+                <div class="power-device-wrapper">
+                    <power-device
+                        .hass=${this.hass}
+                        .device=${p.houseNode}
+                        .historyBuckets=${p.historyBuckets}
+                        .historyBucketDuration=${p.historyBucketDuration}
+                    ></power-device>
+                </div>
+            ` : nothing}
             ${p.devices.length > 0 ? html`
                 <power-house-devices-section
                     .hass=${this.hass}
