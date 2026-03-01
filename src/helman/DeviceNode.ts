@@ -1,5 +1,5 @@
 import { DeviceConfig } from "./DeviceConfig";
-
+import { ValueType } from "../helman-api";
 
 export class DeviceNode {
     constructor(id: string, name: string, powerSensorId: string | null, switchEntityId: string | null, historyBuckets: number, deviceConfig?: DeviceConfig) {
@@ -30,7 +30,7 @@ export class DeviceNode {
     public powerHistory: number[] = [];
     public historyBuckets: number;
     public isUnmeasured: boolean = false; // Indicates if this node represents unmeasured power
-    public valueType: 'positive' | 'negative' | 'default';
+    public valueType: ValueType;
 
     public color?: string;
     public sourcePowerHistory?: { [sourceName: string]: { power: number; color: string } }[];

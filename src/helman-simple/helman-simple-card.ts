@@ -4,6 +4,7 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
+import { ValueType, DeviceNodeDTO, TreePayload, applyValueType } from "../helman-api";
 import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
@@ -29,24 +30,6 @@ function blendHex(colors: { hex: string; weight: number }[]): string {
         b += (n         & 0xff) * weight / total;
     }
     return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-}
-
-// ──────────────────────────────── Backend DTO types ───────────────────────────
-
-type ValueType = "default" | "positive" | "negative";
-
-interface DeviceNodeDTO {
-    id: string;
-    powerSensorId: string | null;
-    valueType: ValueType;
-    sourceConfig: any | null;
-    sourceType: string | null;
-    children: DeviceNodeDTO[];
-}
-
-interface TreePayload {
-    sources: DeviceNodeDTO[];
-    consumers: DeviceNodeDTO[];
 }
 
 // ──────────────────────────────── Internal model ──────────────────────────────
@@ -402,12 +385,6 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _readEnergyValues(hass: HomeAssistant, map: EnergyEntityMap): EnergyValues {
         const rawPower = (entityId: string | null): number =>
             entityId ? parseFloat(hass.states[entityId]?.state ?? "0") || 0 : 0;
-
-        const applyValueType = (raw: number, vt: ValueType): number => {
-            if (vt === "positive") return Math.max(0, raw);
-            if (vt === "negative") return Math.abs(Math.min(0, raw));
-            return raw;
-        };
 
         const batterySoc = Math.max(0, Math.min(100, rawPower(map.batterySocEntityId)));
 

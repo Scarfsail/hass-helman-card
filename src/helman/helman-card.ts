@@ -6,49 +6,12 @@ import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
 import { HelmanCardConfig, HelmanUiConfig } from "./HelmanCardConfig";
+import { DeviceNodeDTO, TreePayload, HistoryPayload, applyValueType } from "../helman-api";;
 import "./power-flow-arrows"
 import "./power-device-info"
 import "./power-house-devices-section"
 
 const EMPTY_ARRAY: readonly DeviceNode[] = Object.freeze([]);
-
-interface DeviceNodeDTO {
-    id: string;
-    displayName: string;
-    powerSensorId: string | null;
-    switchEntityId: string | null;
-    isSource: boolean;
-    isUnmeasured: boolean;
-    valueType: 'default' | 'positive' | 'negative';
-    labels: string[];
-    labelBadgeTexts: string[];
-    sourceConfig: any | null;
-    color: string | null;
-    icon: string | null;
-    compact: boolean;
-    showAdditionalInfo: boolean;
-    childrenFullWidth: boolean;
-    hideChildren: boolean;
-    hideChildrenIndicator: boolean;
-    sortChildrenByPower: boolean;
-    children: DeviceNodeDTO[];
-    ratioSensorId: string | null;
-    sourceType: string | null;
-}
-
-interface TreePayload {
-    sources: DeviceNodeDTO[];
-    consumers: DeviceNodeDTO[];
-    consumptionTotalSensorId: string | null;
-    productionTotalSensorId: string | null;
-    uiConfig: HelmanUiConfig;
-}
-
-interface HistoryPayload {
-    buckets: number;
-    bucket_duration: number;
-    entity_history: Record<string, number[]>;
-}
 
 @customElement("helman-card")
 export class HelmanCard extends LitElement implements LovelaceCard {
@@ -343,11 +306,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             if (node.powerSensorId) {
                 const rawPower = parseFloat(this._hass!.states[node.powerSensorId]?.state ?? '0') || 0;
                 let power: number;
-                switch (node.valueType) {
-                    case 'positive': power = Math.max(0, rawPower); break;
-                    case 'negative': power = Math.abs(Math.min(0, rawPower)); break;
-                    default: power = rawPower;
-                }
+                power = applyValueType(rawPower, node.valueType);
                 if (node.powerHistory.length === 0) node.powerHistory.push(0);
                 node.powerHistory[node.powerHistory.length - 1] = power;
                 node.powerValue = power;
