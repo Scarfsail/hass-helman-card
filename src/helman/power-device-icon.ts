@@ -22,6 +22,11 @@ export class PowerDeviceIcon extends LitElement {
                 color: var(--secondary-text-color);
                 font-size:0.7em;
             }
+            .soc-percentage {
+                font-size: 1.1em;
+                font-weight: 700;
+                color: var(--primary-text-color);
+            }
             .disabled-icon {
                 color: var(--disabled-text-color);
             }
@@ -67,7 +72,7 @@ export class PowerDeviceIcon extends LitElement {
                 return html`
                     <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.entities.capacity!)}>
                         <ha-icon .icon=${icon} title="${capacity}%"></ha-icon>
-                        <div>${capacity}%</div>
+                        <div class="soc-percentage">${capacity}%</div>
                     </div>
                 `;
             }

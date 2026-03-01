@@ -160,35 +160,46 @@ export class PowerDeviceInfo extends LitElement {
         `;
     }
 
-    private _renderBatteryInfo(device: DeviceNode, _cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
-        const entityId = device.isSource
+    private _renderBatteryInfo(device: DeviceNode, cfg: BatteryDeviceConfig): TemplateResult | typeof nothing {
+        const targetSocEntityId = device.isSource ? cfg.entities.min_soc : cfg.entities.max_soc;
+        const targetSocState = targetSocEntityId ? this.hass?.states[targetSocEntityId] : null;
+        const targetSoc = targetSocState ? parseFloat(targetSocState.state) : NaN;
+
+        const etaEntityId = device.isSource
             ? "sensor.helman_battery_time_to_empty"
             : "sensor.helman_battery_time_to_full";
-        const etaSensor = this.hass?.states[entityId];
-        if (!etaSensor || etaSensor.state === "unavailable" || etaSensor.state === "unknown") {
-            return nothing;
+        const etaSensor = this.hass?.states[etaEntityId];
+        const etaValid = etaSensor && etaSensor.state !== "unavailable" && etaSensor.state !== "unknown";
+        const totalMinutes = etaValid ? parseFloat(etaSensor!.state) : NaN;
+        const isActive = !isNaN(totalMinutes) && totalMinutes > 0;
+
+        let targetTimeStr: string | null = null;
+        let hours = 0;
+        let mins = 0;
+
+        if (isActive) {
+            const targetTime = new Date(etaSensor!.attributes.target_time);
+            if (!isNaN(targetTime.getTime())) {
+                targetTimeStr = targetTime.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
+                    hourCycle: 'h23',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+                hours = Math.floor(totalMinutes / 60);
+                mins = Math.round(totalMinutes % 60);
+            }
         }
 
-        const totalMinutes = parseFloat(etaSensor.state);
-        if (isNaN(totalMinutes) || totalMinutes <= 0) return nothing;
-
-        const targetTime = new Date(etaSensor.attributes.target_time);
-        if (isNaN(targetTime.getTime())) return nothing;
-
-        const targetSoc = etaSensor.attributes.target_soc;
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = Math.round(totalMinutes % 60);
-
-        const targetTimeStr = targetTime.toLocaleTimeString(this.hass.locale?.language || navigator.language, {
-            hourCycle: 'h23',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
+        if (isNaN(targetSoc) && !targetTimeStr) return nothing;
 
         return html`
-            ${targetSoc != null ? html`<span>${targetSoc}% ➜</span>` : nothing}
-            <span>🕓${targetTimeStr}</span>
-            <span>⏳${hours}:${String(minutes).padStart(2, '0')}</span>
+            ${!isNaN(targetSoc) && targetSocEntityId ? html`
+                <span class="clickable" @click=${() => this._showMoreInfo(targetSocEntityId)}>➜${targetSoc}%</span>
+            ` : nothing}
+            ${targetTimeStr ? html`
+                <span class="clickable" @click=${() => this._showMoreInfo(etaEntityId)}>🕓${targetTimeStr}</span>
+                <span class="clickable" @click=${() => this._showMoreInfo(etaEntityId)}>⏳${hours}:${String(mins).padStart(2, '0')}</span>
+            ` : nothing}
         `;
     }
 
