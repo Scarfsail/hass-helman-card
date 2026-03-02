@@ -89,24 +89,28 @@ export class SimpleCardHouse extends LitElement {
     @property({ type: Number }) public power = 0;
     /** Blended source color based on power ratios from solar/grid/battery. */
     @property({ type: String }) public sourceColor?: string;
+    /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
+    @property({ type: Boolean }) public compact = false;
 
     // Render method
     render() {
         const active = this.power > 50;
         const { value, unit } = formatPower(this.power);
         const borderColor = (active && this.sourceColor) ? this.sourceColor : undefined;
+        const svgSize = this.compact ? 40 : 50;
 
         return html`
-            <div class="svg-wrapper">
-                <svg viewBox="-15 -14 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg"
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
+                <svg viewBox="-15 -14 110 110" width="${svgSize}" height="${svgSize}" xmlns="http://www.w3.org/2000/svg"
                      style="${borderColor ? `--window-color: ${borderColor}` : ''}">
                     ${this._renderHouse(active, borderColor)}
                 </svg>
             </div>
+            ${this.compact ? '' : html`
             <div class="power-label ${active ? 'active' : ''}"
                  style="${borderColor ? `color: ${borderColor}` : ''}">
                 ${value} <span class="unit">${unit}</span>
-            </div>
+            </div>`}
         `;
     }
 

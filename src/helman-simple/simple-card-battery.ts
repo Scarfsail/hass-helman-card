@@ -138,12 +138,17 @@ export class SimpleCardBattery extends LitElement {
         }
     `;
 
+    // Private properties
+    private readonly _clipId = `batt-clip-${Math.random().toString(36).slice(2)}`;
+
     // Public properties
     @property({ type: Number }) public power = 0;
     @property({ type: Number }) public soc = 0;
     @property({ type: Number }) public minSoc = 10;
     /** When charging: color of the energy source (solar yellow, grid blue, or blended). */
     @property({ type: String }) public sourceColor?: string;
+    /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
+    @property({ type: Boolean }) public compact = false;
 
     // Render method
     render() {
@@ -177,10 +182,11 @@ export class SimpleCardBattery extends LitElement {
         const innerFillY = Math.max(fillY, BODY_TOP + INNER_PAD);
         const innerFillHeight = Math.max(0, fillY + fillHeight - innerFillY - INNER_PAD);
 
+        const svgSize = this.compact ? 40 : 50;
         return html`
-            <div class="svg-wrapper">
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
                 <svg viewBox="-10 -15 77 112"
-                     width="50" height="50"
+                     width="${svgSize}" height="${svgSize}"
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
                     <rect class="battery-terminal ${coverClass}"
@@ -194,14 +200,14 @@ export class SimpleCardBattery extends LitElement {
                         style="${isCharging && this.sourceColor ? `stroke: ${this.sourceColor}; --cover-color: ${this.sourceColor}` : ''}"/>
 
                     <!-- Fill level -->
-                    <clipPath id="battery-clip">
+                    <clipPath id="${this._clipId}">
                         <rect x="${innerX}" y="${BODY_TOP + INNER_PAD}"
                               width="${innerWidth}" height="${BODY_HEIGHT - INNER_PAD * 2}" rx="3"/>
                     </clipPath>
                     <rect class="${fillClass}"
                         x="${innerX}" y="${innerFillY}"
                         width="${innerWidth}" height="${innerFillHeight}" rx="2"
-                        clip-path="url(#battery-clip)"/>
+                        clip-path="url(#${this._clipId})"/>
 
                     <!-- SoC percentage inside -->
                     <text class="soc-label"
@@ -211,11 +217,12 @@ export class SimpleCardBattery extends LitElement {
                     </text>
                 </svg>
             </div>
+            ${this.compact ? '' : html`
             <div class="power-label ${powerClass}">
                 ${isCharging ? html`↑ ${value} <span class="unit">${unit}</span>`
                     : isDischarging ? html`↓ ${value} <span class="unit">${unit}</span>`
                     : html`${value} <span class="unit">${unit}</span>`}
-            </div>
+            </div>`}
         `;
     }
 }

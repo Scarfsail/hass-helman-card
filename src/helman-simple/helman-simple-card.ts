@@ -13,28 +13,13 @@ import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
+import { blendHex } from '../color-utils';
 
 // ──────────────────────────────── Color constants ─────────────────────────────
 
 const SOLAR_COLOR = '#facc15'; // yellow-400 — matches solar component
 const GRID_COLOR  = '#38bdf8'; // sky-400    — matches grid import
 const BATT_COLOR  = '#22c55e'; // green-500  — matches battery producer/charging border
-
-/** Weighted RGB average of hex color values. Returns gray if no active inputs. */
-function blendHex(colors: { hex: string; weight: number }[]): string {
-    const active = colors.filter(c => c.weight > 0);
-    if (active.length === 0) return '#6b7280';
-    if (active.length === 1) return active[0].hex;
-    const total = active.reduce((s, c) => s + c.weight, 0);
-    let r = 0, g = 0, b = 0;
-    for (const { hex, weight } of active) {
-        const n = parseInt(hex.slice(1), 16);
-        r += ((n >> 16) & 0xff) * weight / total;
-        g += ((n >> 8)  & 0xff) * weight / total;
-        b += (n         & 0xff) * weight / total;
-    }
-    return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-}
 
 // ──────────────────────────────── Internal model ──────────────────────────────
 

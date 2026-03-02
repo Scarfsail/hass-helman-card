@@ -178,6 +178,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         const historyBuckets = this._uiConfig?.history_buckets ?? 60;
         const node = new DeviceNode(dto.id, dto.displayName, dto.powerSensorId, dto.switchEntityId, historyBuckets, dto.sourceConfig ?? undefined);
         node.isSource = dto.isSource;
+        node.sourceType = dto.sourceType;
         node.isUnmeasured = dto.isUnmeasured;
         node.valueType = dto.valueType;
         node.labels = dto.labels;
@@ -200,6 +201,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         const historyBuckets = uiConfig.history_buckets;
         const roots: DeviceNode[] = [];
 
+        // Build id→sourceType map from source DTOs so consumer counterparts (battery, grid)
+        // can inherit the same sourceType even when the backend doesn't set it on the consumer side.
+        const sourceTypeByDeviceId = new Map<string, string>();
+        for (const dto of sources) {
+            if (dto.sourceType) sourceTypeByDeviceId.set(dto.id, dto.sourceType);
+        }
+
         if (sources.length > 0) {
             const sourcesNode = new DeviceNode("sources", uiConfig.sources_title, null, null, historyBuckets);
             sourcesNode.childrenCollapsed = false;
@@ -216,6 +224,11 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             consumersNode.icon = 'mdi:lightning-bolt-outline';
             consumersNode.powerSensorId = consumptionTotalSensorId;
             consumersNode.children = consumers.map(dto => this._hydrateNode(dto));
+            // Propagate sourceType to consumer nodes that share an id with a source node
+            // (e.g. battery-charging and grid-exporting have null sourceType on the consumer DTO).
+            for (const child of consumersNode.children) {
+                if (!child.sourceType) child.sourceType = sourceTypeByDeviceId.get(child.id) ?? null;
+            }
             roots.push(consumersNode);
         }
 

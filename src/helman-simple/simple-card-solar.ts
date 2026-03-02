@@ -69,15 +69,18 @@ export class SimpleCardSolar extends LitElement {
 
     // Public properties
     @property({ type: Number }) public power = 0;
+    /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
+    @property({ type: Boolean }) public compact = false;
 
     // Render method
     render() {
         const active = this.power > 50;
         const { value, unit } = formatPower(this.power);
+        const svgSize = this.compact ? 40 : 45;
 
         return html`
-            <div class="svg-wrapper">
-                <svg viewBox="0 0 80 80" width="45" height="45" xmlns="http://www.w3.org/2000/svg">
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
+                <svg viewBox="0 0 80 80" width="${svgSize}" height="${svgSize}" xmlns="http://www.w3.org/2000/svg">
                     <g class="rays ${active ? 'active' : ''}">
                         ${[0, 45, 90, 135, 180, 225, 270, 315].map(angle => svg`
                             <rect
@@ -91,9 +94,10 @@ export class SimpleCardSolar extends LitElement {
                     <circle class="core ${active ? 'active' : ''}" cx="40" cy="40" r="17"/>
                 </svg>
             </div>
+            ${this.compact ? '' : html`
             <div class="power-label ${active ? 'active' : ''}">
                 ${value} <span class="unit">${unit}</span>
-            </div>
+            </div>`}
         `;
     }
 }

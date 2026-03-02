@@ -69,6 +69,8 @@ export class SimpleCardGrid extends LitElement {
     @property({ type: Number }) public power = 0;
     /** When exporting: color of the energy source supplying the export (e.g. solar yellow). */
     @property({ type: String }) public sourceColor?: string;
+    /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
+    @property({ type: Boolean }) public compact = false;
 
     // Render method
     render() {
@@ -80,17 +82,19 @@ export class SimpleCardGrid extends LitElement {
         const { value, unit } = formatPower(absPower);
         // When importing: wires are grid blue; when exporting: wires are sourceColor
         const wireColor = importing ? '#38bdf8' : (exporting && this.sourceColor) ? this.sourceColor : undefined;
+        const svgSize = this.compact ? 40 : 50;
 
         return html`
-            <div class="svg-wrapper">
-                <svg viewBox="-15 -8 110 110" width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
+                <svg viewBox="-15 -8 110 110" width="${svgSize}" height="${svgSize}" xmlns="http://www.w3.org/2000/svg">
                     ${this._renderPylon(stateClass, wireColor)}
                     ${isActive ? this._renderFlowDots(importing, wireColor) : ''}
                 </svg>
             </div>
+            ${this.compact ? '' : html`
             <div class="power-label ${stateClass}">
                 ${value} <span class="unit">${unit}</span>
-            </div>
+            </div>`}
         `;
     }
 
