@@ -107,11 +107,19 @@ export class SimpleCardBattery extends LitElement {
             50%       { opacity: 1; }
         }
         .soc-label {
-            font-size: 1.125rem;
+            font-size: 1.8rem;
             font-weight: 700;
             fill: white;
+            stroke: rgba(0,0,0,0.55);
+            stroke-width: 6;
+            paint-order: stroke fill;
             text-anchor: middle;
             letter-spacing: 0.02em;
+        }
+        .soc-percent {
+            font-size: 1.2rem;
+            font-weight: 600;
+            opacity: 0.9;
         }
         .power-label {
             font-size: 0.78rem;
@@ -197,10 +205,9 @@ export class SimpleCardBattery extends LitElement {
 
                     <!-- SoC percentage inside -->
                     <text class="soc-label"
-                        x="${BODY_X + BODY_WIDTH / 2}"
-                        y="${BODY_TOP + BODY_HEIGHT / 2}"
-                        dy="0.35em">
-                        ${socClamped.toFixed(0)}%
+                        dominant-baseline="middle">
+                        <tspan x="${2+ BODY_X + BODY_WIDTH / 2}" y="43">${socClamped.toFixed(0)}</tspan>
+                        <tspan x="${2+BODY_X + BODY_WIDTH / 2}" y="64" class="soc-percent">%</tspan>
                     </text>
                 </svg>
             </div>
