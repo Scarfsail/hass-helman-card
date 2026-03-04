@@ -162,12 +162,12 @@ export class SimpleCardBattery extends LitElement {
         // Cover: charge/discharge state takes priority; SoC warning only when idle
         const coverClass = isCharging ? 'active-charge'
             : isDischarging ? 'active-discharge'
-            : socClamped < 20 ? 'low'
-            : socClamped < 30 ? 'low-orange'
+            : socClamped < this.minSoc ? 'low'
+            : socClamped < this.minSoc + 10 ? 'low-orange'
             : '';
 
         // Fill bar: dark gray when idle at normal SoC; SoC color when low or active
-        const fillColorClass = socClamped < 20 ? 'fill-red' : socClamped < 30 ? 'fill-orange' : 'fill-green';
+        const fillColorClass = socClamped < this.minSoc ? 'fill-red' : socClamped < this.minSoc + 10 ? 'fill-orange' : 'fill-green';
         const fillClass = (isCharging || isDischarging)
             ? `${fillColorClass} fill-active`
             : (socClamped < 30 ? fillColorClass : 'fill-idle');

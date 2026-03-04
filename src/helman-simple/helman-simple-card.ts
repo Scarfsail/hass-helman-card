@@ -6,6 +6,7 @@ import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
 import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, applyValueType } from "../helman-api";
 import { DeviceNode } from "../helman/DeviceNode";
+import { hydrateNode } from "../helman/device-node-hydrator";
 import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
 import type { NodeType, NodeDetailParams } from "./node-detail-dialog";
 import "./node-detail-dialog";
@@ -13,13 +14,7 @@ import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
-import { blendHex } from '../color-utils';
-
-// ──────────────────────────────── Color constants ─────────────────────────────
-
-const SOLAR_COLOR = '#facc15'; // yellow-400 — matches solar component
-const GRID_COLOR  = '#38bdf8'; // sky-400    — matches grid import
-const BATT_COLOR  = '#22c55e'; // green-500  — matches battery producer/charging border
+import { SOLAR_COLOR, GRID_COLOR, BATT_COLOR, computeSourceColor } from '../color-utils';
 
 // ──────────────────────────────── Internal model ──────────────────────────────
 
@@ -269,21 +264,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battToGridT   = thick(battToGridI);
 
         // ── Source colors for consumer components ──────────────────────────────
-        const battSourceColor = battCharge
-            ? blendHex([{ hex: SOLAR_COLOR, weight: solarToBattPower }, { hex: GRID_COLOR, weight: gridToBattPower }])
-            : undefined;
-        const gridSourceColor = (solarExportingToGrid && battToGridPower > 50)
-            ? blendHex([{ hex: SOLAR_COLOR, weight: solarToGridPower }, { hex: BATT_COLOR, weight: battToGridPower }])
-            : solarExportingToGrid ? SOLAR_COLOR
-            : battToGridPower > 50 ? BATT_COLOR
-            : undefined;
-        const houseSourceColor = housePower > 50
-            ? blendHex([
-                { hex: SOLAR_COLOR, weight: solarToHousePower },
-                { hex: GRID_COLOR,  weight: gridToHousePower  },
-                { hex: BATT_COLOR,  weight: battToHousePower  },
-            ])
-            : undefined;
+        const battSourceColor  = this._batteryConsumerNode ? computeSourceColor(this._batteryConsumerNode) : undefined;
+        const gridSourceColor  = this._gridConsumerNode    ? computeSourceColor(this._gridConsumerNode)    : undefined;
+        const houseSourceColor = this._houseNode           ? computeSourceColor(this._houseNode)           : undefined;
 
         const gridStyle = this._buildGridStyle();
 
@@ -372,8 +355,15 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             this._batteryConsumerNode = this._batteryConsumerDTO ? this._hydrateNode(this._batteryConsumerDTO, histBuckets) : null;
             this._gridConsumerNode   = this._gridConsumerDTO    ? this._hydrateNode(this._gridConsumerDTO,    histBuckets) : null;
 
+            // Consumer-side DTOs don't carry sourceType — propagate from the matching source node
+            if (this._batteryConsumerNode && !this._batteryConsumerNode.sourceType)
+                this._batteryConsumerNode.sourceType = this._batteryProducerNode?.sourceType;
+            if (this._gridConsumerNode && !this._gridConsumerNode.sourceType)
+                this._gridConsumerNode.sourceType = this._gridProducerNode?.sourceType;
+
             if (this._houseDTO) {
                 this._houseNode = this._hydrateNode(this._houseDTO, histBuckets);
+                if (!this._houseNode.sourceType) this._houseNode.sourceType = 'house';
                 this._houseDevices = this._houseNode.children;
             }
 
@@ -604,23 +594,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private _hydrateNode(dto: DeviceNodeDTO, historyBuckets: number): DeviceNode {
-        const node = new DeviceNode(dto.id, dto.displayName, dto.powerSensorId, dto.switchEntityId, historyBuckets, dto.sourceConfig ?? undefined);
-        node.isSource = dto.isSource;
-        node.isUnmeasured = dto.isUnmeasured;
-        node.valueType = dto.valueType;
-        node.labels = dto.labels;
-        if (dto.labelBadgeTexts.length > 0) node.customLabelTexts = dto.labelBadgeTexts;
-        if (dto.color) node.color = dto.color;
-        if (dto.icon) node.icon = dto.icon;
-        node.compact = dto.compact;
-        node.show_additional_info = dto.showAdditionalInfo;
-        node.children_full_width = dto.childrenFullWidth;
-        node.hideChildren = dto.hideChildren;
-        node.hideChildrenIndicator = dto.hideChildrenIndicator;
-        node.sortChildrenByPower = dto.sortChildrenByPower;
-        if (dto.ratioSensorId) node.ratioSensorId = dto.ratioSensorId;
-        node.children = dto.children.map(child => this._hydrateNode(child, historyBuckets));
-        return node;
+        return hydrateNode(dto, historyBuckets);
     }
 
     private get _sourceNodes(): DeviceNode[] {

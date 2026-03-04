@@ -6,7 +6,8 @@ import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
 import { HelmanCardConfig, HelmanUiConfig } from "./HelmanCardConfig";
-import { DeviceNodeDTO, TreePayload, HistoryPayload, applyValueType } from "../helman-api";;
+import { DeviceNodeDTO, TreePayload, HistoryPayload, applyValueType } from "../helman-api";
+import { hydrateNode } from "./device-node-hydrator";
 import "./power-flow-arrows"
 import "./power-device-info"
 import "./power-house-devices-section"
@@ -175,25 +176,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     }
 
     private _hydrateNode(dto: DeviceNodeDTO): DeviceNode {
-        const historyBuckets = this._uiConfig?.history_buckets ?? 60;
-        const node = new DeviceNode(dto.id, dto.displayName, dto.powerSensorId, dto.switchEntityId, historyBuckets, dto.sourceConfig ?? undefined);
-        node.isSource = dto.isSource;
-        node.sourceType = dto.sourceType;
-        node.isUnmeasured = dto.isUnmeasured;
-        node.valueType = dto.valueType;
-        node.labels = dto.labels;
-        if (dto.labelBadgeTexts.length > 0) node.customLabelTexts = dto.labelBadgeTexts;
-        if (dto.color) node.color = dto.color;
-        if (dto.icon) node.icon = dto.icon;
-        node.compact = dto.compact;
-        node.show_additional_info = dto.showAdditionalInfo;
-        node.children_full_width = dto.childrenFullWidth;
-        node.hideChildren = dto.hideChildren;
-        node.hideChildrenIndicator = dto.hideChildrenIndicator;
-        node.sortChildrenByPower = dto.sortChildrenByPower;
-        if (dto.ratioSensorId) node.ratioSensorId = dto.ratioSensorId;
-        node.children = dto.children.map(child => this._hydrateNode(child));
-        return node;
+        return hydrateNode(dto, this._uiConfig?.history_buckets ?? 60);
     }
 
     private _hydrateDeviceNodes(payload: TreePayload): DeviceNode[] {
@@ -224,11 +207,18 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             consumersNode.icon = 'mdi:lightning-bolt-outline';
             consumersNode.powerSensorId = consumptionTotalSensorId;
             consumersNode.children = consumers.map(dto => this._hydrateNode(dto));
-            // Propagate sourceType to consumer nodes that share an id with a source node
-            // (e.g. battery-charging and grid-exporting have null sourceType on the consumer DTO).
-            for (const child of consumersNode.children) {
-                if (!child.sourceType) child.sourceType = sourceTypeByDeviceId.get(child.id) ?? null;
-            }
+            // Propagate sourceType to consumer nodes. Source counterparts (battery/grid) inherit
+            // from the sourceTypeByDeviceId map; house is identified by its well-known id.
+            const propagateSourceType = (nodes: DeviceNode[]) => {
+                for (const node of nodes) {
+                    if (!node.sourceType) {
+                        node.sourceType = sourceTypeByDeviceId.get(node.id)
+                            ?? (node.id === 'house' ? 'house' : null);
+                    }
+                    propagateSourceType(node.children);
+                }
+            };
+            propagateSourceType(consumersNode.children);
             roots.push(consumersNode);
         }
 

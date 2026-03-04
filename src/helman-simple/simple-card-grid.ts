@@ -64,6 +64,12 @@ export class SimpleCardGrid extends LitElement {
         .unit { font-size: 0.7em; font-weight: 400; opacity: 0.8; }
     `;
 
+    // Private properties
+    private readonly _uid = Math.random().toString(36).slice(2);
+    private get _wlId() { return `wl-${this._uid}`; }
+    private get _wcId() { return `wc-${this._uid}`; }
+    private get _wrId() { return `wr-${this._uid}`; }
+
     // Public properties
     /** Positive = importing from grid, negative = exporting to grid */
     @property({ type: Number }) public power = 0;
@@ -129,25 +135,25 @@ export class SimpleCardGrid extends LitElement {
             <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
-                    <mpath href="#wl"/>
+                    <mpath href="#${this._wlId}"/>
                 </animateMotion>
             </circle>
             <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.4s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
-                    <mpath href="#wc"/>
+                    <mpath href="#${this._wcId}"/>
                 </animateMotion>
             </circle>
             <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.8s"
                     keyPoints="${importing ? '0;1' : '1;0'}" keyTimes="0;1" calcMode="linear">
-                    <mpath href="#wr"/>
+                    <mpath href="#${this._wrId}"/>
                 </animateMotion>
             </circle>
             <defs>
-                <path id="wl" d="M17,29 Q14,46 13,58"/>
-                <path id="wc" d="M40,24 Q40,44 40,58"/>
-                <path id="wr" d="M63,29 Q66,46 67,58"/>
+                <path id="${this._wlId}" d="M17,29 Q14,46 13,58"/>
+                <path id="${this._wcId}" d="M40,24 Q40,44 40,58"/>
+                <path id="${this._wrId}" d="M63,29 Q66,46 67,58"/>
             </defs>
         `;
     }

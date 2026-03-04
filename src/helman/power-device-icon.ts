@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
 import { sharedStyles } from "./shared-styles";
-import { blendHex } from "../color-utils";
+import { computeSourceColor } from "../color-utils";
 import "../helman-simple/simple-card-solar";
 import "../helman-simple/simple-card-battery";
 import "../helman-simple/simple-card-grid";
@@ -86,15 +86,6 @@ export class PowerDeviceIcon extends LitElement {
         }));
     }
 
-    /** Compute a blended sourceColor from the latest history bucket of a consumer node. */
-    private _computeSourceColor(): string | undefined {
-        const history = this.device.sourcePowerHistory;
-        if (!history?.length) return undefined;
-        const lastBucket = history[history.length - 1];
-        const entries = Object.values(lastBucket).map(({ power, color }) => ({ hex: color, weight: power }));
-        return entries.some(e => e.weight > 0) ? blendHex(entries) : undefined;
-    }
-
     private _renderAnimatedNode(): TemplateResult | typeof nothing {
         const device = this.device;
         const power = device.powerValue ?? 0;
@@ -113,7 +104,7 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'grid') {
             // isSource=true → importing (positive); isSource=false → exporting (negative)
             const signedPower = device.isSource ? power : -power;
-            const sourceColor = device.isSource ? undefined : this._computeSourceColor();
+            const sourceColor = device.isSource ? undefined : computeSourceColor(this.device);
             return html`
                 <div class="node-icon" @click=${this._fireToggleChildren}>
                     <simple-card-grid
@@ -128,11 +119,14 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'battery') {
             // isSource=true → discharging (negative in simple-card convention); isSource=false → charging (positive)
             const signedPower = device.isSource ? -power : power;
-            const sourceColor = device.isSource ? undefined : this._computeSourceColor();
+            const sourceColor = device.isSource ? undefined : computeSourceColor(this.device);
             const battConfig = device.deviceConfig as BatteryDeviceConfig;
             const soc = battConfig?.entities?.capacity
                 ? parseFloat(this.hass.states[battConfig.entities.capacity]?.state ?? '0') || 0
                 : 0;
+            const minSoc = battConfig?.entities?.min_soc
+                ? parseFloat(this.hass.states[battConfig.entities.min_soc]?.state ?? '10') || 10
+                : 10;
             const clickHandler = battConfig?.entities?.capacity
                 ? () => this._fireShowMoreInfo(battConfig.entities.capacity!)
                 : this._fireToggleChildren;
@@ -141,6 +135,7 @@ export class PowerDeviceIcon extends LitElement {
                     <simple-card-battery
                         .power=${signedPower}
                         .soc=${soc}
+                        .minSoc=${minSoc}
                         .sourceColor=${sourceColor}
                         ?compact=${true}
                     ></simple-card-battery>
@@ -148,8 +143,8 @@ export class PowerDeviceIcon extends LitElement {
             `;
         }
 
-        if (device.sourceType === 'house' || device.id === 'house') {
-            const sourceColor = this._computeSourceColor();
+        if (device.sourceType === 'house') {
+            const sourceColor = computeSourceColor(this.device);
             return html`
                 <div class="node-icon" @click=${this._fireToggleChildren}>
                     <simple-card-house
@@ -165,23 +160,6 @@ export class PowerDeviceIcon extends LitElement {
     }
 
     private _renderDeviceIcon(): TemplateResult {
-        const battConfig = (this.device.deviceConfig as BatteryDeviceConfig);
-        if (battConfig?.entities.capacity) {
-            const batteryCapacityState = this.hass.states[battConfig.entities.capacity];
-            if (batteryCapacityState) {
-                const capacity = parseFloat(batteryCapacityState.state);
-                const iconLevel = capacity <= 10 ? '-outline'
-                    : capacity > 90 ? ''
-                    : `-${Math.floor(capacity / 10) * 10}`;
-                const icon = `mdi:battery${iconLevel}`;
-
-                return html`
-                    <div class="switchIconPlaceholder clickable" @click=${() => this._fireShowMoreInfo(battConfig.entities.capacity!)}>
-                        <ha-icon .icon=${icon} title="${capacity}%"></ha-icon>
-                    </div>
-                `;
-            }
-        }
         return html`
             <div class="switchIconPlaceholder" @click=${this._fireToggleChildren}>
                 <ha-icon .icon=${this.device.icon}></ha-icon>
