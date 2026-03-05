@@ -6,8 +6,9 @@ import { DeviceNode } from "./DeviceNode";
 import "./power-device";
 import "./power-devices-container";
 import { HelmanCardConfig, HelmanUiConfig } from "./HelmanCardConfig";
-import { DeviceNodeDTO, TreePayload, HistoryPayload, applyValueType } from "../helman-api";
+import { DeviceNodeDTO, TreePayload, HistoryPayload } from "../helman-api";
 import { hydrateNode } from "./device-node-hydrator";
+import { HistoryEngine } from "./history-engine";
 import "./power-flow-arrows"
 import "./power-device-info"
 import "./power-house-devices-section"
@@ -35,7 +36,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     // 3. Private properties
     private config!: HelmanCardConfig;
-    private _historyInterval?: number;
+    private _historyEngine?: HistoryEngine;
     private _sourceNodes: DeviceNode[] = [];
 
     // 5. State properties
@@ -75,7 +76,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
-        clearInterval(this._historyInterval);
+        this._historyEngine?.stop();
     }
 
     willUpdate(changedProperties: Map<string, any>): void {
@@ -150,7 +151,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     // 12. Private helper methods
     private async _loadBackendData(): Promise<void> {
-        clearInterval(this._historyInterval);
+        this._historyEngine?.stop();
         try {
             const treePayload = await this._hass!.connection.sendMessagePromise<TreePayload>({
                 type: "helman/get_device_tree",
@@ -162,14 +163,21 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             const history = await this._hass!.connection.sendMessagePromise<HistoryPayload>({
                 type: 'helman/get_history',
             });
-            this._applyHistory(history);
+            const histBuckets = this._uiConfig.history_buckets;
+            this._historyEngine = new HistoryEngine(
+                () => this._hass,
+                histBuckets,
+                () => this.requestUpdate(),
+            );
+            this._historyEngine.applyHistory(history, HistoryEngine.walkTree(this._deviceTree), this._sourceNodes);
             this.requestUpdate();
 
-            this._historyInterval = window.setInterval(
-                this._advanceBuckets.bind(this),
-                (this._uiConfig?.history_bucket_duration ?? 1) * 1000
+            this._historyEngine.start(
+                this._uiConfig.history_bucket_duration,
+                () => this._deviceTree,
+                () => this._sourceNodes,
             );
-            this._advanceBuckets();
+            this._historyEngine.advanceBuckets(this._deviceTree, this._sourceNodes);
         } catch (error) {
             console.error('Helman: failed to load backend data', error);
         }
@@ -237,103 +245,6 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         return sourceNodes;
     }
 
-    private _applyHistory(history: HistoryPayload): void {
-        const { entity_history, buckets } = history;
-        const allNodes = this._walkTree(this._deviceTree);
-
-        for (const node of allNodes) {
-            if (!node.powerSensorId) continue;
-
-            const rawHistory = entity_history[node.powerSensorId];
-            if (rawHistory) {
-                let h = [...rawHistory];
-                if (node.valueType === 'positive') h = h.map(v => Math.max(0, v));
-                else if (node.valueType === 'negative') h = h.map(v => Math.abs(Math.min(0, v)));
-                node.powerHistory = h;
-                node.historyBuckets = buckets;
-            }
-
-            if (node.isSource) continue;
-            node.sourcePowerHistory = [];
-            if (!rawHistory) continue;
-            for (let i = 0; i < buckets; i++) {
-                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
-                const consumerPower = node.powerHistory[i] ?? 0;
-                for (const src of this._sourceNodes) {
-                    if (!src.ratioSensorId) continue;
-                    const ratioHistory = entity_history[src.ratioSensorId];
-                    const ratio = (ratioHistory?.[i] ?? 0) / 100;
-                    if (ratio > 0 && consumerPower > 0) {
-                        bucket[src.id] = { power: consumerPower * ratio, color: src.color || 'grey' };
-                    }
-                }
-                node.sourcePowerHistory.push(bucket);
-            }
-        }
-    }
-
-    private _walkTree(nodes: DeviceNode[]): DeviceNode[] {
-        const result: DeviceNode[] = [];
-        const walk = (nodeList: DeviceNode[]) => {
-            for (const node of nodeList) {
-                result.push(node);
-                walk(node.children);
-            }
-        };
-        walk(nodes);
-        return result;
-    }
-
-    private _advanceBuckets(): void {
-        if (!this._hass || this._deviceTree.length === 0) return;
-        this._advanceTree(this._deviceTree);
-        this.requestUpdate();
-    }
-
-    private _advanceTree(nodes: DeviceNode[]): void {
-        const maxBuckets = this._uiConfig?.history_buckets ?? 60;
-        for (const node of nodes) {
-            // Advance history arrays
-            if (node.powerHistory.length > 0) {
-                node.powerHistory.push(node.powerHistory[node.powerHistory.length - 1]);
-                if (node.sourcePowerHistory) {
-                    node.sourcePowerHistory.push(node.sourcePowerHistory[node.sourcePowerHistory.length - 1]);
-                }
-            }
-            if (node.powerHistory.length > maxBuckets) {
-                node.powerHistory.shift();
-                node.sourcePowerHistory?.shift();
-            }
-
-            // Update live power from hass.states
-            if (node.powerSensorId) {
-                const rawPower = parseFloat(this._hass!.states[node.powerSensorId]?.state ?? '0') || 0;
-                let power: number;
-                power = applyValueType(rawPower, node.valueType);
-                if (node.powerHistory.length === 0) node.powerHistory.push(0);
-                node.powerHistory[node.powerHistory.length - 1] = power;
-                node.powerValue = power;
-            }
-
-            // Recurse into children so source nodes get their power updated
-            // before we compute source ratios on non-source nodes below
-            this._advanceTree(node.children);
-
-            // Compute source ratio for the newest bucket (non-source nodes only)
-            if (!node.isSource && node.powerSensorId && node.sourcePowerHistory && node.sourcePowerHistory.length > 0) {
-                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
-                const powerVal = node.powerValue || 0;
-                if (powerVal > 0) {
-                    for (const src of this._sourceNodes) {
-                        if (!src.ratioSensorId) continue;
-                        const ratio = parseFloat(this._hass!.states[src.ratioSensorId]?.state ?? '0') / 100;
-                        if (ratio > 0) bucket[src.id] = { power: powerVal * ratio, color: src.color || 'grey' };
-                    }
-                }
-                node.sourcePowerHistory[node.sourcePowerHistory.length - 1] = bucket;
-            }
-        }
-    }
 }
 
 // Register the custom card in Home Assistant

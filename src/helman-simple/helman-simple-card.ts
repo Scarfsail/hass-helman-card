@@ -5,6 +5,7 @@ import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
 import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, applyValueType } from "../helman-api";
+import { HistoryEngine } from "../helman/history-engine";
 import { DeviceNode } from "../helman/DeviceNode";
 import { hydrateNode } from "../helman/device-node-hydrator";
 import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
@@ -158,7 +159,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _batteryConsumerNode: DeviceNode | null = null;
     private _gridConsumerNode:   DeviceNode | null = null;
     private _houseNode:          DeviceNode | null = null;
-    private _historyInterval?: number;
+    private _productionNode:     DeviceNode | null = null;
+    private _consumptionNode:    DeviceNode | null = null;
+    private _historyEngine?: HistoryEngine;
     private _uiConfig?: HelmanUiConfig;
 
     // 5. State properties
@@ -194,7 +197,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
-        clearInterval(this._historyInterval);
+        this._historyEngine?.stop();
     }
 
     // 10. Render method
@@ -339,7 +342,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     }
 
     private async _loadFromBackend(): Promise<void> {
-        clearInterval(this._historyInterval);
+        this._historyEngine?.stop();
         try {
             const payload = await this._hass!.connection.sendMessagePromise<TreePayload>({
                 type: "helman/get_device_tree",
@@ -367,16 +370,30 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 this._houseDevices = this._houseNode.children;
             }
 
+            this._productionNode  = payload.productionTotalSensorId
+                ? new DeviceNode('production-total', '', payload.productionTotalSensorId, null, histBuckets)
+                : null;
+            if (this._productionNode) this._productionNode.isSource = true;
+            this._consumptionNode = payload.consumptionTotalSensorId
+                ? new DeviceNode('consumption-total', '', payload.consumptionTotalSensorId, null, histBuckets)
+                : null;
+            if (this._consumptionNode) this._consumptionNode.isSource = true;
+
             const history = await this._hass!.connection.sendMessagePromise<HistoryPayload>({
                 type: 'helman/get_history',
             });
-            this._applyHistory(history);
-
-            this._historyInterval = window.setInterval(
-                this._advanceBuckets.bind(this),
-                (this._uiConfig.history_bucket_duration ?? 1) * 1000
+            this._historyEngine = new HistoryEngine(
+                () => this._hass,
+                histBuckets,
+                () => this.requestUpdate(),
             );
-            this._advanceBuckets();
+            this._historyEngine.applyHistory(history, HistoryEngine.walkTree(this._topLevelNodes()), this._sourceNodes);
+            this._historyEngine.start(
+                this._uiConfig.history_bucket_duration,
+                () => this._topLevelNodes(),
+                () => this._sourceNodes,
+            );
+            this._historyEngine.advanceBuckets(this._topLevelNodes(), this._sourceNodes);
         } catch (err) {
             console.error("helman-simple-card: failed to load backend data", err);
         } finally {
@@ -456,6 +473,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     remainingEnergyEntityId: cfg.remaining_energy ?? null,
                     batteryProducerNode: this._batteryProducerNode,
                     batteryConsumerNode: this._batteryConsumerNode,
+                    productionNode: this._productionNode,
+                    consumptionNode: this._consumptionNode,
                     historyBuckets,
                     historyBucketDuration,
                 };
@@ -469,6 +488,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     todayEnergyEntityId: cfg.today_energy ?? null,
                     forecastEntityId: cfg.remaining_today_energy_forecast ?? null,
                     solarNode: this._solarNode,
+                    productionNode: this._productionNode,
                     historyBuckets,
                     historyBucketDuration,
                 };
@@ -483,6 +503,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     todayExportEntityId: cfg.today_export ?? null,
                     gridProducerNode: this._gridProducerNode,
                     gridConsumerNode: this._gridConsumerNode,
+                    productionNode: this._productionNode,
+                    consumptionNode: this._consumptionNode,
                     historyBuckets,
                     historyBucketDuration,
                 };
@@ -494,6 +516,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     powerEntityId: em.housePowerEntityId,
                     devices: this._houseDevices,
                     parentPowerHistory: this._houseNode?.powerHistory,
+                    consumptionNode: this._consumptionNode,
                     historyBuckets,
                     historyBucketDuration,
                     uiConfig: this._uiConfig,
@@ -602,97 +625,15 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             .filter((n): n is DeviceNode => n !== null);
     }
 
-    private _walkTree(nodes: DeviceNode[]): DeviceNode[] {
-        const result: DeviceNode[] = [];
-        const walk = (list: DeviceNode[]) => {
-            for (const node of list) {
-                result.push(node);
-                walk(node.children);
-            }
-        };
-        walk(nodes);
-        return result;
-    }
-
-    private _applyHistory(history: HistoryPayload): void {
-        const { entity_history, buckets } = history;
-        const houseNodes = this._houseNode ? this._walkTree([this._houseNode]) : [];
-        const consumerNodes = [this._batteryConsumerNode, this._gridConsumerNode]
-            .filter((n): n is DeviceNode => n !== null);
-        for (const node of [...this._sourceNodes, ...houseNodes, ...consumerNodes]) {
-            if (!node.powerSensorId) continue;
-            const rawHistory = entity_history[node.powerSensorId];
-            if (rawHistory) {
-                let h = [...rawHistory];
-                if (node.valueType === 'positive') h = h.map(v => Math.max(0, v));
-                else if (node.valueType === 'negative') h = h.map(v => Math.abs(Math.min(0, v)));
-                node.powerHistory = h;
-                node.historyBuckets = buckets;
-            }
-            if (node.isSource) continue;
-            node.sourcePowerHistory = [];
-            if (!rawHistory) continue;
-            for (let i = 0; i < buckets; i++) {
-                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
-                const consumerPower = node.powerHistory[i] ?? 0;
-                for (const src of this._sourceNodes) {
-                    if (!src.ratioSensorId) continue;
-                    const ratioHistory = entity_history[src.ratioSensorId];
-                    const ratio = (ratioHistory?.[i] ?? 0) / 100;
-                    if (ratio > 0 && consumerPower > 0) {
-                        bucket[src.id] = { power: consumerPower * ratio, color: src.color || 'grey' };
-                    }
-                }
-                node.sourcePowerHistory.push(bucket);
-            }
-        }
-    }
-
-    private _advanceBuckets(): void {
-        if (!this._hass) return;
-        const nodes: DeviceNode[] = [...this._sourceNodes];
-        if (this._houseNode) nodes.push(this._houseNode);
-        if (this._batteryConsumerNode) nodes.push(this._batteryConsumerNode);
-        if (this._gridConsumerNode) nodes.push(this._gridConsumerNode);
-        if (nodes.length === 0) return;
-        this._advanceTree(nodes);
-        this.requestUpdate();
-    }
-
-    private _advanceTree(nodes: DeviceNode[]): void {
-        const maxBuckets = this._uiConfig?.history_buckets ?? 60;
-        for (const node of nodes) {
-            if (node.powerHistory.length > 0) {
-                node.powerHistory.push(node.powerHistory[node.powerHistory.length - 1]);
-                if (node.sourcePowerHistory) {
-                    node.sourcePowerHistory.push(node.sourcePowerHistory[node.sourcePowerHistory.length - 1]);
-                }
-            }
-            if (node.powerHistory.length > maxBuckets) {
-                node.powerHistory.shift();
-                node.sourcePowerHistory?.shift();
-            }
-            if (node.powerSensorId) {
-                const rawPower = parseFloat(this._hass!.states[node.powerSensorId]?.state ?? '0') || 0;
-                const power = applyValueType(rawPower, node.valueType);
-                if (node.powerHistory.length === 0) node.powerHistory.push(0);
-                node.powerHistory[node.powerHistory.length - 1] = power;
-                node.powerValue = power;
-            }
-            this._advanceTree(node.children);
-            if (!node.isSource && node.powerSensorId && node.sourcePowerHistory && node.sourcePowerHistory.length > 0) {
-                const bucket: { [sourceId: string]: { power: number; color: string } } = {};
-                const powerVal = node.powerValue || 0;
-                if (powerVal > 0) {
-                    for (const src of this._sourceNodes) {
-                        if (!src.ratioSensorId) continue;
-                        const ratio = parseFloat(this._hass!.states[src.ratioSensorId]?.state ?? '0') / 100;
-                        if (ratio > 0) bucket[src.id] = { power: powerVal * ratio, color: src.color || 'grey' };
-                    }
-                }
-                node.sourcePowerHistory[node.sourcePowerHistory.length - 1] = bucket;
-            }
-        }
+    private _topLevelNodes(): DeviceNode[] {
+        return [
+            ...this._sourceNodes,
+            this._houseNode,
+            this._batteryConsumerNode,
+            this._gridConsumerNode,
+            this._productionNode,
+            this._consumptionNode,
+        ].filter((n): n is DeviceNode => n !== null);
     }
 }
 

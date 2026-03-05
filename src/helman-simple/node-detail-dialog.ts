@@ -25,6 +25,8 @@ export interface BatteryDetailParams {
     remainingEnergyEntityId: string | null;
     batteryProducerNode: DeviceNode | null;
     batteryConsumerNode: DeviceNode | null;
+    productionNode?: DeviceNode | null;
+    consumptionNode?: DeviceNode | null;
     historyBuckets: number;
     historyBucketDuration: number;
 }
@@ -36,6 +38,7 @@ export interface SolarDetailParams {
     todayEnergyEntityId: string | null;
     forecastEntityId: string | null;
     solarNode: DeviceNode | null;
+    productionNode?: DeviceNode | null;
     historyBuckets: number;
     historyBucketDuration: number;
 }
@@ -48,6 +51,8 @@ export interface GridDetailParams {
     todayExportEntityId: string | null;
     gridProducerNode: DeviceNode | null;
     gridConsumerNode: DeviceNode | null;
+    productionNode?: DeviceNode | null;
+    consumptionNode?: DeviceNode | null;
     historyBuckets: number;
     historyBucketDuration: number;
 }
@@ -58,6 +63,7 @@ export interface HouseDetailParams {
     powerEntityId: string | null;
     devices: DeviceNode[];
     parentPowerHistory?: number[];
+    consumptionNode?: DeviceNode | null;
     historyBuckets: number;
     historyBucketDuration: number;
     uiConfig?: HelmanUiConfig;
@@ -192,6 +198,8 @@ export class NodeDetailDialog extends LitElement {
                             <power-device
                                 .hass=${this.hass}
                                 .device=${p.batteryProducerNode}
+                                .currentParentPower=${p.productionNode?.powerValue}
+                                .parentPowerHistory=${p.productionNode?.powerHistory}
                                 .historyBuckets=${p.historyBuckets}
                                 .historyBucketDuration=${p.historyBucketDuration}
                             ></power-device>
@@ -203,6 +211,8 @@ export class NodeDetailDialog extends LitElement {
                             <power-device
                                 .hass=${this.hass}
                                 .device=${p.batteryConsumerNode}
+                                .currentParentPower=${p.consumptionNode?.powerValue}
+                                .parentPowerHistory=${p.consumptionNode?.powerHistory}
                                 .historyBuckets=${p.historyBuckets}
                                 .historyBucketDuration=${p.historyBucketDuration}
                             ></power-device>
@@ -235,6 +245,8 @@ export class NodeDetailDialog extends LitElement {
                     <power-device
                         .hass=${this.hass}
                         .device=${p.solarNode}
+                        .currentParentPower=${p.productionNode?.powerValue}
+                        .parentPowerHistory=${p.productionNode?.powerHistory}
                         .historyBuckets=${p.historyBuckets}
                         .historyBucketDuration=${p.historyBucketDuration}
                     ></power-device>
@@ -258,6 +270,8 @@ export class NodeDetailDialog extends LitElement {
                             <power-device
                                 .hass=${this.hass}
                                 .device=${p.gridProducerNode}
+                                .currentParentPower=${p.productionNode?.powerValue}
+                                .parentPowerHistory=${p.productionNode?.powerHistory}
                                 .historyBuckets=${p.historyBuckets}
                                 .historyBucketDuration=${p.historyBucketDuration}
                             ></power-device>
@@ -269,6 +283,8 @@ export class NodeDetailDialog extends LitElement {
                             <power-device
                                 .hass=${this.hass}
                                 .device=${p.gridConsumerNode}
+                                .currentParentPower=${p.consumptionNode?.powerValue}
+                                .parentPowerHistory=${p.consumptionNode?.powerHistory}
                                 .historyBuckets=${p.historyBuckets}
                                 .historyBucketDuration=${p.historyBucketDuration}
                             ></power-device>
@@ -287,6 +303,8 @@ export class NodeDetailDialog extends LitElement {
                     <power-device
                         .hass=${this.hass}
                         .device=${p.houseNode}
+                        .currentParentPower=${p.consumptionNode?.powerValue}
+                        .parentPowerHistory=${p.consumptionNode?.powerHistory}
                         .historyBuckets=${p.historyBuckets}
                         .historyBucketDuration=${p.historyBucketDuration}
                     ></power-device>
