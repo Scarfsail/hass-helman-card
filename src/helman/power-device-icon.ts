@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
 import { sharedStyles } from "./shared-styles";
-import { computeSourceColor } from "../color-utils";
+import { computeDominantSourceColor } from "../color-utils";
 import "../helman-simple/simple-card-solar";
 import "../helman-simple/simple-card-battery";
 import "../helman-simple/simple-card-grid";
@@ -104,7 +104,7 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'grid') {
             // isSource=true → importing (positive); isSource=false → exporting (negative)
             const signedPower = device.isSource ? power : -power;
-            const sourceColor = device.isSource ? undefined : computeSourceColor(this.device);
+            const sourceColor = device.isSource ? undefined : computeDominantSourceColor(this.device);
             return html`
                 <div class="node-icon" @click=${this._fireToggleChildren}>
                     <simple-card-grid
@@ -119,7 +119,7 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'battery') {
             // isSource=true → discharging (negative in simple-card convention); isSource=false → charging (positive)
             const signedPower = device.isSource ? -power : power;
-            const sourceColor = device.isSource ? undefined : computeSourceColor(this.device);
+            const sourceColor = device.isSource ? undefined : computeDominantSourceColor(this.device);
             const battConfig = device.deviceConfig as BatteryDeviceConfig;
             const soc = battConfig?.entities?.capacity
                 ? parseFloat(this.hass.states[battConfig.entities.capacity]?.state ?? '0') || 0
@@ -144,7 +144,7 @@ export class PowerDeviceIcon extends LitElement {
         }
 
         if (device.sourceType === 'house') {
-            const sourceColor = computeSourceColor(this.device);
+            const sourceColor = computeDominantSourceColor(this.device);
             return html`
                 <div class="node-icon" @click=${this._fireToggleChildren}>
                     <simple-card-house

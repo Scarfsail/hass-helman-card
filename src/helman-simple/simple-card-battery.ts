@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { formatPower } from "../power-format";
+import { BATT_COLOR } from "../color-utils";
 
 const BODY_TOP = 10;
 const BODY_HEIGHT = 70;
@@ -36,13 +37,9 @@ export class SimpleCardBattery extends LitElement {
             stroke-width: 2.5;
             transition: stroke 0.6s;
         }
-        .battery-body.active-charge {
-            stroke: #22c55e;
-            animation: cover-charge-pulse 1.8s ease-in-out infinite;
-        }
-        .battery-body.active-discharge {
-            stroke: #22c55e;
-            animation: cover-discharge-pulse 1.8s ease-in-out infinite;
+        .battery-body.active {
+            stroke: var(--pulse-color, #22c55e);
+            animation: cover-pulse 1.8s ease-in-out infinite;
         }
         .battery-body.low {
             stroke: #ef4444;
@@ -52,14 +49,9 @@ export class SimpleCardBattery extends LitElement {
             stroke: #f97316;
             animation: cover-orange-pulse 1.2s ease-in-out infinite;
         }
-        /* --cover-color is set inline when sourceColor is provided */
-        @keyframes cover-charge-pulse {
-            0%, 100% { filter: drop-shadow(0 0 3px var(--cover-color, #22c55e)); }
-            50%       { filter: drop-shadow(0 0 10px var(--cover-color, #22c55e)) drop-shadow(0 0 18px var(--cover-color, #22c55e88)); }
-        }
-        @keyframes cover-discharge-pulse {
-            0%, 100% { filter: drop-shadow(0 0 3px #22c55e); }
-            50%       { filter: drop-shadow(0 0 10px #22c55e) drop-shadow(0 0 18px #22c55e88); }
+        @keyframes cover-pulse {
+            0%, 100% { filter: drop-shadow(0 0 3px var(--pulse-color, #22c55e)); }
+            50%       { filter: drop-shadow(0 0 10px var(--pulse-color, #22c55e)) drop-shadow(0 0 18px var(--pulse-color-soft, #22c55e88)); }
         }
         @keyframes cover-low-pulse {
             0%, 100% { filter: drop-shadow(0 0 3px #ef4444); }
@@ -74,12 +66,8 @@ export class SimpleCardBattery extends LitElement {
             fill: #6b7280;
             transition: fill 0.6s;
         }
-        .battery-terminal.active-charge {
-            fill: #22c55e;
-            animation: terminal-pulse 1.8s ease-in-out infinite;
-        }
-        .battery-terminal.active-discharge {
-            fill: #22c55e;
+        .battery-terminal.active {
+            fill: var(--pulse-color, #22c55e);
             animation: terminal-pulse 1.8s ease-in-out infinite;
         }
         .battery-terminal.low {
@@ -160,11 +148,14 @@ export class SimpleCardBattery extends LitElement {
         const fillY = BODY_TOP + BODY_HEIGHT - fillHeight;
 
         // Cover: charge/discharge state takes priority; SoC warning only when idle
-        const coverClass = isCharging ? 'active-charge'
-            : isDischarging ? 'active-discharge'
+        const coverClass = (isCharging || isDischarging) ? 'active'
             : socClamped < this.minSoc ? 'low'
             : socClamped < this.minSoc + 10 ? 'low-orange'
             : '';
+
+        // Glow color: charging uses sourceColor (e.g. solar yellow), discharging uses BATT_COLOR green
+        const pulseColor = isCharging ? (this.sourceColor ?? BATT_COLOR) : isDischarging ? BATT_COLOR : null;
+        const pulseColorSoft = pulseColor ? `${pulseColor}88` : null;
 
         // Fill bar: dark gray when idle at normal SoC; SoC color when low or active
         const fillColorClass = socClamped < this.minSoc ? 'fill-red' : socClamped < this.minSoc + 10 ? 'fill-orange' : 'fill-green';
@@ -184,20 +175,18 @@ export class SimpleCardBattery extends LitElement {
 
         const svgSize = this.compact ? 40 : 50;
         return html`
-            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}${pulseColor ? `--pulse-color: ${pulseColor}; --pulse-color-soft: ${pulseColorSoft};` : ''}">
                 <svg viewBox="-10 -15 77 112"
                      width="${svgSize}" height="${svgSize}"
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
                     <rect class="battery-terminal ${coverClass}"
-                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"
-                        style="${isCharging && this.sourceColor ? `fill: ${this.sourceColor}` : ''}"/>
+                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"/>
 
                     <!-- Battery body outline -->
                     <rect class="battery-body ${coverClass}"
                         x="${BODY_X}" y="${BODY_TOP}"
-                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"
-                        style="${isCharging && this.sourceColor ? `stroke: ${this.sourceColor}; --cover-color: ${this.sourceColor}` : ''}"/>
+                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"/>
 
                     <!-- Fill level -->
                     <clipPath id="${this._clipId}">
@@ -218,7 +207,7 @@ export class SimpleCardBattery extends LitElement {
                 </svg>
             </div>
             ${this.compact ? '' : html`
-            <div class="power-label ${powerClass}">
+            <div class="power-label ${powerClass}" style="${isCharging && this.sourceColor ? `color: ${this.sourceColor};` : ''}">
                 ${isCharging ? html`↑ ${value} <span class="unit">${unit}</span>`
                     : isDischarging ? html`↓ ${value} <span class="unit">${unit}</span>`
                     : html`${value} <span class="unit">${unit}</span>`}

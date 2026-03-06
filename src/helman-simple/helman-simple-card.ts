@@ -15,7 +15,7 @@ import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
-import { SOLAR_COLOR, GRID_COLOR, BATT_COLOR, computeSourceColor } from '../color-utils';
+import { SOLAR_COLOR, GRID_COLOR, BATT_COLOR, computeDominantSourceColor } from '../color-utils';
 
 // ──────────────────────────────── Internal model ──────────────────────────────
 
@@ -267,9 +267,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battToGridT   = thick(battToGridI);
 
         // ── Source colors for consumer components ──────────────────────────────
-        const battSourceColor  = this._batteryConsumerNode ? computeSourceColor(this._batteryConsumerNode) : undefined;
-        const gridSourceColor  = this._gridConsumerNode    ? computeSourceColor(this._gridConsumerNode)    : undefined;
-        const houseSourceColor = this._houseNode           ? computeSourceColor(this._houseNode)           : undefined;
+        const battSourceColor  = this._batteryConsumerNode ? computeDominantSourceColor(this._batteryConsumerNode) : undefined;
+        const gridSourceColor  = this._gridConsumerNode    ? computeDominantSourceColor(this._gridConsumerNode)    : undefined;
+        const houseSourceColor = this._houseNode           ? computeDominantSourceColor(this._houseNode)           : undefined;
 
         const gridStyle = this._buildGridStyle();
 

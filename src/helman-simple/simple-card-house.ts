@@ -20,7 +20,7 @@ export class SimpleCardHouse extends LitElement {
             align-items: center;
             justify-content: center;
         }
-        svg { overflow: hidden; }
+        svg { overflow: visible; }
 
         .house-body {
             fill: #374151;
@@ -29,9 +29,13 @@ export class SimpleCardHouse extends LitElement {
             transition: fill 0.6s, stroke 0.6s;
         }
         .house-body.active {
-            fill: #4b5563;
+            fill: #9ca3af;
             stroke: #fde68a;
-            filter: drop-shadow(0 0 8px #fde68a44);
+            animation: house-glow 2.4s ease-in-out infinite;
+        }
+        @keyframes house-glow {
+            0%, 100% { filter: drop-shadow(0 0 4px #fde68a44); }
+            50%       { filter: drop-shadow(0 0 14px #fde68a99) drop-shadow(0 0 24px #fde68a44); }
         }
         .roof {
             fill: #4b5563;
@@ -41,7 +45,7 @@ export class SimpleCardHouse extends LitElement {
             transition: fill 0.6s, stroke 0.6s;
         }
         .roof.active {
-            fill: #6b7280;
+            fill: #d1d5db;
             stroke: #fde68a;
         }
         .door {
@@ -81,7 +85,7 @@ export class SimpleCardHouse extends LitElement {
             text-align: center;
             line-height: 1.3;
         }
-        .power-label.active { color: #fde68a; }
+        .power-label.active { color: #d1d5db; }
         .unit { font-size: 0.7em; font-weight: 400; opacity: 0.8; }
     `;
 
@@ -107,8 +111,7 @@ export class SimpleCardHouse extends LitElement {
                 </svg>
             </div>
             ${this.compact ? '' : html`
-            <div class="power-label ${active ? 'active' : ''}"
-                 style="${borderColor ? `color: ${borderColor}` : ''}">
+            <div class="power-label ${active ? 'active' : ''}">
                 ${value} <span class="unit">${unit}</span>
             </div>`}
         `;

@@ -12,6 +12,16 @@ export function canonicalSourceColor(sourceType: string | null | undefined, fall
     }
 }
 
+/** Compute the color of the dominant (highest-power) source from the latest history bucket. No blending. */
+export function computeDominantSourceColor(node: { sourcePowerHistory?: { [sourceId: string]: { power: number; color: string } }[] }): string | undefined {
+    const history = node.sourcePowerHistory;
+    if (!history?.length) return undefined;
+    const lastBucket = history[history.length - 1];
+    const entries = Object.values(lastBucket).filter(e => e.power > 0);
+    if (entries.length === 0) return undefined;
+    return entries.reduce((max, e) => e.power > max.power ? e : max).color;
+}
+
 /** Compute a blended sourceColor from the latest history bucket of a consumer node. */
 export function computeSourceColor(node: { sourcePowerHistory?: { [sourceId: string]: { power: number; color: string } }[] }): string | undefined {
     const history = node.sourcePowerHistory;
