@@ -38,7 +38,6 @@ export class SimpleCardBattery extends LitElement {
             transition: stroke 0.6s;
         }
         .battery-body.active {
-            stroke: var(--pulse-color, #22c55e);
             animation: cover-pulse 1.8s ease-in-out infinite;
         }
         .battery-body.low {
@@ -67,7 +66,6 @@ export class SimpleCardBattery extends LitElement {
             transition: fill 0.6s;
         }
         .battery-terminal.active {
-            fill: var(--pulse-color, #22c55e);
             animation: terminal-pulse 1.8s ease-in-out infinite;
         }
         .battery-terminal.low {
@@ -175,18 +173,20 @@ export class SimpleCardBattery extends LitElement {
 
         const svgSize = this.compact ? 40 : 50;
         return html`
-            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}${pulseColor ? `--pulse-color: ${pulseColor}; --pulse-color-soft: ${pulseColorSoft};` : ''}">
+            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
                 <svg viewBox="-10 -15 77 112"
                      width="${svgSize}" height="${svgSize}"
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
                     <rect class="battery-terminal ${coverClass}"
-                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"/>
+                        x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"
+                        style="${pulseColor ? `fill: ${pulseColor};` : ''}"/>
 
                     <!-- Battery body outline -->
                     <rect class="battery-body ${coverClass}"
                         x="${BODY_X}" y="${BODY_TOP}"
-                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"/>
+                        width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"
+                        style="${pulseColor ? `stroke: ${pulseColor}; --pulse-color: ${pulseColor}; --pulse-color-soft: ${pulseColorSoft};` : ''}"/>
 
                     <!-- Fill level -->
                     <clipPath id="${this._clipId}">
@@ -207,7 +207,7 @@ export class SimpleCardBattery extends LitElement {
                 </svg>
             </div>
             ${this.compact ? '' : html`
-            <div class="power-label ${powerClass}" style="${isCharging && this.sourceColor ? `color: ${this.sourceColor};` : ''}">
+            <div class="power-label ${powerClass}">
                 ${isCharging ? html`↑ ${value} <span class="unit">${unit}</span>`
                     : isDischarging ? html`↓ ${value} <span class="unit">${unit}</span>`
                     : html`${value} <span class="unit">${unit}</span>`}

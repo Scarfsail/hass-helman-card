@@ -267,7 +267,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battToGridT   = thick(battToGridI);
 
         // ── Source colors for consumer components ──────────────────────────────
-        const battSourceColor  = this._batteryConsumerNode ? computeDominantSourceColor(this._batteryConsumerNode) : undefined;
+        // Battery charge color: derived from live power flows to avoid backend color discrepancies
+        const battSourceColor  = battCharge
+            ? (solarToBattPower >= gridToBattPower ? SOLAR_COLOR : GRID_COLOR)
+            : undefined;
         const gridSourceColor  = this._gridConsumerNode    ? computeDominantSourceColor(this._gridConsumerNode)    : undefined;
         const houseSourceColor = this._houseNode           ? computeDominantSourceColor(this._houseNode)           : undefined;
 
