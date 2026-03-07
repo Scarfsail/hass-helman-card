@@ -266,19 +266,6 @@ export class NodeDetailDialog extends LitElement {
         return html`
             ${p.gridProducerNode || p.gridConsumerNode ? html`
                 <div class="power-devices-dual">
-                    ${p.gridProducerNode ? html`
-                        <div class="power-device-section">
-                            <div class="section-title">${this.localize('node_detail.grid.section_producer')}</div>
-                            <power-device
-                                .hass=${this.hass}
-                                .device=${p.gridProducerNode}
-                                .currentParentPower=${p.productionNode?.powerValue}
-                                .parentPowerHistory=${p.productionNode?.powerHistory}
-                                .historyBuckets=${p.historyBuckets}
-                                .historyBucketDuration=${p.historyBucketDuration}
-                            ></power-device>
-                        </div>
-                    ` : nothing}
                     ${p.gridConsumerNode ? html`
                         <div class="power-device-section">
                             <div class="section-title">${this.localize('node_detail.grid.section_consumer')}</div>
@@ -292,6 +279,19 @@ export class NodeDetailDialog extends LitElement {
                             ></power-device>
                         </div>
                     ` : nothing}
+                    ${p.gridProducerNode ? html`
+                        <div class="power-device-section">
+                            <div class="section-title">${this.localize('node_detail.grid.section_producer')}</div>
+                            <power-device
+                                .hass=${this.hass}
+                                .device=${p.gridProducerNode}
+                                .currentParentPower=${p.productionNode?.powerValue}
+                                .parentPowerHistory=${p.productionNode?.powerHistory}
+                                .historyBuckets=${p.historyBuckets}
+                                .historyBucketDuration=${p.historyBucketDuration}
+                            ></power-device>
+                        </div>
+                    ` : nothing}                    
                 </div>
             ` : nothing}
 

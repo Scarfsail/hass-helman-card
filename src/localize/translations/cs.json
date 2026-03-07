@@ -36,8 +36,8 @@
       "power":            "Výkon",
       "today_import":     "Dnes odebráno",
       "today_export":     "Dnes dodáno",
-      "section_producer": "Export",
-      "section_consumer": "Import"
+      "section_producer": "Import",
+      "section_consumer": "Export"
     },
     "house": {
       "power": "Výkon"
