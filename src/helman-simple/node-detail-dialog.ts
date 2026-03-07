@@ -150,11 +150,13 @@ export class NodeDetailDialog extends LitElement {
     // 10. Render method
     render() {
         if (!this.open || !this.params) return nothing;
+        const title = this._title();
         return html`
             <ha-dialog
                 .open=${this.open}
                 @closed=${this._onClosed}
-                .heading=${this._title()}
+                .heading=${title}
+                .headerTitle=${title}
             >
                 <div class="content">
                     ${this._renderContent()}
