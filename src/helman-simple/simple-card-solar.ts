@@ -1,11 +1,12 @@
 import { LitElement, css, html, svg } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { formatPower } from "../power-format";
+import { simpleCardSharedStyles } from "./simple-card-shared-styles";
 
 @customElement("simple-card-solar")
 export class SimpleCardSolar extends LitElement {
     // Static styles
-    static styles = css`
+    static styles = [simpleCardSharedStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -33,39 +34,26 @@ export class SimpleCardSolar extends LitElement {
             to { transform: rotate(360deg); }
         }
         .core {
-            fill: #9ca3af;
+            fill: var(--simple-card-surface-light);
             transition: fill 0.6s, filter 0.6s;
         }
         .core.active {
-            fill: #facc15;
-            filter: drop-shadow(0 0 10px #fde047) drop-shadow(0 0 20px #facc1599);
+            fill: var(--simple-card-source-solar);
+            filter: drop-shadow(0 0 10px var(--simple-card-solar-glow-color)) drop-shadow(0 0 20px var(--simple-card-source-solar-99));
         }
         .ray {
-            fill: #6b7280;
+            fill: var(--simple-card-neutral-stroke);
             opacity: 0.6;
             transition: fill 0.6s;
         }
         .ray.active {
-            fill: #fef08a;
+            fill: var(--simple-card-warm-soft-color);
             opacity: 0.9;
         }
-        .power-label {
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: #6b7280;
-            min-height: 1.1em;
-            text-align: center;
-            line-height: 1.3;
-        }
         .power-label.active {
-            color: #facc15;
+            color: var(--simple-card-source-solar);
         }
-        .unit {
-            font-size: 0.7em;
-            font-weight: 400;
-            opacity: 0.8;
-        }
-    `;
+    `];
 
     // Public properties
     @property({ type: Number }) public power = 0;

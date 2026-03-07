@@ -1,11 +1,13 @@
 import { LitElement, css, html, svg } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { formatPower } from "../power-format";
+import { getGridInternalFlowColors } from "./flow-colors";
+import { simpleCardSharedStyles } from "./simple-card-shared-styles";
 
 @customElement("simple-card-grid")
 export class SimpleCardGrid extends LitElement {
     // Static styles
-    static styles = css`
+    static styles = [simpleCardSharedStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -22,14 +24,14 @@ export class SimpleCardGrid extends LitElement {
         }
         svg { overflow: hidden; }
 
-        .pole { fill: #6b7280; transition: fill 0.6s; }
-        .pole.import, .pole.export { fill: #38bdf8; filter: drop-shadow(0 0 6px #38bdf899); }
+        .pole { fill: var(--simple-card-neutral-stroke); transition: fill 0.6s; }
+        .pole.import, .pole.export { fill: var(--simple-card-source-grid); filter: drop-shadow(0 0 6px var(--simple-card-source-grid-99)); }
 
-        .wire { stroke: #4b5563; stroke-width: 1.5; fill: none; transition: stroke 0.6s; }
+        .wire { stroke: var(--simple-card-neutral-stroke-soft); stroke-width: 1.5; fill: none; transition: stroke 0.6s; }
         /* wire color when active is set dynamically via sourceColor prop */
 
         .dot-import {
-            fill: #7dd3fc;
+            fill: var(--simple-card-grid-accent);
             animation: flow-in 1.6s linear infinite;
         }
         /* export dot color is set dynamically via sourceColor prop */
@@ -52,17 +54,8 @@ export class SimpleCardGrid extends LitElement {
             100% { offset-distance: 0%;   opacity: 0; }
         }
 
-        .power-label {
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: #6b7280;
-            min-height: 1.1em;
-            text-align: center;
-            line-height: 1.3;
-        }
-        .power-label.import, .power-label.export { color: #38bdf8; }
-        .unit { font-size: 0.7em; font-weight: 400; opacity: 0.8; }
-    `;
+        .power-label.import, .power-label.export { color: var(--simple-card-source-grid); }
+    `];
 
     // Private properties
     private readonly _uid = Math.random().toString(36).slice(2);
@@ -86,15 +79,16 @@ export class SimpleCardGrid extends LitElement {
         const stateClass = importing ? 'import' : exporting ? 'export' : '';
         const absPower = Math.abs(this.power);
         const { value, unit } = formatPower(absPower);
-        // When importing: wires are grid blue; when exporting: wires are sourceColor
-        const wireColor = importing ? '#38bdf8' : (exporting && this.sourceColor) ? this.sourceColor : undefined;
+        const flowColors = getGridInternalFlowColors(importing, this.sourceColor);
+        const wireColor = isActive ? flowColors.base : undefined;
+        const wireGlow = isActive ? flowColors.glow : undefined;
         const svgSize = this.compact ? 40 : 50;
 
         return html`
             <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
                 <svg viewBox="-15 -8 110 110" width="${svgSize}" height="${svgSize}" xmlns="http://www.w3.org/2000/svg">
-                    ${this._renderPylon(stateClass, wireColor)}
-                    ${isActive ? this._renderFlowDots(importing, wireColor) : ''}
+                    ${this._renderPylon(stateClass, wireColor, wireGlow)}
+                    ${isActive ? this._renderFlowDots(importing, flowColors.accent) : ''}
                 </svg>
             </div>
             ${this.compact ? '' : html`
@@ -105,8 +99,8 @@ export class SimpleCardGrid extends LitElement {
     }
 
     // Private helper methods
-    private _renderPylon(stateClass: string, wireColor?: string) {
-        const wireStyle = wireColor ? `stroke: ${wireColor}; filter: drop-shadow(0 0 4px ${wireColor}99)` : '';
+    private _renderPylon(stateClass: string, wireColor?: string, wireGlow?: string) {
+        const wireStyle = wireColor && wireGlow ? `stroke: ${wireColor}; filter: drop-shadow(0 0 4px ${wireGlow})` : '';
         return svg`
             <!-- Base -->
             <rect class="pole ${stateClass}" x="32" y="68" width="16" height="9" rx="2"/>
@@ -128,9 +122,9 @@ export class SimpleCardGrid extends LitElement {
         `;
     }
 
-    private _renderFlowDots(importing: boolean, wireColor?: string) {
+    private _renderFlowDots(importing: boolean, dotColor: string) {
         const dotClass = importing ? 'dot-import' : 'dot-export';
-        const dotStyle = (!importing && wireColor) ? `fill: ${wireColor}` : '';
+        const dotStyle = importing ? '' : `fill: ${dotColor}`;
         return svg`
             <circle class="dot ${dotClass}" style="${dotStyle}" r="3">
                 <animateMotion dur="1.6s" repeatCount="indefinite" begin="0s"

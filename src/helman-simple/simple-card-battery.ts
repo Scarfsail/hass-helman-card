@@ -1,7 +1,8 @@
 import { LitElement, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { formatPower } from "../power-format";
-import { BATT_COLOR } from "../color-utils";
+import { BATT_COLOR, withAlpha } from "../color-utils";
+import { simpleCardSharedStyles } from "./simple-card-shared-styles";
 
 const BODY_TOP = 10;
 const BODY_HEIGHT = 70;
@@ -12,7 +13,7 @@ const INNER_PAD = 3;
 @customElement("simple-card-battery")
 export class SimpleCardBattery extends LitElement {
     // Static styles
-    static styles = css`
+    static styles = [simpleCardSharedStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -33,7 +34,7 @@ export class SimpleCardBattery extends LitElement {
         }
         .battery-body {
             fill: none;
-            stroke: #6b7280;
+            stroke: var(--simple-card-neutral-stroke);
             stroke-width: 2.5;
             transition: stroke 0.6s;
         }
@@ -41,39 +42,39 @@ export class SimpleCardBattery extends LitElement {
             animation: cover-pulse 1.8s ease-in-out infinite;
         }
         .battery-body.low {
-            stroke: #ef4444;
+            stroke: var(--simple-card-danger-color);
             animation: cover-low-pulse 1.2s ease-in-out infinite;
         }
         .battery-body.low-orange {
-            stroke: #f97316;
+            stroke: var(--simple-card-warning-color);
             animation: cover-orange-pulse 1.2s ease-in-out infinite;
         }
         @keyframes cover-pulse {
-            0%, 100% { filter: drop-shadow(0 0 3px var(--pulse-color, #22c55e)); }
-            50%       { filter: drop-shadow(0 0 10px var(--pulse-color, #22c55e)) drop-shadow(0 0 18px var(--pulse-color-soft, #22c55e88)); }
+            0%, 100% { filter: drop-shadow(0 0 3px var(--pulse-color, var(--simple-card-source-battery))); }
+            50%       { filter: drop-shadow(0 0 10px var(--pulse-color, var(--simple-card-source-battery))) drop-shadow(0 0 18px var(--pulse-color-soft, var(--simple-card-source-battery-88))); }
         }
         @keyframes cover-low-pulse {
-            0%, 100% { filter: drop-shadow(0 0 3px #ef4444); }
-            50%       { filter: drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488); }
+            0%, 100% { filter: drop-shadow(0 0 3px var(--simple-card-danger-color)); }
+            50%       { filter: drop-shadow(0 0 10px var(--simple-card-danger-color)) drop-shadow(0 0 18px var(--simple-card-danger-color-88)); }
         }
         @keyframes cover-orange-pulse {
-            0%, 100% { filter: drop-shadow(0 0 3px #f97316); }
-            50%       { filter: drop-shadow(0 0 10px #f97316) drop-shadow(0 0 18px #f9731688); }
+            0%, 100% { filter: drop-shadow(0 0 3px var(--simple-card-warning-color)); }
+            50%       { filter: drop-shadow(0 0 10px var(--simple-card-warning-color)) drop-shadow(0 0 18px var(--simple-card-warning-color-88)); }
         }
 
         .battery-terminal {
-            fill: #6b7280;
+            fill: var(--simple-card-neutral-stroke);
             transition: fill 0.6s;
         }
         .battery-terminal.active {
             animation: terminal-pulse 1.8s ease-in-out infinite;
         }
         .battery-terminal.low {
-            fill: #ef4444;
+            fill: var(--simple-card-danger-color);
             animation: terminal-pulse 1.2s ease-in-out infinite;
         }
         .battery-terminal.low-orange {
-            fill: #f97316;
+            fill: var(--simple-card-warning-color);
             animation: terminal-pulse 1.2s ease-in-out infinite;
         }
         @keyframes terminal-pulse {
@@ -82,10 +83,10 @@ export class SimpleCardBattery extends LitElement {
         }
 
         /* Fill bar color: gray when idle at normal SoC, SoC-based when low or active */
-        .fill-idle   { fill: #4b5563; }
-        .fill-green  { fill: #22c55e; }
-        .fill-orange { fill: #f97316; }
-        .fill-red    { fill: #ef4444; }
+        .fill-idle   { fill: var(--simple-card-neutral-stroke-soft); }
+        .fill-green  { fill: var(--simple-card-source-battery); }
+        .fill-orange { fill: var(--simple-card-warning-color); }
+        .fill-red    { fill: var(--simple-card-danger-color); }
         /* Active pulse overlaid on color class when charging or discharging */
         .fill-active { animation: fill-pulse 1.8s ease-in-out infinite; }
         @keyframes fill-pulse {
@@ -107,22 +108,9 @@ export class SimpleCardBattery extends LitElement {
             font-weight: 600;
             opacity: 0.9;
         }
-        .power-label {
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: #6b7280;
-            min-height: 1.1em;
-            text-align: center;
-            line-height: 1.3;
-        }
-        .power-label.charge { color: #22c55e; }
-        .power-label.discharge { color: #22c55e; }
-        .unit {
-            font-size: 0.7em;
-            font-weight: 400;
-            opacity: 0.8;
-        }
-    `;
+        .power-label.charge { color: var(--simple-card-source-battery); }
+        .power-label.discharge { color: var(--simple-card-source-battery); }
+    `];
 
     // Private properties
     private readonly _clipId = `batt-clip-${Math.random().toString(36).slice(2)}`;
@@ -151,9 +139,9 @@ export class SimpleCardBattery extends LitElement {
             : socClamped < this.minSoc + 10 ? 'low-orange'
             : '';
 
-        // Glow color: charging uses sourceColor (e.g. solar yellow), discharging uses BATT_COLOR green
+        // Glow color: charging uses sourceColor (e.g. solar yellow), discharging uses battery source green
         const pulseColor = isCharging ? (this.sourceColor ?? BATT_COLOR) : isDischarging ? BATT_COLOR : null;
-        const pulseColorSoft = pulseColor ? `${pulseColor}88` : null;
+        const pulseColorSoft = pulseColor ? withAlpha(pulseColor, '88') : null;
 
         // Fill bar: dark gray when idle at normal SoC; SoC color when low or active
         const fillColorClass = socClamped < this.minSoc ? 'fill-red' : socClamped < this.minSoc + 10 ? 'fill-orange' : 'fill-green';

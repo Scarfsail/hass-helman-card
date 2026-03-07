@@ -2,6 +2,18 @@ export const SOLAR_COLOR = '#facc15'; // yellow-400
 export const GRID_COLOR  = '#38bdf8'; // sky-400
 export const BATT_COLOR  = '#22c55e'; // green-500
 
+/** Adds a two-digit alpha channel to a hex color value. */
+export function withAlpha(hex: string, alphaHex: string): string {
+    let normalizedHex = hex;
+    if (hex.length === 4) {
+        normalizedHex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+    } else if (hex.length === 9) {
+        normalizedHex = hex.slice(0, 7);
+    }
+    const normalizedAlpha = alphaHex.replace('#', '').padStart(2, '0').slice(0, 2);
+    return `${normalizedHex}${normalizedAlpha}`;
+}
+
 /** Returns the canonical color for a source node based on its sourceType. */
 export function canonicalSourceColor(sourceType: string | null | undefined, fallback?: string): string {
     switch (sourceType) {

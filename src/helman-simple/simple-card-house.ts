@@ -1,11 +1,16 @@
 import { LitElement, css, html, svg } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { formatPower } from "../power-format";
+import { withAlpha } from "../color-utils";
+import { SIMPLE_CARD_COLORS } from "./simple-card-colors";
+import { simpleCardSharedStyles } from "./simple-card-shared-styles";
+
+const { neutral, state } = SIMPLE_CARD_COLORS;
 
 @customElement("simple-card-house")
 export class SimpleCardHouse extends LitElement {
     // Static styles
-    static styles = css`
+    static styles = [simpleCardSharedStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -23,71 +28,62 @@ export class SimpleCardHouse extends LitElement {
         svg { overflow: visible; }
 
         .house-body {
-            fill: #374151;
-            stroke: #6b7280;
+            fill: var(--simple-card-surface-mid);
+            stroke: var(--simple-card-neutral-stroke);
             stroke-width: 2;
             transition: fill 0.6s, stroke 0.6s;
         }
         .house-body.active {
-            fill: #9ca3af;
-            stroke: #fde68a;
+            fill: var(--simple-card-surface-light);
+            stroke: var(--simple-card-warm-color);
             animation: house-glow 2.4s ease-in-out infinite;
         }
         @keyframes house-glow {
-            0%, 100% { filter: drop-shadow(0 0 4px #fde68a44); }
-            50%       { filter: drop-shadow(0 0 14px #fde68a99) drop-shadow(0 0 24px #fde68a44); }
+            0%, 100% { filter: drop-shadow(0 0 4px var(--simple-card-warm-color-44)); }
+            50%       { filter: drop-shadow(0 0 14px var(--simple-card-warm-color-99)) drop-shadow(0 0 24px var(--simple-card-warm-color-44)); }
         }
         .roof {
-            fill: #4b5563;
-            stroke: #6b7280;
+            fill: var(--simple-card-neutral-stroke-soft);
+            stroke: var(--simple-card-neutral-stroke);
             stroke-width: 2;
             stroke-linejoin: round;
             transition: fill 0.6s, stroke 0.6s;
         }
         .roof.active {
-            fill: #d1d5db;
-            stroke: #fde68a;
+            fill: var(--simple-card-surface-lightest);
+            stroke: var(--simple-card-warm-color);
         }
         .door {
-            fill: #1f2937;
-            stroke: #6b7280;
+            fill: var(--simple-card-surface-dark);
+            stroke: var(--simple-card-neutral-stroke);
             stroke-width: 1.5;
         }
         .door.active {
-            fill: #2d3748;
-            stroke: #fde68a88;
+            fill: var(--simple-card-surface-dark-soft);
+            stroke: var(--simple-card-warm-color-88);
         }
         .window {
-            fill: #1f2937;
-            stroke: #4b5563;
+            fill: var(--simple-card-surface-dark);
+            stroke: var(--simple-card-neutral-stroke-soft);
             stroke-width: 1;
             transition: fill 0.6s, filter 0.6s;
         }
         .window.active {
-            fill: var(--window-color, #fef08a);
+            fill: var(--window-color, var(--simple-card-warm-soft-color));
             animation: window-glow 2.4s ease-in-out infinite;
         }
         @keyframes window-glow {
-            0%, 100% { filter: drop-shadow(0 0 4px var(--window-color, #fef08a)); opacity: 0.85; }
-            50%       { filter: drop-shadow(0 0 10px var(--window-color, #fef08a)); opacity: 1; }
+            0%, 100% { filter: drop-shadow(0 0 4px var(--window-color, var(--simple-card-warm-soft-color))); opacity: 0.85; }
+            50%       { filter: drop-shadow(0 0 10px var(--window-color, var(--simple-card-warm-soft-color))); opacity: 1; }
         }
         .chimney {
-            fill: #4b5563;
-            stroke: #6b7280;
+            fill: var(--simple-card-neutral-stroke-soft);
+            stroke: var(--simple-card-neutral-stroke);
             stroke-width: 1.5;
         }
 
-        .power-label {
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: #6b7280;
-            min-height: 1.1em;
-            text-align: center;
-            line-height: 1.3;
-        }
-        .power-label.active { color: #d1d5db; }
-        .unit { font-size: 0.7em; font-weight: 400; opacity: 0.8; }
-    `;
+        .power-label.active { color: var(--simple-card-surface-lightest); }
+    `];
 
     // Public properties
     @property({ type: Number }) public power = 0;
@@ -122,12 +118,12 @@ export class SimpleCardHouse extends LitElement {
         const a = active ? 'active' : '';
         // Dynamic border styles when we have a source color
         const bodyStyle = (active && borderColor)
-            ? `stroke: ${borderColor}; filter: drop-shadow(0 0 8px ${borderColor}44)`
+            ? `stroke: ${borderColor}; filter: drop-shadow(0 0 8px ${withAlpha(borderColor, '44')})`
             : '';
         const roofStyle = (active && borderColor) ? `stroke: ${borderColor}` : '';
-        const doorStyle = (active && borderColor) ? `stroke: ${borderColor}88` : '';
-        const crossColor = active ? (borderColor ? `${borderColor}66` : '#fde68a66') : '#374151';
-        const knobColor  = active ? (borderColor ? `${borderColor}88` : '#fde68a88') : '#4b5563';
+        const doorStyle = (active && borderColor) ? `stroke: ${withAlpha(borderColor, '88')}` : '';
+        const crossColor = active ? (borderColor ? withAlpha(borderColor, '66') : withAlpha(state.warm, '66')) : neutral.surfaceMid;
+        const knobColor  = active ? (borderColor ? withAlpha(borderColor, '88') : withAlpha(state.warm, '88')) : neutral.strokeSoft;
         return svg`
             <!-- Chimney -->
             <rect class="chimney" x="52" y="15" width="7" height="16" rx="1.5"/>

@@ -15,7 +15,8 @@ import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
-import { SOLAR_COLOR, GRID_COLOR, BATT_COLOR, computeDominantSourceColor } from '../color-utils';
+import { computeDominantSourceColor } from "../color-utils";
+import { getFlowColor, getFlowGlow } from "./flow-colors";
 
 // ──────────────────────────────── Internal model ──────────────────────────────
 
@@ -266,10 +267,14 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battToHouseT  = thick(battToHouseI);
         const battToGridT   = thick(battToGridI);
 
+        const solarFlowColor = getFlowColor("solar");
+        const gridFlowColor = getFlowColor("grid");
+        const batteryFlowColor = getFlowColor("battery");
+
         // ── Source colors for consumer components ──────────────────────────────
         // Battery charge color: derived from live power flows to avoid backend color discrepancies
         const battSourceColor  = battCharge
-            ? (solarToBattPower >= gridToBattPower ? SOLAR_COLOR : GRID_COLOR)
+            ? (solarToBattPower >= gridToBattPower ? solarFlowColor : gridFlowColor)
             : undefined;
         const gridSourceColor  = this._gridConsumerNode    ? computeDominantSourceColor(this._gridConsumerNode)    : undefined;
         const houseSourceColor = this._houseNode           ? computeDominantSourceColor(this._houseNode)           : undefined;
@@ -286,7 +291,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${solarExportingToGrid ? this._flowH(SOLAR_COLOR, `${SOLAR_COLOR}aa`, false, solarToGridT, 22.5, 33) : ""}
+                            ${solarExportingToGrid ? this._flowH(solarFlowColor, false, solarToGridT, 22.5, 33) : ""}
                         </div>
                         <div class="node-cell" @click=${() => this._dialogNodeType = 'grid'}>
                             <simple-card-grid .power=${effectiveGridPower} .sourceColor=${gridSourceColor}></simple-card-grid>
@@ -294,12 +299,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV(SOLAR_COLOR, `${SOLAR_COLOR}aa`, false, solarToHouseT) : ""}
+                            ${solarActive ? this._flowV(solarFlowColor, false, solarToHouseT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV(GRID_COLOR, `${GRID_COLOR}aa`, false, gridToBattT) : ""}
-                            ${battToGridPower > 50 ? this._flowV(BATT_COLOR, `${BATT_COLOR}aa`, true, battToGridT) : ""}
+                            ${(gridImport && battCharge) ? this._flowV(gridFlowColor, false, gridToBattT) : ""}
+                            ${battToGridPower > 50 ? this._flowV(batteryFlowColor, true, battToGridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -546,6 +551,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
     private _renderFlowOverlay(solarToBatt: boolean, gridToHouse: boolean, battToHouse: boolean, solarToBattT: number, gridToHouseT: number, battToHouseT: number) {
         if (!solarToBatt && !gridToHouse && !battToHouse) return "";
+        const solarFlowColor = getFlowColor("solar");
+        const gridFlowColor = getFlowColor("grid");
+        const batteryFlowColor = getFlowColor("battery");
+        const solarFlowGlow = getFlowGlow(solarFlowColor);
+        const gridFlowGlow = getFlowGlow(gridFlowColor);
+        const batteryFlowGlow = getFlowGlow(batteryFlowColor);
         // SVG overlays the full energy-grid (viewBox 0 0 200 168).
         // Column centers: House=45, Grid/Battery=155. Row centers: top≈35, bottom≈133.
         // vector-effect="non-scaling-stroke" keeps stroke-width in screen pixels,
@@ -556,39 +567,40 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                  xmlns="http://www.w3.org/2000/svg">
                 ${ solarToBatt ? svg`
                     <line x1="62" y1="48" x2="138" y2="120"
-                          stroke="${SOLAR_COLOR}"
+                          stroke="${solarFlowColor}"
                           stroke-width=${solarToBattT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px ${SOLAR_COLOR}aa)" />
+                                 filter: drop-shadow(0 0 3px ${solarFlowGlow})" />
                 ` : ""}
                 ${ gridToHouse ? svg`
                     <line x1="138" y1="48" x2="62" y2="120"
-                          stroke="${GRID_COLOR}"
+                          stroke="${gridFlowColor}"
                           stroke-width=${gridToHouseT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px ${GRID_COLOR}aa)" />
+                                 filter: drop-shadow(0 0 3px ${gridFlowGlow})" />
                 ` : ""}
                 ${ battToHouse ? svg`
                     <line x1="130" y1="133" x2="70" y2="133"
-                          stroke="${BATT_COLOR}"
+                          stroke="${batteryFlowColor}"
                           stroke-width=${battToHouseT}
                           stroke-linecap="round"
                           stroke-dasharray="2 16"
                           vector-effect="non-scaling-stroke"
                           style="animation: flow-diagonal 1.6s linear infinite;
-                                 filter: drop-shadow(0 0 3px ${BATT_COLOR}aa)" />
+                                 filter: drop-shadow(0 0 3px ${batteryFlowGlow})" />
                 ` : ""}
             </svg>`;
     }
 
-    private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
+    private _flowH(color: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
         const sw = strokeWidth;
+        const glow = getFlowGlow(color);
         // connectorW matches the 20px CSS grid connector column so absolute SVG
         // coordinates (no viewBox) map 1:1 to pixels, letting us reach actual
         // picture borders on both sides via overflow:visible.
@@ -605,8 +617,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             </svg>`;
     }
 
-    private _flowV(color: string, glow: string, reverse: boolean, strokeWidth: number) {
+    private _flowV(color: string, reverse: boolean, strokeWidth: number) {
         const sw = strokeWidth;
+        const glow = getFlowGlow(color);
         const y1 = reverse ? "100%" : "0%";
         const y2 = reverse ? "0%" : "100%";
         return html`
