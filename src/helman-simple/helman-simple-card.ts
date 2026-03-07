@@ -9,7 +9,7 @@ import { HistoryEngine } from "../helman/history-engine";
 import { DeviceNode } from "../helman/DeviceNode";
 import { hydrateNode } from "../helman/device-node-hydrator";
 import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
-import type { NodeType, NodeDetailParams } from "./node-detail-dialog";
+import type { NodeType, NodeDetailParams } from "./node-detail/node-detail-types";
 import "./node-detail-dialog";
 import "./simple-card-solar";
 import "./simple-card-battery";
