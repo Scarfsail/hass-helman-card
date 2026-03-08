@@ -70,4 +70,21 @@ export const nodeDetailSharedStyles = css`
         min-width: 160px;
         gap: 4px;
     }
+
+    .forecast-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .forecast-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .muted {
+        color: var(--secondary-text-color);
+        font-size: 0.9rem;
+    }
 `;

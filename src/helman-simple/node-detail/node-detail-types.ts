@@ -1,5 +1,5 @@
 import type { DeviceNode } from "../../helman/DeviceNode";
-import type { HelmanUiConfig } from "../../helman-api";
+import type { GridForecastDTO, HelmanUiConfig, SolarForecastDTO } from "../../helman-api";
 
 export type NodeType = "solar" | "battery" | "grid" | "house";
 
@@ -26,7 +26,7 @@ export interface SolarDetailParams {
     power: number; // watts
     powerEntityId: string | null;
     todayEnergyEntityId: string | null;
-    forecastEntityId: string | null;
+    forecast: SolarForecastDTO | null;
     solarNode: DeviceNode | null;
     productionNode?: DeviceNode | null;
     historyBuckets: number;
@@ -39,6 +39,7 @@ export interface GridDetailParams {
     powerEntityId: string | null;
     todayImportEntityId: string | null;
     todayExportEntityId: string | null;
+    forecast: GridForecastDTO | null;
     gridProducerNode: DeviceNode | null;
     gridConsumerNode: DeviceNode | null;
     productionNode?: DeviceNode | null;

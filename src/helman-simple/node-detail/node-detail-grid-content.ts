@@ -3,10 +3,8 @@ import { customElement, property } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { HomeAssistant } from "../../../hass-frontend/src/types";
 import type { LocalizeFunction } from "../../localize/localize";
-import { getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
 import type { GridDetailParams } from "./node-detail-types";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
-import { readKWh } from "./node-detail-utils";
 import "../../helman/power-device";
 
 @customElement("node-detail-grid-content")
@@ -20,13 +18,6 @@ export class NodeDetailGridContent extends LitElement {
 
     render() {
         const p = this.params;
-        const importKwh = readKWh(this.hass, p.todayImportEntityId);
-        const importDisplay = importKwh !== null ? getDisplayEnergyUnit(importKwh) : null;
-        const exportKwh = readKWh(this.hass, p.todayExportEntityId);
-        const exportDisplay = exportKwh !== null ? getDisplayEnergyUnit(exportKwh) : null;
-
-        void importDisplay;
-        void exportDisplay;
 
         return html`
             <div class="content">
@@ -60,7 +51,58 @@ export class NodeDetailGridContent extends LitElement {
                         ` : nothing}
                     </div>
                 ` : nothing}
+                ${this._renderForecastSection()}
             </div>
         `;
+    }
+
+    private _renderForecastSection() {
+        const forecast = this.params.forecast;
+        if (!forecast || forecast.status === "not_configured") {
+            return nothing;
+        }
+
+        return html`
+            <div class="forecast-section">
+                <div class="section-title">${this.localize("node_detail.grid.forecast_section")}</div>
+                ${forecast.currentSellPrice !== null ? html`
+                    <div class="detail-row">
+                        <span class="label">${this.localize("node_detail.grid.current_sell_price")}</span>
+                        <span class="value">${this._formatValue(forecast.currentSellPrice, forecast.unit)}</span>
+                    </div>
+                ` : nothing}
+                ${forecast.status === "unavailable" ? html`
+                    <div class="muted">${this.localize("node_detail.grid.forecast_unavailable")}</div>
+                ` : forecast.points.length > 0 ? html`
+                    <div class="forecast-list">
+                        ${forecast.points.map((point) => html`
+                            <div class="detail-row">
+                                <span class="label">${this._formatTime(point.timestamp)}</span>
+                                <span class="value">${this._formatValue(point.value, forecast.unit)}</span>
+                            </div>
+                        `)}
+                    </div>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    private _formatTime(timestamp: string): string {
+        return new Date(timestamp).toLocaleTimeString(
+            this.hass.locale?.language || navigator.language,
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+            },
+        );
+    }
+
+    private _formatValue(value: number, unit: string | null): string {
+        const formattedValue = new Intl.NumberFormat(
+            this.hass.locale?.language || navigator.language,
+            { maximumFractionDigits: 3 },
+        ).format(value);
+
+        return unit ? `${formattedValue} ${unit}` : formattedValue;
     }
 }

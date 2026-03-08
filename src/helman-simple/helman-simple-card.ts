@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import { HelmanSimpleCardConfig } from "./HelmanSimpleCardConfig";
 import { getLocalizeFunction, LocalizeFunction } from "../localize/localize";
-import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, applyValueType } from "../helman-api";
+import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, ForecastPayload, applyValueType } from "../helman-api";
 import { HistoryEngine } from "../helman/history-engine";
 import { DeviceNode } from "../helman/DeviceNode";
 import { hydrateNode } from "../helman/device-node-hydrator";
@@ -164,6 +164,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _consumptionNode:    DeviceNode | null = null;
     private _historyEngine?: HistoryEngine;
     private _uiConfig?: HelmanUiConfig;
+    private _forecastRefreshTimer: number | null = null;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
@@ -171,6 +172,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     @state() private _loading = true;
     @state() private _dialogNodeType: NodeType | null = null;
     @state() private _houseDevices: DeviceNode[] = [];
+    @state() private _forecast: ForecastPayload | null = null;
 
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
@@ -191,13 +193,18 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 9. Lifecycle methods
     async connectedCallback() {
         super.connectedCallback();
+        this._startForecastRefreshTimer();
         if (this._hass) {
-            await this._loadFromBackend();
+            const backendLoaded = await this._loadFromBackend();
+            if (backendLoaded) {
+                await this._refreshForecast();
+            }
         }
     }
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
+        this._clearForecastRefreshTimer();
         this._historyEngine?.stop();
     }
 
@@ -349,7 +356,42 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         return parts.join("; ");
     }
 
-    private async _loadFromBackend(): Promise<void> {
+    private _startForecastRefreshTimer(): void {
+        this._clearForecastRefreshTimer();
+        this._forecastRefreshTimer = window.setInterval(() => {
+            if (!this._hass) return;
+            void this._refreshForecast();
+        }, 5 * 60 * 1000);
+    }
+
+    private _clearForecastRefreshTimer(): void {
+        if (this._forecastRefreshTimer !== null) {
+            window.clearInterval(this._forecastRefreshTimer);
+            this._forecastRefreshTimer = null;
+        }
+    }
+
+    private async _loadForecast(): Promise<void> {
+        if (!this._hass) {
+            throw new Error("helman-simple-card: failed to load forecast because hass is not available");
+        }
+
+        this._forecast = await this._hass.connection.sendMessagePromise<ForecastPayload>({
+            type: "helman/get_forecast",
+        });
+    }
+
+    private async _refreshForecast(): Promise<void> {
+        const previousForecast = this._forecast;
+        try {
+            await this._loadForecast();
+        } catch (err) {
+            this._forecast = previousForecast;
+            console.error("helman-simple-card: failed to refresh forecast", err);
+        }
+    }
+
+    private async _loadFromBackend(): Promise<boolean> {
         this._historyEngine?.stop();
         try {
             const payload = await this._hass!.connection.sendMessagePromise<TreePayload>({
@@ -402,8 +444,10 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 () => this._sourceNodes,
             );
             this._historyEngine.advanceBuckets(this._topLevelNodes(), this._sourceNodes);
+            return true;
         } catch (err) {
             console.error("helman-simple-card: failed to load backend data", err);
+            return false;
         } finally {
             this._loading = false;
         }
@@ -494,7 +538,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     power: e.solarPower,
                     powerEntityId: em.solarPowerEntityId,
                     todayEnergyEntityId: cfg.today_energy ?? null,
-                    forecastEntityId: cfg.remaining_today_energy_forecast ?? null,
+                    forecast: this._forecast?.solar ?? null,
                     solarNode: this._solarNode,
                     productionNode: this._productionNode,
                     historyBuckets,
@@ -509,6 +553,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                     powerEntityId: em.gridPowerEntityId,
                     todayImportEntityId: cfg.today_import ?? null,
                     todayExportEntityId: cfg.today_export ?? null,
+                    forecast: this._forecast?.grid ?? null,
                     gridProducerNode: this._gridProducerNode,
                     gridConsumerNode: this._gridConsumerNode,
                     productionNode: this._productionNode,

@@ -30,14 +30,20 @@
     "solar": {
       "power":        "Výkon",
       "today_energy": "Dnes",
-      "forecast":     "Zbývající předpověď"
+      "forecast":     "Zbývající předpověď",
+      "forecast_section": "Předpověď",
+      "remaining_today": "Zbývá dnes",
+      "forecast_unavailable": "Předpověď není dostupná"
     },
     "grid": {
       "power":            "Výkon",
       "today_import":     "Dnes odebráno",
       "today_export":     "Dnes dodáno",
       "section_producer": "Import",
-      "section_consumer": "Export"
+      "section_consumer": "Export",
+      "forecast_section": "Předpověď prodejní ceny",
+      "current_sell_price": "Aktuální prodejní cena",
+      "forecast_unavailable": "Předpověď není dostupná"
     },
     "house": {
       "power": "Výkon"

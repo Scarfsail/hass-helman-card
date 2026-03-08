@@ -85,3 +85,33 @@ export interface HistoryPayload {
     bucket_duration: number;
     entity_history: Record<string, number[]>;
 }
+
+export type ForecastStatus =
+    | "not_configured"
+    | "unavailable"
+    | "partial"
+    | "available";
+
+export interface ForecastPointDTO {
+    timestamp: string;
+    value: number;
+}
+
+export interface SolarForecastDTO {
+    status: ForecastStatus;
+    unit: string | null;
+    remainingTodayKwh: number | null;
+    points: ForecastPointDTO[];
+}
+
+export interface GridForecastDTO {
+    status: ForecastStatus;
+    unit: string | null;
+    currentSellPrice: number | null;
+    points: ForecastPointDTO[];
+}
+
+export interface ForecastPayload {
+    solar: SolarForecastDTO;
+    grid: GridForecastDTO;
+}
