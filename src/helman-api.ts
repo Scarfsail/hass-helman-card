@@ -100,8 +100,7 @@ export interface ForecastPointDTO {
 export interface SolarForecastDTO {
     status: ForecastStatus;
     unit: string | null;
-    remainingTodayKwh: number | null;
-    points: ForecastPointDTO[];
+    points: ForecastPointDTO[]; // hourly solar forecast points
 }
 
 export interface GridForecastDTO {

@@ -45,6 +45,22 @@
       "current_sell_price": "Aktuální prodejní cena",
       "forecast_unavailable": "Předpověď není dostupná"
     },
+    "forecast_detail": {
+      "title": "Budoucí předpověď",
+      "today": "Dnes",
+      "tomorrow": "Zítra",
+      "solar_label": "Solár",
+      "solar_unavailable": "Není k dispozici",
+      "price_label": "Prodej",
+      "price_min": "Min",
+      "price_max": "Max",
+      "price_unavailable": "Zatím není k dispozici",
+      "no_future_data": "Žádná budoucí předpověď není k dispozici",
+      "hourly_detail": "Hodinový detail",
+      "partial_note": "Některá data předpovědi mohou chybět.",
+      "unavailable_note": "Část předpovědi není momentálně dostupná.",
+      "forecast_unavailable": "Předpověď není momentálně dostupná."
+    },
     "house": {
       "power": "Výkon"
     }

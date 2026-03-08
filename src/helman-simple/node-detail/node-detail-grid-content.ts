@@ -6,6 +6,7 @@ import type { LocalizeFunction } from "../../localize/localize";
 import type { GridDetailParams } from "./node-detail-types";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 import "../../helman/power-device";
+import "./helman-forecast-detail";
 
 @customElement("node-detail-grid-content")
 export class NodeDetailGridContent extends LitElement {
@@ -57,52 +58,19 @@ export class NodeDetailGridContent extends LitElement {
     }
 
     private _renderForecastSection() {
-        const forecast = this.params.forecast;
-        if (!forecast || forecast.status === "not_configured") {
+        const { solarForecast, gridForecast } = this.params;
+        if ((!solarForecast || solarForecast.status === "not_configured")
+            && (!gridForecast || gridForecast.status === "not_configured")) {
             return nothing;
         }
 
         return html`
-            <div class="forecast-section">
-                <div class="section-title">${this.localize("node_detail.grid.forecast_section")}</div>
-                ${forecast.currentSellPrice !== null ? html`
-                    <div class="detail-row">
-                        <span class="label">${this.localize("node_detail.grid.current_sell_price")}</span>
-                        <span class="value">${this._formatValue(forecast.currentSellPrice, forecast.unit)}</span>
-                    </div>
-                ` : nothing}
-                ${forecast.status === "unavailable" ? html`
-                    <div class="muted">${this.localize("node_detail.grid.forecast_unavailable")}</div>
-                ` : forecast.points.length > 0 ? html`
-                    <div class="forecast-list">
-                        ${forecast.points.map((point) => html`
-                            <div class="detail-row">
-                                <span class="label">${this._formatTime(point.timestamp)}</span>
-                                <span class="value">${this._formatValue(point.value, forecast.unit)}</span>
-                            </div>
-                        `)}
-                    </div>
-                ` : nothing}
-            </div>
+            <helman-forecast-detail
+                .hass=${this.hass}
+                .localize=${this.localize}
+                .solarForecast=${solarForecast}
+                .gridForecast=${gridForecast}
+            ></helman-forecast-detail>
         `;
-    }
-
-    private _formatTime(timestamp: string): string {
-        return new Date(timestamp).toLocaleTimeString(
-            this.hass.locale?.language || navigator.language,
-            {
-                hour: "2-digit",
-                minute: "2-digit",
-            },
-        );
-    }
-
-    private _formatValue(value: number, unit: string | null): string {
-        const formattedValue = new Intl.NumberFormat(
-            this.hass.locale?.language || navigator.language,
-            { maximumFractionDigits: 3 },
-        ).format(value);
-
-        return unit ? `${formattedValue} ${unit}` : formattedValue;
     }
 }
