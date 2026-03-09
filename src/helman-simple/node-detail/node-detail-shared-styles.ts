@@ -159,8 +159,10 @@ export const nodeDetailSharedStyles = css`
         align-items: baseline;
         gap: 4px;
         min-width: 0;
+        padding-inline-start: 5px;
         border-radius: 4px;
-        background: linear-gradient(90deg, rgba(138, 138, 138, 0.18), rgba(138, 138, 138, 0.12));
+        background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
+        color: rgba(58, 46, 16, 0.98);
         font-size: 0.96rem;
         font-weight: 700;
         line-height: 1.2;
@@ -176,21 +178,41 @@ export const nodeDetailSharedStyles = css`
         inset: 0 auto 0 0;
         z-index: 0;
         border-radius: inherit;
-        background: linear-gradient(90deg, rgba(230, 194, 43, 0.32), rgba(230, 194, 43, 0.2));
+        background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
         pointer-events: none;
     }
 
     .forecast-day-solar-gauge.muted {
-        background: linear-gradient(90deg, rgba(230, 194, 43, 0.16), rgba(230, 194, 43, 0.1));
+        background: linear-gradient(90deg, rgba(233, 193, 91, 0.42), rgba(202, 158, 45, 0.3));
+    }
+
+    .forecast-day-solar-primary {
+        color: rgba(58, 46, 16, 0.98);
+        text-shadow:
+            0 0 1px rgba(255, 248, 224, 0.85),
+            0 1px 1px rgba(73, 57, 16, 0.18);
     }
 
     .forecast-day-solar-separator,
     .forecast-day-solar-secondary {
-        color: var(--secondary-text-color);
+        color: rgba(88, 70, 24, 0.96);
+        text-shadow:
+            0 0 1px rgba(255, 248, 224, 0.78),
+            0 1px 1px rgba(73, 57, 16, 0.14);
     }
 
     .forecast-day-solar-secondary {
         font-weight: 600;
+    }
+
+    .forecast-day-solar-unit {
+        display: inline-block;
+        margin-inline-start: 0.2rem;
+        font-size: 0.5em;
+        font-weight: 700;
+        line-height: 1;
+        vertical-align: baseline;
+        white-space: nowrap;
     }
 
     .forecast-day-price-line {
@@ -247,18 +269,7 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-day-chart-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .forecast-day-chart-key {
-        flex: 0 0 auto;
-        width: 0.75rem;
-        color: var(--secondary-text-color);
-        font-size: 0.68rem;
-        font-weight: 700;
-        text-transform: uppercase;
+        display: block;
     }
 
     .forecast-day-chart-track {

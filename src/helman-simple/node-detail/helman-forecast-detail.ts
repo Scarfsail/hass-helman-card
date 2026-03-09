@@ -270,7 +270,6 @@ export class HelmanForecastDetail extends LitElement {
 
         return html`
             <div class="forecast-day-chart-row">
-                <span class="forecast-day-chart-key">${type === "solar" ? "S" : "P"}</span>
                 <div class=${chartClass}>
                     ${chart.bars.map((bar) => html`
                         <span
@@ -428,9 +427,30 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _formatEnergy(valueKwh: number): string {
+        const display = this._getEnergyDisplay(valueKwh);
+        return `${display.value} ${display.unit}`;
+    }
+
+    private _getEnergyDisplay(valueKwh: number): {
+        value: string;
+        unit: string;
+    } {
         const display = getDisplayEnergyUnit(valueKwh);
         const fractionDigits = display.unit === "Wh" ? 0 : 1;
-        return `${display.value.toFixed(fractionDigits)} ${display.unit}`;
+
+        return {
+            value: display.value.toFixed(fractionDigits),
+            unit: display.unit,
+        };
+    }
+
+    private _renderEnergyValue(valueKwh: number) {
+        const display = this._getEnergyDisplay(valueKwh);
+
+        return html`
+            <span class="forecast-day-solar-primary">${display.value}</span>
+            <span class="forecast-day-solar-unit">${display.unit}</span>
+        `;
     }
 
     private _formatCompactPrice(value: number): string {
@@ -672,13 +692,14 @@ export class HelmanForecastDetail extends LitElement {
             return html`
                 <span class="forecast-day-solar-primary">${sharedDisplay.primary}</span>
                 <span class="forecast-day-solar-separator" aria-hidden="true">/</span>
-                <span class="forecast-day-solar-secondary">${sharedDisplay.secondary} ${sharedDisplay.unit}</span>
+                <span class="forecast-day-solar-secondary">
+                    ${sharedDisplay.secondary}
+                    <span class="forecast-day-solar-unit">${sharedDisplay.unit}</span>
+                </span>
             `;
         }
 
-        return html`
-            <span class="forecast-day-solar-primary">${this._formatEnergy(day.solarSummaryKwh!)}</span>
-        `;
+        return this._renderEnergyValue(day.solarSummaryKwh!);
     }
 
     private _getSolarSummaryLabel(day: ForecastDetailDayModel): string | null {
