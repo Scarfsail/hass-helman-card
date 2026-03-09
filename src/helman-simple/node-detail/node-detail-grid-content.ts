@@ -52,26 +52,11 @@ export class NodeDetailGridContent extends LitElement {
                         ` : nothing}
                     </div>
                 ` : nothing}
-                ${this._renderForecastSection()}
+                <helman-forecast-detail
+                    .hass=${this.hass}
+                    .localize=${this.localize}
+                ></helman-forecast-detail>
             </div>
-        `;
-    }
-
-    private _renderForecastSection() {
-        const { solarForecast, gridForecast } = this.params;
-        if ((!solarForecast || solarForecast.status === "not_configured")
-            && (!gridForecast || gridForecast.status === "not_configured")) {
-            return nothing;
-        }
-
-        return html`
-            <helman-forecast-detail
-                .hass=${this.hass}
-                .localize=${this.localize}
-                .solarForecast=${solarForecast}
-                .gridForecast=${gridForecast}
-                .remainingTodayEnergyEntityId=${this.params.remainingTodayEnergyEntityId}
-            ></helman-forecast-detail>
         `;
     }
 }

@@ -2,8 +2,9 @@ import { LitElement, html } from "lit-element";
 import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { HomeAssistant } from "../../../hass-frontend/src/types";
-import type { ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../helman-api";
+import type { ForecastPayload, ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../helman-api";
 import { convertToKWh, getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
+import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman/forecast-loader";
 import type { LocalizeFunction } from "../../localize/localize";
 import { buildForecastDetailModel, type ForecastDetailDayModel } from "./forecast-detail-model";
 import {
@@ -90,13 +91,24 @@ export class HelmanForecastDetail extends LitElement {
     private _forecastModelInputs?: ForecastModelInputs;
     private _maxSolarGaugeValueKwh = 0;
     private _miniChartScale: ForecastMiniChartScaleModel = EMPTY_MINI_CHART_SCALE;
+    private _forecastRefreshTimer: number | null = null;
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
-    @property({ attribute: false }) public solarForecast: SolarForecastDTO | null = null;
-    @property({ attribute: false }) public gridForecast: GridForecastDTO | null = null;
-    @property({ attribute: false }) public remainingTodayEnergyEntityId: string | null = null;
+
+    @state() private _forecast: ForecastPayload | null = null;
     @state() private _selectedDayKey: string | null = null;
+
+    connectedCallback(): void {
+        super.connectedCallback();
+        void this._loadInitialForecast();
+        this._startForecastRefreshTimer();
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        this._clearForecastRefreshTimer();
+    }
 
     willUpdate(changedProperties: Map<string, unknown>): void {
         super.willUpdate(changedProperties);
@@ -122,7 +134,7 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     render() {
-        if (!this._hasConfiguredForecast(this.solarForecast) && !this._hasConfiguredForecast(this.gridForecast)) {
+        if (!this._hasConfiguredForecast(this._solarForecast) && !this._hasConfiguredForecast(this._gridForecast)) {
             return nothing;
         }
 
@@ -835,8 +847,8 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _getDisplayPriceUnit(): string | null {
-        return this.gridForecast?.unit
-            ? this.gridForecast.unit.replace(/\s*\/\s*/g, " / ")
+        return this._gridForecast?.unit
+            ? this._gridForecast.unit.replace(/\s*\/\s*/g, " / ")
             : null;
     }
 
@@ -863,11 +875,12 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _readRemainingTodayKwh(): number | null | undefined {
-        if (!this.remainingTodayEnergyEntityId) {
+        const entityId = this._solarForecast?.remainingTodayEnergyEntityId ?? null;
+        if (!entityId) {
             return undefined;
         }
 
-        const state = this.hass.states[this.remainingTodayEnergyEntityId];
+        const state = this.hass.states[entityId];
         if (!state) {
             return undefined;
         }
@@ -1021,8 +1034,8 @@ export class HelmanForecastDetail extends LitElement {
 
     private _buildForecastModelInputs(): ForecastModelInputs {
         return {
-            solarForecast: this.solarForecast,
-            gridForecast: this.gridForecast,
+            solarForecast: this._solarForecast,
+            gridForecast: this._gridForecast,
             timeZone: this.hass.config.time_zone,
             remainingTodayKwh: this._readRemainingTodayKwh(),
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
@@ -1089,7 +1102,7 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _getStatusNote(): string | null {
-        const statuses = [this.solarForecast?.status, this.gridForecast?.status];
+        const statuses = [this._solarForecast?.status, this._gridForecast?.status];
 
         if (statuses.includes("partial")) {
             return this.localize("node_detail.forecast_detail.partial_note");
@@ -1103,7 +1116,7 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _getEmptyMessage(): string {
-        const statuses = [this.solarForecast?.status, this.gridForecast?.status];
+        const statuses = [this._solarForecast?.status, this._gridForecast?.status];
         if (statuses.includes("available") || statuses.includes("partial")) {
             return this.localize("node_detail.forecast_detail.no_future_data");
         }
@@ -1127,5 +1140,41 @@ export class HelmanForecastDetail extends LitElement {
 
     private _hasConfiguredForecast(forecast: SolarForecastDTO | GridForecastDTO | null): boolean {
         return forecast !== null && forecast.status !== "not_configured";
+    }
+
+    private get _solarForecast(): SolarForecastDTO | null {
+        return this._forecast?.solar ?? null;
+    }
+
+    private get _gridForecast(): GridForecastDTO | null {
+        return this._forecast?.grid ?? null;
+    }
+
+    private async _loadInitialForecast(): Promise<void> {
+        if (!this.hass) return;
+        try {
+            this._forecast = await loadForecast(this.hass);
+        } catch (err) {
+            console.error("helman-forecast-detail: failed to load forecast", err);
+        }
+    }
+
+    private _startForecastRefreshTimer(): void {
+        this._clearForecastRefreshTimer();
+        this._forecastRefreshTimer = window.setInterval(() => {
+            if (!this.hass) return;
+            void this._refreshForecast();
+        }, FORECAST_REFRESH_MS);
+    }
+
+    private _clearForecastRefreshTimer(): void {
+        if (this._forecastRefreshTimer !== null) {
+            window.clearInterval(this._forecastRefreshTimer);
+            this._forecastRefreshTimer = null;
+        }
+    }
+
+    private async _refreshForecast(): Promise<void> {
+        this._forecast = await refreshForecast(this.hass, this._forecast);
     }
 }

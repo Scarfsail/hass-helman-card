@@ -101,6 +101,7 @@ export interface SolarForecastDTO {
     status: ForecastStatus;
     unit: string | null;
     remainingTodayKwh?: number | null;
+    remainingTodayEnergyEntityId?: string | null;
     points: ForecastPointDTO[]; // hourly solar forecast points
 }
 
