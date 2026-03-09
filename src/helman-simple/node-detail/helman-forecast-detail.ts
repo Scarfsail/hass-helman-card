@@ -94,6 +94,7 @@ export class HelmanForecastDetail extends LitElement {
             remainingTodayKwhOverride: remainingTodayKwh,
         });
         const miniChartScale = this._buildMiniChartScaleModel(days);
+        const maxSolarGaugeValueKwh = this._getMaxSolarGaugeValueKwh(days);
         const selectedDay = days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
         const statusNote = days.length > 0 ? this._getStatusNote() : null;
 
@@ -105,7 +106,7 @@ export class HelmanForecastDetail extends LitElement {
                 ` : nothing}
                 ${days.length > 0 ? html`
                     <div class="forecast-detail-days">
-                        ${days.map((day) => this._renderDay(day, miniChartScale, currentLocalParts))}
+                        ${days.map((day) => this._renderDay(day, miniChartScale, currentLocalParts, maxSolarGaugeValueKwh))}
                     </div>
                     ${selectedDay !== null ? this._renderDetailPanel(selectedDay, currentLocalParts) : nothing}
                 ` : html`
@@ -119,11 +120,14 @@ export class HelmanForecastDetail extends LitElement {
         day: ForecastDetailDayModel,
         miniChartScale: ForecastMiniChartScaleModel,
         currentLocalParts: LocalDateTimeParts | null,
+        maxSolarGaugeValueKwh: number,
     ) {
         const isExpanded = this._selectedDayKey === day.dayKey;
         const dayLabel = this._formatDayLabel(day);
         const solarUnavailable = this.localize("node_detail.forecast_detail.solar_unavailable");
         const priceUnavailable = this.localize("node_detail.forecast_detail.price_unavailable");
+        const totalSolarGaugeWidthPercent = this._getTotalSolarGaugeWidthPercent(day, maxSolarGaugeValueKwh);
+        const remainingSolarGaugeWidthPercent = this._getRemainingSolarGaugeWidthPercent(day, maxSolarGaugeValueKwh);
 
         return html`
             <div
@@ -141,14 +145,28 @@ export class HelmanForecastDetail extends LitElement {
                      <div class="forecast-day-header">
                          <div class="forecast-day-label">${dayLabel}</div>
                          <span class="forecast-day-toggle" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
-                     </div>
-                     ${this._hasSolarSummary(day) ? html`
-                        <div class="forecast-day-solar-value" title=${this._getSolarSummaryLabel(day) ?? nothing}>
-                            ${this._renderSolarSummary(day)}
-                        </div>
-                     ` : html`
-                         <div class="forecast-day-placeholder" title=${solarUnavailable}>—</div>
-                     `}
+                      </div>
+                      ${this._hasSolarSummary(day) ? html`
+                          <div class="forecast-day-solar-value" title=${this._getSolarSummaryLabel(day) ?? nothing}>
+                             ${day.isToday && totalSolarGaugeWidthPercent > remainingSolarGaugeWidthPercent ? html`
+                                 <span
+                                     class="forecast-day-solar-gauge muted"
+                                     style=${`width:${totalSolarGaugeWidthPercent}%;`}
+                                     aria-hidden="true"
+                                 ></span>
+                             ` : nothing}
+                             ${remainingSolarGaugeWidthPercent > 0 ? html`
+                                 <span
+                                     class="forecast-day-solar-gauge"
+                                     style=${`width:${remainingSolarGaugeWidthPercent}%;`}
+                                     aria-hidden="true"
+                                 ></span>
+                             ` : nothing}
+                             ${this._renderSolarSummary(day)}
+                          </div>
+                       ` : html`
+                           <div class="forecast-day-placeholder" title=${solarUnavailable}>—</div>
+                       `}
                       ${this._hasOverviewPriceSummary(day) ? this._renderPriceSummaryLine(day, "overview") : html`
                           <div class="forecast-day-placeholder" title=${priceUnavailable}>—</div>
                       `}
@@ -600,6 +618,49 @@ export class HelmanForecastDetail extends LitElement {
         return day.hasSolarData && day.solarSummaryKwh !== null;
     }
 
+    private _getMaxSolarGaugeValueKwh(days: ForecastDetailDayModel[]): number {
+        return days.reduce((maxValue, day) => {
+            const comparableSolarKwh = this._getComparableSolarGaugeValueKwh(day);
+            if (comparableSolarKwh === null) {
+                return maxValue;
+            }
+
+            return Math.max(maxValue, comparableSolarKwh);
+        }, 0);
+    }
+
+    private _getTotalSolarGaugeWidthPercent(day: ForecastDetailDayModel, maxSolarGaugeValueKwh: number): number {
+        return this._getSolarGaugeWidthPercent(this._getComparableSolarGaugeValueKwh(day), maxSolarGaugeValueKwh);
+    }
+
+    private _getRemainingSolarGaugeWidthPercent(day: ForecastDetailDayModel, maxSolarGaugeValueKwh: number): number {
+        return this._getSolarGaugeWidthPercent(this._getRemainingSolarGaugeValueKwh(day), maxSolarGaugeValueKwh);
+    }
+
+    private _getSolarGaugeWidthPercent(solarValueKwh: number | null, maxSolarGaugeValueKwh: number): number {
+        if (solarValueKwh === null || maxSolarGaugeValueKwh <= 0) {
+            return 0;
+        }
+
+        return Math.min((solarValueKwh / maxSolarGaugeValueKwh) * 100, 100);
+    }
+
+    private _getComparableSolarGaugeValueKwh(day: ForecastDetailDayModel): number | null {
+        return day.solarTotalKwh ?? day.solarSummaryKwh;
+    }
+
+    private _getRemainingSolarGaugeValueKwh(day: ForecastDetailDayModel): number | null {
+        if (day.solarSummaryKwh === null) {
+            return null;
+        }
+
+        if (day.solarTotalKwh === null) {
+            return day.solarSummaryKwh;
+        }
+
+        return Math.max(0, Math.min(day.solarSummaryKwh, day.solarTotalKwh));
+    }
+
     private _renderSolarSummary(day: ForecastDetailDayModel) {
         if (!this._hasSolarSummary(day)) {
             return nothing;
@@ -615,7 +676,9 @@ export class HelmanForecastDetail extends LitElement {
             `;
         }
 
-        return this._formatEnergy(day.solarSummaryKwh!);
+        return html`
+            <span class="forecast-day-solar-primary">${this._formatEnergy(day.solarSummaryKwh!)}</span>
+        `;
     }
 
     private _getSolarSummaryLabel(day: ForecastDetailDayModel): string | null {

@@ -154,11 +154,34 @@ export const nodeDetailSharedStyles = css`
     .forecast-day-solar-value {
         display: flex;
         flex-wrap: wrap;
+        position: relative;
+        overflow: hidden;
         align-items: baseline;
         gap: 4px;
+        min-width: 0;
+        border-radius: 4px;
+        background: linear-gradient(90deg, rgba(138, 138, 138, 0.18), rgba(138, 138, 138, 0.12));
         font-size: 0.96rem;
         font-weight: 700;
         line-height: 1.2;
+    }
+
+    .forecast-day-solar-value > :not(.forecast-day-solar-gauge) {
+        position: relative;
+        z-index: 1;
+    }
+
+    .forecast-day-solar-gauge {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(230, 194, 43, 0.32), rgba(230, 194, 43, 0.2));
+        pointer-events: none;
+    }
+
+    .forecast-day-solar-gauge.muted {
+        background: linear-gradient(90deg, rgba(230, 194, 43, 0.16), rgba(230, 194, 43, 0.1));
     }
 
     .forecast-day-solar-separator,
