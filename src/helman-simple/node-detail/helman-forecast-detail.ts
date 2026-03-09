@@ -6,17 +6,16 @@ import type { ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../
 import { convertToKWh, getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
 import type { LocalizeFunction } from "../../localize/localize";
 import { buildForecastDetailModel, type ForecastDetailDayModel } from "./forecast-detail-model";
+import {
+    getCachedLocalDateTimeParts,
+    type LocalDateTimeParts,
+} from "./local-date-time-parts-cache";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 
 interface ForecastHourSlot {
     timestamp: string;
     solarValue: number | null;
     priceValue: number | null;
-}
-
-interface LocalDateTimeParts {
-    dayKey: string;
-    hour: number;
 }
 
 interface ForecastMiniChartBar {
@@ -66,12 +65,31 @@ interface PriceSummaryEntry {
     muted: boolean;
 }
 
+interface ForecastModelInputs {
+    solarForecast: SolarForecastDTO | null;
+    gridForecast: GridForecastDTO | null;
+    timeZone: string;
+    remainingTodayKwh: number | null | undefined;
+    currentDayKey: string | null;
+}
+
 const FORECAST_DETAIL_PANEL_ID = "forecast-day-detail-panel";
+const EMPTY_MINI_CHART_SCALE: ForecastMiniChartScaleModel = {
+    maxSolarHourValue: 0,
+    maxAbsolutePriceValue: 0,
+    hasNegativePriceValues: false,
+};
 
 @customElement("helman-forecast-detail")
 export class HelmanForecastDetail extends LitElement {
 
     static styles = [nodeDetailSharedStyles];
+
+    private _currentLocalParts: LocalDateTimeParts | null = null;
+    private _forecastDays: ForecastDetailDayModel[] = [];
+    private _forecastModelInputs?: ForecastModelInputs;
+    private _maxSolarGaugeValueKwh = 0;
+    private _miniChartScale: ForecastMiniChartScaleModel = EMPTY_MINI_CHART_SCALE;
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
@@ -80,21 +98,38 @@ export class HelmanForecastDetail extends LitElement {
     @property({ attribute: false }) public remainingTodayEnergyEntityId: string | null = null;
     @state() private _selectedDayKey: string | null = null;
 
+    willUpdate(changedProperties: Map<string, unknown>): void {
+        super.willUpdate(changedProperties);
+
+        const now = new Date();
+        this._currentLocalParts = this._getCurrentLocalDateTimeParts(now);
+
+        const nextForecastModelInputs = this._buildForecastModelInputs();
+        if (!this._hasForecastModelInputsChanged(nextForecastModelInputs)) {
+            return;
+        }
+
+        this._forecastDays = buildForecastDetailModel({
+            solarForecast: nextForecastModelInputs.solarForecast,
+            gridForecast: nextForecastModelInputs.gridForecast,
+            timeZone: nextForecastModelInputs.timeZone,
+            remainingTodayKwhOverride: nextForecastModelInputs.remainingTodayKwh,
+            now,
+        });
+        this._miniChartScale = this._buildMiniChartScaleModel(this._forecastDays);
+        this._maxSolarGaugeValueKwh = this._getMaxSolarGaugeValueKwh(this._forecastDays);
+        this._forecastModelInputs = nextForecastModelInputs;
+    }
+
     render() {
         if (!this._hasConfiguredForecast(this.solarForecast) && !this._hasConfiguredForecast(this.gridForecast)) {
             return nothing;
         }
 
-        const remainingTodayKwh = this._readRemainingTodayKwh();
-        const currentLocalParts = this._getCurrentLocalDateTimeParts();
-        const days = buildForecastDetailModel({
-            solarForecast: this.solarForecast,
-            gridForecast: this.gridForecast,
-            timeZone: this.hass.config.time_zone,
-            remainingTodayKwhOverride: remainingTodayKwh,
-        });
-        const miniChartScale = this._buildMiniChartScaleModel(days);
-        const maxSolarGaugeValueKwh = this._getMaxSolarGaugeValueKwh(days);
+        const currentLocalParts = this._currentLocalParts;
+        const days = this._forecastDays;
+        const miniChartScale = this._miniChartScale;
+        const maxSolarGaugeValueKwh = this._maxSolarGaugeValueKwh;
         const selectedDay = days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
         const statusNote = days.length > 0 ? this._getStatusNote() : null;
 
@@ -941,8 +976,8 @@ export class HelmanForecastDetail extends LitElement {
                     continue;
                 }
 
-                const hourNumber = this._getLocalHourNumber(slots[index].timestamp);
-                if (hourNumber === null || hourNumber % 6 !== 0) {
+                const localDateTimeParts = this._getLocalDateTimeParts(slots[index].timestamp);
+                if (localDateTimeParts === null || localDateTimeParts.hour % 6 !== 0) {
                     continue;
                 }
 
@@ -984,36 +1019,30 @@ export class HelmanForecastDetail extends LitElement {
         return String(date.getTime());
     }
 
-    private _getCurrentLocalDateTimeParts(): LocalDateTimeParts | null {
-        return this._getLocalDateTimeParts(new Date());
+    private _buildForecastModelInputs(): ForecastModelInputs {
+        return {
+            solarForecast: this.solarForecast,
+            gridForecast: this.gridForecast,
+            timeZone: this.hass.config.time_zone,
+            remainingTodayKwh: this._readRemainingTodayKwh(),
+            currentDayKey: this._currentLocalParts?.dayKey ?? null,
+        };
     }
 
-    private _getLocalDateTimeParts(date: Date): LocalDateTimeParts | null {
-        if (Number.isNaN(date.getTime())) {
-            return null;
-        }
+    private _hasForecastModelInputsChanged(nextForecastModelInputs: ForecastModelInputs): boolean {
+        return this._forecastModelInputs?.solarForecast !== nextForecastModelInputs.solarForecast
+            || this._forecastModelInputs?.gridForecast !== nextForecastModelInputs.gridForecast
+            || this._forecastModelInputs?.timeZone !== nextForecastModelInputs.timeZone
+            || this._forecastModelInputs?.remainingTodayKwh !== nextForecastModelInputs.remainingTodayKwh
+            || this._forecastModelInputs?.currentDayKey !== nextForecastModelInputs.currentDayKey;
+    }
 
-        const formattedParts = new Intl.DateTimeFormat("en-CA", {
-            timeZone: this.hass.config.time_zone,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            hourCycle: "h23",
-        }).formatToParts(date);
+    private _getCurrentLocalDateTimeParts(now: Date = new Date()): LocalDateTimeParts | null {
+        return this._getLocalDateTimeParts(now);
+    }
 
-        const year = formattedParts.find((part) => part.type === "year")?.value;
-        const month = formattedParts.find((part) => part.type === "month")?.value;
-        const day = formattedParts.find((part) => part.type === "day")?.value;
-        const hour = formattedParts.find((part) => part.type === "hour")?.value;
-        if (!year || !month || !day || !hour) {
-            return null;
-        }
-
-        return {
-            dayKey: `${year}-${month}-${day}`,
-            hour: Number(hour),
-        };
+    private _getLocalDateTimeParts(value: Date | string): LocalDateTimeParts | null {
+        return getCachedLocalDateTimeParts(value, this.hass.config.time_zone);
     }
 
     private _isPastTimestamp(
@@ -1025,27 +1054,12 @@ export class HelmanForecastDetail extends LitElement {
             return false;
         }
 
-        const pointParts = this._getLocalDateTimeParts(new Date(timestamp));
+        const pointParts = this._getLocalDateTimeParts(timestamp);
         if (pointParts === null) {
             return false;
         }
 
         return pointParts.dayKey === currentLocalParts.dayKey && pointParts.hour < currentLocalParts.hour;
-    }
-
-    private _getLocalHourNumber(timestamp: string): number | null {
-        const date = new Date(timestamp);
-        if (Number.isNaN(date.getTime())) {
-            return null;
-        }
-
-        const hour = new Intl.DateTimeFormat("en-GB", {
-            timeZone: this.hass.config.time_zone,
-            hour: "2-digit",
-            hourCycle: "h23",
-        }).formatToParts(date).find((part) => part.type === "hour")?.value;
-
-        return hour ? Number(hour) : null;
     }
 
     private _buildColumnTitle(labelKey: string, timestamp: string, value: string): string {

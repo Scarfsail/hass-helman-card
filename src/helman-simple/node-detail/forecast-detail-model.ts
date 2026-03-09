@@ -1,4 +1,5 @@
 import type { ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../helman-api";
+import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export interface ForecastDetailDayModel {
     dayKey: string;
@@ -23,9 +24,9 @@ interface BuildForecastDetailModelParams {
     now?: Date;
 }
 
-interface LocalDateTimeParts {
-    dayKey: string;
-    hour: number;
+interface GroupedSolarPointsByDay {
+    visibleDayMap: Map<string, ForecastPointDTO[]>;
+    totalDayMap: Map<string, ForecastPointDTO[]>;
 }
 
 export function buildForecastDetailModel({
@@ -35,24 +36,20 @@ export function buildForecastDetailModel({
     remainingTodayKwhOverride,
     now = new Date(),
 }: BuildForecastDetailModelParams): ForecastDetailDayModel[] {
-    const currentLocalParts = _getLocalDateTimeParts(now, timeZone);
+    const currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
     if (currentLocalParts === null) {
         return [];
     }
 
-    const solarDayMap = _groupPointsByDay(
+    const { visibleDayMap: solarDayMap, totalDayMap: solarTotalDayMap } = _groupSolarPointsByDay(
         solarForecast?.points ?? [],
         timeZone,
-        currentLocalParts,
-    );
-    const solarTotalDayMap = _groupPointsByDay(
-        solarForecast?.points ?? [],
-        timeZone,
+        currentLocalParts.dayKey,
     );
     const priceDayMap = _groupPointsByDay(
         gridForecast?.points ?? [],
         timeZone,
-        currentLocalParts,
+        currentLocalParts.dayKey,
     );
 
     const todayKey = currentLocalParts.dayKey;
@@ -92,38 +89,77 @@ export function buildForecastDetailModel({
     });
 }
 
-function _groupPointsByDay(
+function _groupSolarPointsByDay(
     points: ForecastPointDTO[],
     timeZone: string,
-    currentLocalParts?: LocalDateTimeParts,
-): Map<string, ForecastPointDTO[]> {
-    const dayMap = new Map<string, ForecastPointDTO[]>();
+    currentLocalDayKey?: string,
+): GroupedSolarPointsByDay {
+    const visibleDayMap = new Map<string, ForecastPointDTO[]>();
+    const totalDayMap = new Map<string, ForecastPointDTO[]>();
 
     for (const point of points) {
-        const pointDate = new Date(point.timestamp);
-        if (Number.isNaN(pointDate.getTime())) {
-            continue;
-        }
-
-        const pointLocalParts = _getLocalDateTimeParts(pointDate, timeZone);
+        const pointLocalParts = getCachedLocalDateTimeParts(point.timestamp, timeZone);
         if (pointLocalParts === null) {
             continue;
         }
 
-        if (currentLocalParts !== undefined && pointLocalParts.dayKey < currentLocalParts.dayKey) {
+        _addPointToDayMap(totalDayMap, pointLocalParts.dayKey, point);
+
+        if (currentLocalDayKey !== undefined && pointLocalParts.dayKey < currentLocalDayKey) {
             continue;
         }
 
-        const dayPoints = dayMap.get(pointLocalParts.dayKey) ?? [];
-        dayPoints.push(point);
-        dayMap.set(pointLocalParts.dayKey, dayPoints);
+        _addPointToDayMap(visibleDayMap, pointLocalParts.dayKey, point);
     }
 
+    _sortDayMap(visibleDayMap);
+    _sortDayMap(totalDayMap);
+
+    return {
+        visibleDayMap,
+        totalDayMap,
+    };
+}
+
+function _groupPointsByDay(
+    points: ForecastPointDTO[],
+    timeZone: string,
+    currentLocalDayKey?: string,
+): Map<string, ForecastPointDTO[]> {
+    const dayMap = new Map<string, ForecastPointDTO[]>();
+
+    for (const point of points) {
+        const pointLocalParts = getCachedLocalDateTimeParts(point.timestamp, timeZone);
+        if (pointLocalParts === null) {
+            continue;
+        }
+
+        if (currentLocalDayKey !== undefined && pointLocalParts.dayKey < currentLocalDayKey) {
+            continue;
+        }
+
+        _addPointToDayMap(dayMap, pointLocalParts.dayKey, point);
+    }
+
+    _sortDayMap(dayMap);
+
+    return dayMap;
+}
+
+function _addPointToDayMap(
+    dayMap: Map<string, ForecastPointDTO[]>,
+    dayKey: string,
+    point: ForecastPointDTO,
+): void {
+    const dayPoints = dayMap.get(dayKey) ?? [];
+    dayPoints.push(point);
+    dayMap.set(dayKey, dayPoints);
+}
+
+function _sortDayMap(dayMap: Map<string, ForecastPointDTO[]>): void {
     for (const [dayKey, dayPoints] of dayMap.entries()) {
         dayMap.set(dayKey, [...dayPoints].sort(_comparePointsByTimestamp));
     }
-
-    return dayMap;
 }
 
 function _sumPointValuesKwh(points: ForecastPointDTO[]): number | null {
@@ -132,29 +168,6 @@ function _sumPointValuesKwh(points: ForecastPointDTO[]): number | null {
     }
 
     return points.reduce((sum, point) => sum + point.value, 0) / 1000;
-}
-function _getLocalDateTimeParts(date: Date, timeZone: string): LocalDateTimeParts | null {
-    const formattedParts = new Intl.DateTimeFormat("en-CA", {
-        timeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        hourCycle: "h23",
-    }).formatToParts(date);
-
-    const year = formattedParts.find((part) => part.type === "year")?.value;
-    const month = formattedParts.find((part) => part.type === "month")?.value;
-    const day = formattedParts.find((part) => part.type === "day")?.value;
-    const hour = formattedParts.find((part) => part.type === "hour")?.value;
-    if (!year || !month || !day || !hour) {
-        return null;
-    }
-
-    return {
-        dayKey: `${year}-${month}-${day}`,
-        hour: Number(hour),
-    };
 }
 
 function _addDaysToDayKey(dayKey: string, days: number): string {
