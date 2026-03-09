@@ -52,6 +52,7 @@ export class NodeDetailSolarContent extends LitElement {
                 .localize=${this.localize}
                 .solarForecast=${solarForecast}
                 .gridForecast=${gridForecast}
+                .remainingTodayEnergyEntityId=${this.params.remainingTodayEnergyEntityId}
             ></helman-forecast-detail>
         `;
     }

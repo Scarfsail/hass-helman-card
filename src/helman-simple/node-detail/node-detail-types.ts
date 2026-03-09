@@ -26,6 +26,7 @@ export interface SolarDetailParams {
     power: number; // watts
     powerEntityId: string | null;
     todayEnergyEntityId: string | null;
+    remainingTodayEnergyEntityId: string | null;
     solarForecast: SolarForecastDTO | null;
     gridForecast: GridForecastDTO | null;
     solarNode: DeviceNode | null;
@@ -40,6 +41,7 @@ export interface GridDetailParams {
     powerEntityId: string | null;
     todayImportEntityId: string | null;
     todayExportEntityId: string | null;
+    remainingTodayEnergyEntityId: string | null;
     solarForecast: SolarForecastDTO | null;
     gridForecast: GridForecastDTO | null;
     gridProducerNode: DeviceNode | null;

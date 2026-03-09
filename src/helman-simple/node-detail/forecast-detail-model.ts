@@ -5,8 +5,10 @@ export interface ForecastDetailDayModel {
     isToday: boolean;
     isTomorrow: boolean;
     solarSummaryKwh: number | null;
+    solarTotalKwh: number | null;
     solarHours: ForecastPointDTO[];
     hasSolarData: boolean;
+    currentPrice: number | null;
     priceMin: number | null;
     priceMax: number | null;
     priceHours: ForecastPointDTO[];
@@ -17,6 +19,7 @@ interface BuildForecastDetailModelParams {
     solarForecast: SolarForecastDTO | null;
     gridForecast: GridForecastDTO | null;
     timeZone: string;
+    remainingTodayKwhOverride?: number | null;
     now?: Date;
 }
 
@@ -29,6 +32,7 @@ export function buildForecastDetailModel({
     solarForecast,
     gridForecast,
     timeZone,
+    remainingTodayKwhOverride,
     now = new Date(),
 }: BuildForecastDetailModelParams): ForecastDetailDayModel[] {
     const currentLocalParts = _getLocalDateTimeParts(now, timeZone);
@@ -36,12 +40,16 @@ export function buildForecastDetailModel({
         return [];
     }
 
-    const solarDayMap = _groupVisiblePointsByDay(
+    const solarDayMap = _groupPointsByDay(
         solarForecast?.points ?? [],
         timeZone,
         currentLocalParts,
     );
-    const priceDayMap = _groupVisiblePointsByDay(
+    const solarTotalDayMap = _groupPointsByDay(
+        solarForecast?.points ?? [],
+        timeZone,
+    );
+    const priceDayMap = _groupPointsByDay(
         gridForecast?.points ?? [],
         timeZone,
         currentLocalParts,
@@ -55,17 +63,23 @@ export function buildForecastDetailModel({
 
     return allDayKeys.map((dayKey) => {
         const solarHours = solarDayMap.get(dayKey) ?? [];
+        const solarTotalHours = solarTotalDayMap.get(dayKey) ?? [];
         const priceHours = priceDayMap.get(dayKey) ?? [];
+        const solarSummaryKwh = dayKey === todayKey
+            ? remainingTodayKwhOverride
+                ?? solarForecast?.remainingTodayKwh
+                ?? _sumPointValuesKwh(solarHours)
+            : _sumPointValuesKwh(solarHours);
 
         return {
             dayKey,
             isToday: dayKey === todayKey,
             isTomorrow: dayKey === tomorrowKey,
-            solarSummaryKwh: solarHours.length > 0
-                ? solarHours.reduce((sum, point) => sum + point.value, 0) / 1000
-                : null,
+            solarSummaryKwh,
+            solarTotalKwh: _sumPointValuesKwh(solarTotalHours),
             solarHours,
-            hasSolarData: solarHours.length > 0,
+            hasSolarData: solarHours.length > 0 || solarSummaryKwh !== null,
+            currentPrice: dayKey === todayKey ? gridForecast?.currentSellPrice ?? null : null,
             priceMin: priceHours.length > 0
                 ? Math.min(...priceHours.map((point) => point.value))
                 : null,
@@ -78,10 +92,10 @@ export function buildForecastDetailModel({
     });
 }
 
-function _groupVisiblePointsByDay(
+function _groupPointsByDay(
     points: ForecastPointDTO[],
     timeZone: string,
-    currentLocalParts: LocalDateTimeParts,
+    currentLocalParts?: LocalDateTimeParts,
 ): Map<string, ForecastPointDTO[]> {
     const dayMap = new Map<string, ForecastPointDTO[]>();
 
@@ -92,7 +106,11 @@ function _groupVisiblePointsByDay(
         }
 
         const pointLocalParts = _getLocalDateTimeParts(pointDate, timeZone);
-        if (pointLocalParts === null || !_isVisiblePoint(pointLocalParts, currentLocalParts)) {
+        if (pointLocalParts === null) {
+            continue;
+        }
+
+        if (currentLocalParts !== undefined && pointLocalParts.dayKey < currentLocalParts.dayKey) {
             continue;
         }
 
@@ -108,21 +126,13 @@ function _groupVisiblePointsByDay(
     return dayMap;
 }
 
-function _isVisiblePoint(
-    pointLocalParts: LocalDateTimeParts,
-    currentLocalParts: LocalDateTimeParts,
-): boolean {
-    if (pointLocalParts.dayKey < currentLocalParts.dayKey) {
-        return false;
+function _sumPointValuesKwh(points: ForecastPointDTO[]): number | null {
+    if (points.length === 0) {
+        return null;
     }
 
-    if (pointLocalParts.dayKey > currentLocalParts.dayKey) {
-        return true;
-    }
-
-    return pointLocalParts.hour >= currentLocalParts.hour;
+    return points.reduce((sum, point) => sum + point.value, 0) / 1000;
 }
-
 function _getLocalDateTimeParts(date: Date, timeZone: string): LocalDateTimeParts | null {
     const formattedParts = new Intl.DateTimeFormat("en-CA", {
         timeZone,

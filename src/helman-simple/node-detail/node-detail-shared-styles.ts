@@ -152,24 +152,64 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-day-solar-value {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px;
         font-size: 0.96rem;
         font-weight: 700;
         line-height: 1.2;
     }
 
+    .forecast-day-solar-separator,
+    .forecast-day-solar-secondary {
+        color: var(--secondary-text-color);
+    }
+
+    .forecast-day-solar-secondary {
+        font-weight: 600;
+    }
+
     .forecast-day-price-line {
+        --forecast-day-price-font-size: 0.74rem;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 4px;
         min-height: 1rem;
-        font-size: 0.74rem;
+        font-size: var(--forecast-day-price-font-size);
         font-weight: 600;
         line-height: 1.2;
     }
 
     .forecast-day-price-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.18rem;
         white-space: nowrap;
+        font-size: var(--forecast-day-price-font-size);
+        font-weight: inherit;
+        line-height: inherit;
+    }
+
+    .forecast-day-price-prefix {
+        font-size: 0.82em;
+        line-height: 1;
+    }
+
+    .forecast-day-price-value {
+        font-size: var(--forecast-day-price-font-size);
+        line-height: inherit;
+    }
+
+    .forecast-day-price-unit {
+        color: var(--secondary-text-color);
+        font-size: inherit;
+        line-height: inherit;
+    }
+
+    .forecast-day-price-chip.muted {
+        opacity: 0.7;
     }
 
     .forecast-day-price-separator {
@@ -242,6 +282,14 @@ export const nodeDetailSharedStyles = css`
         flex: 1 1 0;
         min-width: 0;
         color: var(--primary-color);
+    }
+
+    .forecast-day-chart-bar.solar {
+        color: var(--simple-card-source-solar, #facc15);
+    }
+
+    .forecast-day-chart-bar.past {
+        opacity: 0.35;
     }
 
     .forecast-day-chart-bar::before {
@@ -332,8 +380,8 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-detail-summary-item .forecast-day-price-line {
+        --forecast-day-price-font-size: 0.78rem;
         min-height: 0;
-        font-size: 0.78rem;
     }
 
     .forecast-detail-chart {
@@ -396,6 +444,11 @@ export const nodeDetailSharedStyles = css`
         min-width: 0;
     }
 
+    .forecast-detail-column.past .forecast-detail-bar,
+    .forecast-detail-column.past .forecast-detail-highlight {
+        opacity: 0.38;
+    }
+
     .forecast-detail-bar {
         position: absolute;
         left: 50%;
@@ -412,7 +465,7 @@ export const nodeDetailSharedStyles = css`
 
     .forecast-detail-bar.solar,
     .forecast-detail-highlight.solar {
-        color: var(--primary-color);
+        color: var(--simple-card-source-solar, #facc15);
     }
 
     .forecast-detail-highlight {
@@ -450,6 +503,10 @@ export const nodeDetailSharedStyles = css`
         color: var(--secondary-text-color);
         font-size: 0.68rem;
         line-height: 1.2;
+    }
+
+    .forecast-detail-axis-tick.past {
+        opacity: 0.45;
     }
 
     .forecast-day-chart-track.price .forecast-day-chart-bar.price-positive,
