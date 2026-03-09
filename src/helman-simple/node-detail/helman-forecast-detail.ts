@@ -14,6 +14,46 @@ interface ForecastHourSlot {
     priceValue: number | null;
 }
 
+interface ForecastMiniChartBar {
+    heightPercent: number;
+    offsetPercent: number;
+    toneClass: string;
+}
+
+interface ForecastMiniChartModel {
+    bars: ForecastMiniChartBar[];
+    hasNegativeValues: boolean;
+}
+
+interface ForecastMiniChartScaleModel {
+    maxSolarHourValue: number;
+    maxAbsolutePriceValue: number;
+    hasNegativePriceValues: boolean;
+}
+
+interface ForecastDetailColumnModel {
+    timestamp: string;
+    solarValue: number | null;
+    solarHeightPercent: number;
+    priceValue: number | null;
+    priceHeightPercent: number;
+    priceOffsetPercent: number;
+    priceToneClass: string;
+    hourLabel: string | null;
+    isMaxSolar: boolean;
+    isMinPrice: boolean;
+    isMaxPrice: boolean;
+}
+
+interface ForecastDetailChartModel {
+    columns: ForecastDetailColumnModel[];
+    hasNegativePriceValues: boolean;
+    maxPriceSlot: ForecastHourSlot | null;
+    minPriceSlot: ForecastHourSlot | null;
+}
+
+const FORECAST_DETAIL_PANEL_ID = "forecast-day-detail-panel";
+
 @customElement("helman-forecast-detail")
 export class HelmanForecastDetail extends LitElement {
 
@@ -35,6 +75,8 @@ export class HelmanForecastDetail extends LitElement {
             gridForecast: this.gridForecast,
             timeZone: this.hass.config.time_zone,
         });
+        const miniChartScale = this._buildMiniChartScaleModel(days);
+        const selectedDay = days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
         const statusNote = days.length > 0 ? this._getStatusNote() : null;
 
         return html`
@@ -45,8 +87,9 @@ export class HelmanForecastDetail extends LitElement {
                 ` : nothing}
                 ${days.length > 0 ? html`
                     <div class="forecast-detail-days">
-                        ${days.map((day) => this._renderDay(day))}
+                        ${days.map((day) => this._renderDay(day, miniChartScale))}
                     </div>
+                    ${selectedDay !== null ? this._renderDetailPanel(selectedDay) : nothing}
                 ` : html`
                     <div class="muted">${this._getEmptyMessage()}</div>
                 `}
@@ -54,92 +97,265 @@ export class HelmanForecastDetail extends LitElement {
         `;
     }
 
-    private _renderDay(day: ForecastDetailDayModel) {
+    private _renderDay(
+        day: ForecastDetailDayModel,
+        miniChartScale: ForecastMiniChartScaleModel,
+    ) {
         const isExpanded = this._selectedDayKey === day.dayKey;
-        const panelId = `forecast-day-hourly-${day.dayKey}`;
         const dayLabel = this._formatDayLabel(day);
+        const solarUnavailable = this.localize("node_detail.forecast_detail.solar_unavailable");
+        const priceUnavailable = this.localize("node_detail.forecast_detail.price_unavailable");
 
         return html`
             <div
                 class="forecast-day-card ${day.isToday ? "today" : ""} ${isExpanded ? "expanded" : ""}"
                 data-day-key=${day.dayKey}
             >
-                <button
-                    type="button"
-                    class="forecast-day-summary"
-                    @click=${() => this._toggleDay(day.dayKey)}
-                    aria-expanded=${String(isExpanded)}
-                    aria-controls=${panelId}
-                    aria-label=${`${this.localize("node_detail.forecast_detail.title")}: ${dayLabel}`}
-                >
+                 <button
+                     type="button"
+                     class="forecast-day-summary"
+                     @click=${() => this._toggleDay(day.dayKey)}
+                     aria-expanded=${String(isExpanded)}
+                     aria-controls=${isExpanded ? FORECAST_DETAIL_PANEL_ID : nothing}
+                     aria-label=${this._buildDayButtonLabel(day, dayLabel)}
+                 >
                     <div class="forecast-day-header">
                         <div class="forecast-day-label">${dayLabel}</div>
                         <span class="forecast-day-toggle" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
                     </div>
-                    <div class="forecast-day-lane">
-                        <div class="forecast-day-lane-label">${this.localize("node_detail.forecast_detail.solar_label")}</div>
-                        ${day.hasSolarData && day.solarSummaryKwh !== null ? html`
-                            <div class="forecast-day-solar-value">${this._formatEnergy(day.solarSummaryKwh)}</div>
-                        ` : html`
-                            <div class="forecast-day-placeholder">${this.localize("node_detail.forecast_detail.solar_unavailable")}</div>
-                        `}
-                    </div>
-                    <div class="forecast-day-lane">
-                        <div class="forecast-day-lane-label">${this.localize("node_detail.forecast_detail.price_label")}</div>
-                        ${day.hasPriceData && day.priceMin !== null && day.priceMax !== null ? html`
-                            <div class="forecast-day-price-range">
-                                ${this._renderPriceRow("node_detail.forecast_detail.price_min", day.priceMin)}
-                                ${this._renderPriceRow("node_detail.forecast_detail.price_max", day.priceMax)}
-                            </div>
-                        ` : html`
-                            <div class="forecast-day-placeholder">${this.localize("node_detail.forecast_detail.price_unavailable")}</div>
-                        `}
-                    </div>
-                </button>
-                ${isExpanded ? html`
-                    <div
-                        id=${panelId}
-                        class="forecast-day-hourly"
-                        role="region"
-                        aria-label=${`${dayLabel}: ${this.localize("node_detail.forecast_detail.hourly_detail")}`}
-                    >
-                        <div class="forecast-day-hourly-label">${this.localize("node_detail.forecast_detail.hourly_detail")}</div>
-                        <div class="forecast-hourly-list">
-                            ${this._buildHourSlots(day).map((slot) => this._renderHourSlot(slot))}
-                        </div>
-                    </div>
-                ` : nothing}
-            </div>
+                    ${day.hasSolarData && day.solarSummaryKwh !== null ? html`
+                        <div class="forecast-day-solar-value">${this._formatEnergy(day.solarSummaryKwh)}</div>
+                    ` : html`
+                        <div class="forecast-day-placeholder" title=${solarUnavailable}>—</div>
+                    `}
+                     ${day.hasPriceData && day.priceMin !== null && day.priceMax !== null ? this._renderPriceRangeLine(day.priceMin, day.priceMax) : html`
+                         <div class="forecast-day-placeholder" title=${priceUnavailable}>—</div>
+                     `}
+                     <div class="forecast-day-mini-charts" aria-hidden="true">
+                        ${this._renderMiniChartRow(day, "solar", miniChartScale)}
+                        ${this._renderMiniChartRow(day, "price", miniChartScale)}
+                     </div>
+                 </button>
+             </div>
         `;
     }
 
-    private _renderHourSlot(slot: ForecastHourSlot) {
+    private _renderDetailPanel(day: ForecastDetailDayModel) {
+        const dayLabel = this._formatDayLabel(day);
+        const detail = this._buildDetailChartModel(day);
+        const solarUnavailable = this.localize("node_detail.forecast_detail.solar_unavailable");
+        const priceUnavailable = this.localize("node_detail.forecast_detail.price_unavailable");
+
         return html`
-            <div class="forecast-hour-row">
-                <div class="forecast-hour-time">${this._formatHour(slot.timestamp)}</div>
-                <div class="forecast-hour-metrics">
-                    <div class="forecast-hour-metric">
-                        <span class="forecast-hour-metric-label">${this.localize("node_detail.forecast_detail.solar_label")}</span>
-                        <span class="forecast-hour-metric-value">
-                            ${slot.solarValue !== null ? this._formatEnergy(slot.solarValue / 1000) : "—"}
-                        </span>
+            <div
+                id=${FORECAST_DETAIL_PANEL_ID}
+                class="forecast-detail-panel"
+                role="region"
+                aria-label=${`${this._buildDayButtonLabel(day, dayLabel)}. ${this.localize("node_detail.forecast_detail.hourly_detail")}`}
+            >
+                <div class="forecast-detail-panel-header">
+                    <div class="forecast-detail-panel-heading">
+                        <div class="forecast-detail-panel-title">${dayLabel}</div>
+                        <div class="forecast-detail-panel-subtitle">
+                            ${this.localize("node_detail.forecast_detail.hourly_detail")}
+                        </div>
                     </div>
-                    <div class="forecast-hour-metric ${slot.priceValue !== null ? this._getPriceToneClass(slot.priceValue) : ""}">
-                        <span class="forecast-hour-metric-label">${this.localize("node_detail.forecast_detail.price_label")}</span>
-                        <span class="forecast-hour-metric-value">
-                            ${slot.priceValue !== null ? this._formatPrice(slot.priceValue) : "—"}
-                        </span>
+                    <div class="forecast-detail-summary">
+                        <div class="forecast-detail-summary-item">
+                            <span class="forecast-detail-summary-label">
+                                ${this.localize("node_detail.forecast_detail.solar_label")}
+                            </span>
+                            ${day.hasSolarData && day.solarSummaryKwh !== null ? html`
+                                <span class="forecast-detail-summary-value">
+                                    ${this._formatEnergy(day.solarSummaryKwh)}
+                                </span>
+                            ` : html`
+                                <span
+                                    class="forecast-detail-summary-value forecast-detail-summary-placeholder"
+                                    title=${solarUnavailable}
+                                >
+                                    —
+                                </span>
+                            `}
+                        </div>
+                        <div class="forecast-detail-summary-item">
+                            <span class="forecast-detail-summary-label">
+                                ${this.localize("node_detail.forecast_detail.price_label")}
+                            </span>
+                            ${day.hasPriceData && day.priceMin !== null && day.priceMax !== null
+                                ? this._renderPriceRangeLine(day.priceMin, day.priceMax)
+                                : html`
+                                    <span
+                                        class="forecast-detail-summary-value forecast-detail-summary-placeholder"
+                                        title=${priceUnavailable}
+                                    >
+                                        —
+                                    </span>
+                                `}
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="forecast-detail-chart"
+                    style=${`--forecast-column-count:${Math.max(detail.columns.length, 1)};`}
+                    aria-hidden="true"
+                >
+                    ${this._renderDetailRow("solar", detail)}
+                    ${this._renderDetailRow("price", detail)}
+                    <div class="forecast-detail-axis">
+                        <div class="forecast-detail-axis-spacer" aria-hidden="true"></div>
+                        <div class="forecast-detail-axis-grid">
+                            ${detail.columns.map((column) => html`
+                                <span class="forecast-detail-axis-tick">${column.hourLabel ?? ""}</span>
+                            `)}
+                        </div>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    private _renderPriceRow(labelKey: string, value: number) {
+    private _renderMiniChartRow(
+        day: ForecastDetailDayModel,
+        type: "solar" | "price",
+        miniChartScale: ForecastMiniChartScaleModel,
+    ) {
+        const chart = this._buildMiniChartModel(day, type, miniChartScale);
+        const chartClass = [
+            "forecast-day-chart-track",
+            type,
+            chart.hasNegativeValues ? "has-negative" : "",
+            chart.bars.length === 0 ? "empty" : "",
+        ].filter(Boolean).join(" ");
+
         return html`
-            <div class="forecast-day-price-row ${this._getPriceToneClass(value)}">
-                <span class="forecast-day-price-label">${this.localize(labelKey)}</span>
-                <span class="forecast-day-price-value">${this._formatPrice(value)}</span>
+            <div class="forecast-day-chart-row">
+                <span class="forecast-day-chart-key">${type === "solar" ? "S" : "P"}</span>
+                <div class=${chartClass}>
+                    ${chart.bars.map((bar) => html`
+                        <span
+                            class="forecast-day-chart-bar ${bar.toneClass}"
+                            style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:${bar.offsetPercent}%;`}
+                        ></span>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderDetailRow(
+        type: "solar" | "price",
+        detail: ForecastDetailChartModel,
+    ) {
+        const hasData = type === "solar"
+            ? detail.columns.some((column) => column.solarValue !== null)
+            : detail.columns.some((column) => column.priceValue !== null);
+        const trackClass = [
+            "forecast-detail-track",
+            type,
+            !hasData ? "empty" : "",
+            type === "price" && detail.hasNegativePriceValues ? "has-negative" : "",
+        ].filter(Boolean).join(" ");
+
+        return html`
+            <div class="forecast-detail-row">
+                <div class="forecast-detail-row-label">
+                    ${this.localize(
+                        type === "solar"
+                            ? "node_detail.forecast_detail.solar_label"
+                            : "node_detail.forecast_detail.price_label",
+                    )}
+                </div>
+                <div class=${trackClass}>
+                    ${detail.columns.map((column) => type === "solar"
+                        ? this._renderSolarDetailColumn(column)
+                        : this._renderPriceDetailColumn(column, detail))}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderSolarDetailColumn(column: ForecastDetailColumnModel) {
+        const valueLabel = column.solarValue !== null
+            ? this._formatEnergy(column.solarValue / 1000)
+            : this.localize("node_detail.forecast_detail.solar_unavailable");
+
+        return html`
+            <div
+                class="forecast-detail-column"
+                title=${this._buildColumnTitle(
+                    "node_detail.forecast_detail.solar_label",
+                    column.timestamp,
+                    valueLabel,
+                )}
+            >
+                ${column.isMaxSolar && column.solarValue !== null ? html`
+                    <span class="forecast-detail-highlight top solar">
+                        ↑ ${this._formatEnergy(column.solarValue / 1000)}
+                    </span>
+                ` : nothing}
+                ${column.solarValue !== null ? html`
+                    <span
+                        class="forecast-detail-bar solar"
+                        style=${`--forecast-bar-height:${column.solarHeightPercent}%; --forecast-bar-offset:0%;`}
+                    ></span>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderPriceDetailColumn(
+        column: ForecastDetailColumnModel,
+        detail: ForecastDetailChartModel,
+    ) {
+        const valueLabel = column.priceValue !== null
+            ? this._formatPrice(column.priceValue)
+            : this.localize("node_detail.forecast_detail.price_unavailable");
+        const isSharedHighlight = column.isMinPrice
+            && column.isMaxPrice
+            && detail.minPriceSlot?.timestamp === detail.maxPriceSlot?.timestamp;
+
+        return html`
+            <div
+                class="forecast-detail-column"
+                title=${this._buildColumnTitle(
+                    "node_detail.forecast_detail.price_label",
+                    column.timestamp,
+                    valueLabel,
+                )}
+            >
+                ${column.priceValue !== null && (column.isMaxPrice || isSharedHighlight) ? html`
+                    <span class="forecast-detail-highlight top ${column.priceToneClass}">
+                        ${isSharedHighlight ? "↕" : "↑"} ${this._formatCompactPrice(column.priceValue)}
+                    </span>
+                ` : nothing}
+                ${column.priceValue !== null && column.isMinPrice && !isSharedHighlight ? html`
+                    <span class="forecast-detail-highlight bottom ${column.priceToneClass}">
+                        ↓ ${this._formatCompactPrice(column.priceValue)}
+                    </span>
+                ` : nothing}
+                ${column.priceValue !== null ? html`
+                    <span
+                        class="forecast-detail-bar ${column.priceToneClass}"
+                        style=${`--forecast-bar-height:${column.priceHeightPercent}%; --forecast-bar-offset:${column.priceOffsetPercent}%;`}
+                    ></span>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderPriceRangeLine(priceMin: number, priceMax: number) {
+        const title = `${this.localize("node_detail.forecast_detail.price_min")} ${this._formatPrice(priceMin)}, ${this.localize("node_detail.forecast_detail.price_max")} ${this._formatPrice(priceMax)}`;
+
+        return html`
+            <div class="forecast-day-price-line" title=${title}>
+                <span class="forecast-day-price-chip ${this._getPriceToneClass(priceMin)}">
+                    ↓ ${this._formatCompactPrice(priceMin)}
+                </span>
+                <span class="forecast-day-price-separator" aria-hidden="true">/</span>
+                <span class="forecast-day-price-chip ${this._getPriceToneClass(priceMax)}">
+                    ↑ ${this._formatCompactPrice(priceMax)}
+                </span>
             </div>
         `;
     }
@@ -170,14 +386,21 @@ export class HelmanForecastDetail extends LitElement {
         return `${display.value.toFixed(fractionDigits)} ${display.unit}`;
     }
 
+    private _formatCompactPrice(value: number): string {
+        return this._formatSignedPriceValue(value);
+    }
+
     private _formatPrice(value: number): string {
+        const signedValue = this._formatSignedPriceValue(value);
+        return this.gridForecast?.unit ? `${signedValue} ${this.gridForecast.unit}` : signedValue;
+    }
+
+    private _formatSignedPriceValue(value: number): string {
         const formattedValue = new Intl.NumberFormat(
             this.hass.locale?.language || navigator.language,
             { maximumFractionDigits: 3 },
         ).format(value);
-        const signedValue = value > 0 ? `+${formattedValue}` : formattedValue;
-
-        return this.gridForecast?.unit ? `${signedValue} ${this.gridForecast.unit}` : signedValue;
+        return value > 0 ? `+${formattedValue}` : formattedValue;
     }
 
     private _getPriceToneClass(value: number): string {
@@ -190,6 +413,148 @@ export class HelmanForecastDetail extends LitElement {
         }
 
         return "price-neutral";
+    }
+
+    private _buildMiniChartModel(
+        day: ForecastDetailDayModel,
+        type: "solar" | "price",
+        miniChartScale: ForecastMiniChartScaleModel,
+    ): ForecastMiniChartModel {
+        const points = type === "solar" ? day.solarHours : day.priceHours;
+        if (points.length === 0) {
+            return {
+                bars: [],
+                hasNegativeValues: false,
+            };
+        }
+
+        if (type === "solar") {
+            return {
+                bars: points.map((point) => ({
+                    heightPercent: this._normalizeBarHeight(
+                        Math.max(point.value, 0),
+                        miniChartScale.maxSolarHourValue,
+                        100,
+                    ),
+                    offsetPercent: 0,
+                    toneClass: "solar",
+                })),
+                hasNegativeValues: false,
+            };
+        }
+
+        const { hasNegativePriceValues, maxAbsolutePriceValue } = miniChartScale;
+
+        return {
+            bars: points.map((point) => {
+                const heightPercent = this._normalizeBarHeight(
+                    Math.abs(point.value),
+                    maxAbsolutePriceValue,
+                    hasNegativePriceValues ? 50 : 100,
+                );
+
+                return {
+                    heightPercent,
+                    offsetPercent: hasNegativePriceValues && point.value < 0
+                        ? Math.max(0, 50 - heightPercent)
+                        : hasNegativePriceValues
+                            ? 50
+                            : 0,
+                    toneClass: this._getPriceToneClass(point.value),
+                };
+            }),
+            hasNegativeValues: hasNegativePriceValues,
+        };
+    }
+
+    private _buildMiniChartScaleModel(days: ForecastDetailDayModel[]): ForecastMiniChartScaleModel {
+        return {
+            maxSolarHourValue: Math.max(
+                ...days.flatMap((day) => day.solarHours.map((point) => Math.max(point.value, 0))),
+                0,
+            ),
+            maxAbsolutePriceValue: Math.max(
+                ...days.flatMap((day) => day.priceHours.map((point) => Math.abs(point.value))),
+                0,
+            ),
+            hasNegativePriceValues: days.some((day) => day.priceHours.some((point) => point.value < 0)),
+        };
+    }
+
+    private _buildDetailChartModel(day: ForecastDetailDayModel): ForecastDetailChartModel {
+        const slots = this._buildHourSlots(day);
+        const maxSolarSlot = this._findMaxSolarSlot(slots);
+        const minPriceSlot = this._findPriceHighlightSlot(slots, "min");
+        const maxPriceSlot = this._findPriceHighlightSlot(slots, "max");
+        const maxSolarValue = Math.max(...slots.map((slot) => Math.max(slot.solarValue ?? 0, 0)), 0);
+        const hasNegativePriceValues = slots.some((slot) => (slot.priceValue ?? 0) < 0);
+        const maxAbsolutePrice = Math.max(...slots.map((slot) => Math.abs(slot.priceValue ?? 0)), 0);
+        const sparseHourLabels = this._buildSparseHourLabelMap(slots);
+        const maxSolarBarHeight = 78;
+        const maxPriceBarHeight = hasNegativePriceValues ? 34 : 78;
+
+        return {
+            columns: slots.map((slot, index) => {
+                const solarHeightPercent = this._normalizeBarHeight(
+                    Math.max(slot.solarValue ?? 0, 0),
+                    maxSolarValue,
+                    maxSolarBarHeight,
+                );
+                const priceHeightPercent = this._normalizeBarHeight(
+                    Math.abs(slot.priceValue ?? 0),
+                    maxAbsolutePrice,
+                    maxPriceBarHeight,
+                );
+
+                return {
+                    timestamp: slot.timestamp,
+                    solarValue: slot.solarValue,
+                    solarHeightPercent,
+                    priceValue: slot.priceValue,
+                    priceHeightPercent,
+                    priceOffsetPercent: slot.priceValue === null
+                        ? 0
+                        : hasNegativePriceValues && slot.priceValue < 0
+                            ? Math.max(0, 50 - priceHeightPercent)
+                            : hasNegativePriceValues
+                                ? 50
+                                : 0,
+                    priceToneClass: slot.priceValue !== null ? this._getPriceToneClass(slot.priceValue) : "price-neutral",
+                    hourLabel: sparseHourLabels.get(index) ?? null,
+                    isMaxSolar: maxSolarSlot?.timestamp === slot.timestamp,
+                    isMinPrice: minPriceSlot?.timestamp === slot.timestamp,
+                    isMaxPrice: maxPriceSlot?.timestamp === slot.timestamp,
+                };
+            }),
+            hasNegativePriceValues,
+            maxPriceSlot,
+            minPriceSlot,
+        };
+    }
+
+    private _normalizeBarHeight(value: number, maxValue: number, maxHeightPercent: number): number {
+        if (value <= 0 || maxValue <= 0) {
+            return 0;
+        }
+
+        return Math.max((value / maxValue) * maxHeightPercent, maxHeightPercent * 0.12);
+    }
+
+    private _buildDayButtonLabel(day: ForecastDetailDayModel, dayLabel: string): string {
+        const parts = [`${this.localize("node_detail.forecast_detail.title")}: ${dayLabel}`];
+
+        parts.push(
+            day.hasSolarData && day.solarSummaryKwh !== null
+                ? `${this.localize("node_detail.forecast_detail.solar_label")} ${this._formatEnergy(day.solarSummaryKwh)}`
+                : `${this.localize("node_detail.forecast_detail.solar_label")} ${this.localize("node_detail.forecast_detail.solar_unavailable")}`,
+        );
+        parts.push(
+            day.hasPriceData && day.priceMin !== null && day.priceMax !== null
+                ? `${this.localize("node_detail.forecast_detail.price_min")} ${this._formatPrice(day.priceMin)}, ${this.localize("node_detail.forecast_detail.price_max")} ${this._formatPrice(day.priceMax)}`
+                : `${this.localize("node_detail.forecast_detail.price_label")} ${this.localize("node_detail.forecast_detail.price_unavailable")}`,
+        );
+
+        return parts.join(". ");
     }
 
     private _buildHourSlots(day: ForecastDetailDayModel): ForecastHourSlot[] {
@@ -233,6 +598,91 @@ export class HelmanForecastDetail extends LitElement {
         }
     }
 
+    private _findMaxSolarSlot(slots: ForecastHourSlot[]): ForecastHourSlot | null {
+        const solarSlots = slots.filter((slot) => (slot.solarValue ?? 0) > 0);
+        if (solarSlots.length === 0) {
+            return null;
+        }
+
+        return solarSlots.reduce((bestSlot, slot) => (slot.solarValue ?? 0) > (bestSlot.solarValue ?? 0) ? slot : bestSlot);
+    }
+
+    private _findPriceHighlightSlot(
+        slots: ForecastHourSlot[],
+        type: "min" | "max",
+    ): ForecastHourSlot | null {
+        const priceSlots = slots.filter((slot) => slot.priceValue !== null);
+        if (priceSlots.length === 0) {
+            return null;
+        }
+
+        return priceSlots.reduce((bestSlot, slot) => {
+            if (slot.priceValue === null || bestSlot.priceValue === null) {
+                return bestSlot;
+            }
+
+            if (type === "min") {
+                return slot.priceValue < bestSlot.priceValue ? slot : bestSlot;
+            }
+
+            return slot.priceValue > bestSlot.priceValue ? slot : bestSlot;
+        });
+    }
+
+    private _buildSparseHourLabelMap(slots: ForecastHourSlot[]): Map<number, string> {
+        if (slots.length === 0) {
+            return new Map();
+        }
+
+        const targetIndices = slots.length <= 6
+            ? slots.map((_, index) => index)
+            : [
+                0,
+                Math.round((slots.length - 1) / 3),
+                Math.round(((slots.length - 1) * 2) / 3),
+                slots.length - 1,
+            ];
+        const labelIndices = new Set<number>();
+
+        for (const targetIndex of targetIndices) {
+            let bestIndex = targetIndex;
+            let bestDistance = Number.POSITIVE_INFINITY;
+
+            for (let index = 0; index < slots.length; index++) {
+                if (labelIndices.has(index)) {
+                    continue;
+                }
+
+                const hourNumber = this._getLocalHourNumber(slots[index].timestamp);
+                if (hourNumber === null || hourNumber % 6 !== 0) {
+                    continue;
+                }
+
+                const distance = Math.abs(index - targetIndex);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestIndex = index;
+                }
+            }
+
+            labelIndices.add(bestIndex);
+        }
+
+        for (const targetIndex of targetIndices) {
+            if (labelIndices.size >= Math.min(targetIndices.length, slots.length)) {
+                break;
+            }
+
+            labelIndices.add(targetIndex);
+        }
+
+        return new Map(
+            Array.from(labelIndices)
+                .sort((left, right) => left - right)
+                .map((index) => [index, this._formatHourAxisLabel(slots[index].timestamp)]),
+        );
+    }
+
     private _getPointKey(timestamp: string): string | null {
         if (!timestamp) {
             return null;
@@ -246,6 +696,25 @@ export class HelmanForecastDetail extends LitElement {
         return String(date.getTime());
     }
 
+    private _getLocalHourNumber(timestamp: string): number | null {
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+
+        const hour = new Intl.DateTimeFormat("en-GB", {
+            timeZone: this.hass.config.time_zone,
+            hour: "2-digit",
+            hourCycle: "h23",
+        }).formatToParts(date).find((part) => part.type === "hour")?.value;
+
+        return hour ? Number(hour) : null;
+    }
+
+    private _buildColumnTitle(labelKey: string, timestamp: string, value: string): string {
+        return `${this._formatHour(timestamp)} · ${this.localize(labelKey)} ${value}`;
+    }
+
     private _formatHour(timestamp: string): string {
         return new Date(timestamp).toLocaleTimeString(
             this.hass.locale?.language || navigator.language,
@@ -253,6 +722,17 @@ export class HelmanForecastDetail extends LitElement {
                 timeZone: this.hass.config.time_zone,
                 hour: "2-digit",
                 minute: "2-digit",
+            },
+        );
+    }
+
+    private _formatHourAxisLabel(timestamp: string): string {
+        return new Date(timestamp).toLocaleTimeString(
+            this.hass.locale?.language || navigator.language,
+            {
+                timeZone: this.hass.config.time_zone,
+                hour: "2-digit",
+                hourCycle: "h23",
             },
         );
     }
@@ -287,7 +767,7 @@ export class HelmanForecastDetail extends LitElement {
         }
 
         await this.updateComplete;
-        this.renderRoot.querySelector<HTMLElement>(`[data-day-key="${this._selectedDayKey}"]`)?.scrollIntoView({
+        this.renderRoot.querySelector<HTMLElement>(`#${FORECAST_DETAIL_PANEL_ID}`)?.scrollIntoView({
             behavior: "smooth",
             block: "nearest",
             inline: "nearest",
