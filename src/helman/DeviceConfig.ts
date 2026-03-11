@@ -25,6 +25,10 @@ export interface GridDeviceConfig extends PowerDeviceConfigBase {
 
 export interface HouseDeviceConfig extends PowerDeviceConfigBase {
     unmeasured_power_title?: string;
+    entities: {
+        power: string;
+        today_energy?: string;
+    }
 }
 
 export interface BatteryDeviceConfig extends PowerDeviceConfigBase {

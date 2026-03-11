@@ -86,6 +86,7 @@ Note: Label names must match HA Labels exactly (see Settings → Automations & S
 - `unmeasured_power_title`: string — Name for the synthetic “unmeasured” child node.
 - `entities`:
   - `power`: sensor entity_id — Total house power.
+  - `today_energy`: sensor entity_id — Optional; today's house energy consumption (any energy unit supported).
 
 #### GridDeviceConfig (`power_devices.grid`)
 - `entities`:
@@ -138,7 +139,7 @@ Usage notes:
 ## Entity and data requirements
 - Power sensors should have `device_class: power` so the card can locate them per device via the Entity Registry.
 - The house device tree is built from Energy → Device consumption preferences (uses the `included_in_stat` relationship to form parent/child links).
-- All energy sensors (Grid `today_import`/`today_export`, Solar `today_energy` and `remaining_today_energy_forecast`) automatically detect their units from the sensor's `unit_of_measurement` attribute and convert appropriately. Supported units include Wh, kWh, MWh, and GWh.
+- All energy sensors (House `today_energy`, Grid `today_import`/`today_export`, Solar `today_energy` and `remaining_today_energy_forecast`) automatically detect their units from the sensor's `unit_of_measurement` attribute and convert appropriately. Supported units include Wh, kWh, MWh, and GWh.
 - Label selection for power sensor/switch requires the Label Registry (core) and correct label assignment in HA.
 
 
@@ -161,6 +162,7 @@ power_devices:
     power_switch_label: Control
     entities:
       power: sensor.house_power
+      today_energy: sensor.house_energy_today_wh
   grid:
     entities:
       power: sensor.grid_power

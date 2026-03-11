@@ -2,7 +2,7 @@ import { LitElement, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { DeviceNode } from "./DeviceNode";
 import { nothing, TemplateResult } from "lit-html";
-import { BatteryDeviceConfig, GridDeviceConfig, SolarDeviceConfig } from "./DeviceConfig";
+import { BatteryDeviceConfig, GridDeviceConfig, HouseDeviceConfig, SolarDeviceConfig } from "./DeviceConfig";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { sharedStyles } from "./shared-styles";
 import { convertToKWh, getDisplayEnergyUnit } from "./energy-unit-converter";
@@ -92,6 +92,10 @@ export class PowerDeviceInfo extends LitElement {
         if (gridConfig.entities.today_export || gridConfig.entities.today_import)
             return this._renderGridInfo(device, gridConfig)
 
+        const houseConfig = device.deviceConfig as HouseDeviceConfig;
+        if (device.id === "house" && houseConfig.entities.today_energy)
+            return this._renderHouseInfo(houseConfig)
+
         return nothing;
     }
 
@@ -157,6 +161,29 @@ export class PowerDeviceInfo extends LitElement {
         return html`
             <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.today_energy!)}>⚡${todayDisplay.value.toFixed(1)} <span class="units">${todayDisplay.unit}</span></span>
             <span class="clickable" @click=${() => this._showMoreInfo(solarConfig.entities.remaining_today_energy_forecast!)}>✨${forecastDisplay.value.toFixed(1)} <span class="units">${forecastDisplay.unit}</span></span>
+        `;
+    }
+
+    private _renderHouseInfo(houseConfig: HouseDeviceConfig): TemplateResult | typeof nothing {
+        if (!houseConfig.entities.today_energy) {
+            return nothing;
+        }
+
+        const todayEnergyState = this.hass.states[houseConfig.entities.today_energy];
+        if (!todayEnergyState) {
+            return nothing;
+        }
+
+        const todayEnergyRaw = parseFloat(todayEnergyState.state);
+        if (isNaN(todayEnergyRaw)) {
+            return nothing;
+        }
+
+        const todayEnergyKWh = convertToKWh(todayEnergyRaw, todayEnergyState.attributes.unit_of_measurement);
+        const todayDisplay = getDisplayEnergyUnit(todayEnergyKWh);
+
+        return html`
+            <span class="clickable" @click=${() => this._showMoreInfo(houseConfig.entities.today_energy!)}>⚡ ${todayDisplay.value.toFixed(1)} <span class="units">${todayDisplay.unit}</span></span>
         `;
     }
 
