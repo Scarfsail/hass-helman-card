@@ -66,6 +66,14 @@
     },
     "house": {
       "power": "Výkon"
+    },
+    "house_forecast": {
+      "title": "Předpověď spotřeby",
+      "total": "Celkem",
+      "baseline": "Základ",
+      "insufficient_history": "Předpověď bude dostupná po 14 dnech historie.",
+      "unavailable": "Předpověď spotřeby není momentálně dostupná.",
+      "no_data": "Žádná data předpovědi spotřeby."
     }
   }
 }

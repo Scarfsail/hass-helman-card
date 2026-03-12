@@ -88,6 +88,7 @@ export interface HistoryPayload {
 
 export type ForecastStatus =
     | "not_configured"
+    | "insufficient_history"
     | "unavailable"
     | "partial"
     | "available";
@@ -112,7 +113,41 @@ export interface GridForecastDTO {
     points: ForecastPointDTO[];
 }
 
+export interface ForecastBandValueDTO {
+    value: number;
+    lower: number;
+    upper: number;
+}
+
+export interface DeferrableConsumerHourValueDTO {
+    entityId: string;
+    label: string;
+    value: number;
+    lower: number;
+    upper: number;
+}
+
+export interface HouseConsumptionForecastHourDTO {
+    timestamp: string;
+    nonDeferrable: ForecastBandValueDTO;
+    deferrableConsumers: DeferrableConsumerHourValueDTO[];
+}
+
+export interface HouseConsumptionForecastDTO {
+    status: ForecastStatus;
+    generatedAt: string | null;
+    unit: string;
+    resolution: string;
+    horizonHours: number;
+    trainingWindowDays: number;
+    historyDaysAvailable: number;
+    requiredHistoryDays: number;
+    model: string | null;
+    series: HouseConsumptionForecastHourDTO[];
+}
+
 export interface ForecastPayload {
     solar: SolarForecastDTO;
     grid: GridForecastDTO;
+    house_consumption: HouseConsumptionForecastDTO;
 }
