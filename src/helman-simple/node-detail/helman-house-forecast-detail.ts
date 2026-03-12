@@ -31,16 +31,19 @@ export class HelmanHouseForecastDetail extends LitElement {
     }
 
     render() {
+        if (!this.localize) return nothing;
         const hc = this._houseConsumption;
         if (!hc || hc.status === "not_configured") {
             return nothing;
         }
 
         if (hc.status === "insufficient_history") {
+            const msg = this.localize("node_detail.house_forecast.insufficient_history")
+                .replace("%d", String(hc.requiredHistoryDays ?? 14));
             return html`
                 <div class="forecast-section">
                     <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
-                    <div class="muted">${this.localize("node_detail.house_forecast.insufficient_history")}</div>
+                    <div class="muted">${msg}</div>
                 </div>
             `;
         }
@@ -50,6 +53,15 @@ export class HelmanHouseForecastDetail extends LitElement {
                 <div class="forecast-section">
                     <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
                     <div class="muted">${this.localize("node_detail.house_forecast.unavailable")}</div>
+                </div>
+            `;
+        }
+
+        if (!hc.series.length) {
+            return html`
+                <div class="forecast-section">
+                    <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                    <div class="muted">${this.localize("node_detail.house_forecast.no_data")}</div>
                 </div>
             `;
         }
