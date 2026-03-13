@@ -1,6 +1,18 @@
 import type { HouseConsumptionForecastHourDTO } from "../../helman-api";
 import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
+export interface ConsumerHourSnapshot {
+    entityId: string;
+    label: string;
+    valueKwh: number;
+}
+
+interface ConsumerDayTotal {
+    entityId: string;
+    label: string;
+    totalKwh: number;
+}
+
 export interface HouseForecastHour {
     timestamp: string;
     totalKwh: number;
@@ -9,6 +21,7 @@ export interface HouseForecastHour {
     totalUpperKwh: number;
     baselineLowerKwh: number;
     baselineUpperKwh: number;
+    consumers: ConsumerHourSnapshot[];
 }
 
 export interface HouseForecastDay {
@@ -17,6 +30,7 @@ export interface HouseForecastDay {
     isTomorrow: boolean;
     totalDayKwh: number;
     baselineDayKwh: number;
+    consumerDaySums: ConsumerDayTotal[];
     hours: HouseForecastHour[];
 }
 
@@ -46,6 +60,10 @@ export function buildHouseForecastModel({
             continue;
         }
 
+        const consumers: ConsumerHourSnapshot[] = dto.deferrableConsumers
+            .map((c) => ({ entityId: c.entityId, label: c.label, valueKwh: c.value }))
+            .sort((a, b) => a.entityId.localeCompare(b.entityId));
+
         const deferrableSum = dto.deferrableConsumers.reduce((s, c) => s + c.value, 0);
         const deferrableLowerSum = dto.deferrableConsumers.reduce((s, c) => s + c.lower, 0);
         const deferrableUpperSum = dto.deferrableConsumers.reduce((s, c) => s + c.upper, 0);
@@ -58,6 +76,7 @@ export function buildHouseForecastModel({
             totalUpperKwh: dto.nonDeferrable.upper + deferrableUpperSum,
             baselineLowerKwh: dto.nonDeferrable.lower,
             baselineUpperKwh: dto.nonDeferrable.upper,
+            consumers,
         };
 
         const dayHours = dayMap.get(parts.dayKey) ?? [];
@@ -84,6 +103,7 @@ export function buildHouseForecastModel({
             isTomorrow: dayKey === tomorrowKey,
             totalDayKwh: hours.reduce((s, h) => s + h.totalKwh, 0),
             baselineDayKwh: hours.reduce((s, h) => s + h.baselineKwh, 0),
+            consumerDaySums: _buildConsumerDaySums(hours),
             hours: paddedHours,
         };
     });
@@ -140,7 +160,25 @@ function _makeEmptyHour(
         totalUpperKwh: 0,
         baselineLowerKwh: 0,
         baselineUpperKwh: 0,
+        consumers: [],
     };
+}
+
+function _buildConsumerDaySums(hours: HouseForecastHour[]): ConsumerDayTotal[] {
+    const map = new Map<string, { label: string; totalKwh: number }>();
+    for (const hour of hours) {
+        for (const c of hour.consumers) {
+            const existing = map.get(c.entityId);
+            if (existing) {
+                existing.totalKwh += c.valueKwh;
+            } else {
+                map.set(c.entityId, { label: c.label, totalKwh: c.valueKwh });
+            }
+        }
+    }
+    return Array.from(map.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([entityId, { label, totalKwh }]) => ({ entityId, label, totalKwh }));
 }
 
 function _addDaysToDayKey(dayKey: string, days: number): string {

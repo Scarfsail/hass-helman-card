@@ -17,7 +17,7 @@ import {
 } from "./local-date-time-parts-cache";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 
-type HouseView = "total" | "baseline";
+type HouseView = "total" | "baseline" | "breakdown";
 
 interface HouseMiniChartBar {
     heightPercent: number;
@@ -35,6 +35,20 @@ interface HouseDetailColumnModel {
     isPast: boolean;
 }
 
+interface ConsumerDetailColumnModel {
+    timestamp: string;
+    valueKwh: number;
+    heightPercent: number;
+    isPast: boolean;
+}
+
+interface ConsumerDetailRowModel {
+    entityId: string;
+    label: string;
+    colorMix: string;
+    columns: ConsumerDetailColumnModel[];
+}
+
 interface HouseModelInputs {
     generatedAt: string | null;
     seriesLength: number;
@@ -44,6 +58,7 @@ interface HouseModelInputs {
 
 const HOUSE_FORECAST_DETAIL_PANEL_ID = "house-forecast-detail-panel";
 const MAX_BAR_HEIGHT = 78;
+const CONSUMER_COLOR_PERCENTS = [95, 70, 50, 35] as const;
 
 @customElement("helman-house-forecast-detail")
 export class HelmanHouseForecastDetail extends LitElement {
@@ -212,6 +227,7 @@ export class HelmanHouseForecastDetail extends LitElement {
         const dayLabel = this._formatDayLabel(day);
         const columns = this._buildDetailColumns(day);
         const hasData = columns.length > 0;
+        const isBreakdown = this._activeView === "breakdown";
 
         return html`
             <div
@@ -227,24 +243,9 @@ export class HelmanHouseForecastDetail extends LitElement {
                             ${this.localize("node_detail.house_forecast.hourly_detail")}
                         </div>
                     </div>
-                    <div class="forecast-detail-summary">
-                        <div class="forecast-detail-summary-item">
-                            <span class="forecast-detail-summary-label">
-                                ${this.localize("node_detail.house_forecast.total")}
-                            </span>
-                            <span class="forecast-detail-summary-value">
-                                ${this._formatEnergy(day.totalDayKwh)}
-                            </span>
-                        </div>
-                        <div class="forecast-detail-summary-item">
-                            <span class="forecast-detail-summary-label">
-                                ${this.localize("node_detail.house_forecast.baseline")}
-                            </span>
-                            <span class="forecast-detail-summary-value">
-                                ${this._formatEnergy(day.baselineDayKwh)}
-                            </span>
-                        </div>
-                    </div>
+                    ${isBreakdown
+                        ? this._renderBreakdownSummary(day)
+                        : this._renderStandardSummary(day)}
                 </div>
                 <div class="forecast-view-toggle">
                     <button
@@ -261,31 +262,139 @@ export class HelmanHouseForecastDetail extends LitElement {
                     >
                         ${this.localize("node_detail.house_forecast.baseline")}
                     </button>
+                    <button
+                        type="button"
+                        class="forecast-view-toggle-btn ${this._activeView === "breakdown" ? "active" : ""}"
+                        @click=${() => this._setActiveView("breakdown")}
+                    >
+                        ${this.localize("node_detail.house_forecast.breakdown")}
+                    </button>
                 </div>
-                <div
-                    class="forecast-detail-chart"
-                    style=${`--forecast-column-count:${Math.max(columns.length, 1)};`}
-                    aria-hidden="true"
-                >
+                ${isBreakdown
+                    ? this._renderBreakdownChart(day, columns)
+                    : this._renderSingleRowChart(columns, hasData)}
+            </div>
+        `;
+    }
+
+    private _renderStandardSummary(day: HouseForecastDay) {
+        return html`
+            <div class="forecast-detail-summary">
+                <div class="forecast-detail-summary-item">
+                    <span class="forecast-detail-summary-label">
+                        ${this.localize("node_detail.house_forecast.total")}
+                    </span>
+                    <span class="forecast-detail-summary-value">
+                        ${this._formatEnergy(day.totalDayKwh)}
+                    </span>
+                </div>
+                <div class="forecast-detail-summary-item">
+                    <span class="forecast-detail-summary-label">
+                        ${this.localize("node_detail.house_forecast.baseline")}
+                    </span>
+                    <span class="forecast-detail-summary-value">
+                        ${this._formatEnergy(day.baselineDayKwh)}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderBreakdownSummary(day: HouseForecastDay) {
+        return html`
+            <div class="forecast-detail-summary">
+                <div class="forecast-detail-summary-item">
+                    <span class="forecast-detail-summary-label">
+                        ${this.localize("node_detail.house_forecast.baseline")}
+                    </span>
+                    <span class="forecast-detail-summary-value">
+                        ${this._formatEnergy(day.baselineDayKwh)}
+                    </span>
+                </div>
+                ${day.consumerDaySums.map((consumer) => html`
+                    <div class="forecast-detail-summary-item">
+                        <span class="forecast-detail-summary-label">
+                            ${consumer.label}
+                        </span>
+                        <span class="forecast-detail-summary-value">
+                            ${this._formatEnergy(consumer.totalKwh)}
+                        </span>
+                    </div>
+                `)}
+            </div>
+        `;
+    }
+
+    private _renderSingleRowChart(columns: HouseDetailColumnModel[], hasData: boolean) {
+        return html`
+            <div
+                class="forecast-detail-chart"
+                style=${`--forecast-column-count:${Math.max(columns.length, 1)};`}
+                aria-hidden="true"
+            >
+                <div class="forecast-detail-row">
+                    <div class="forecast-detail-row-label">
+                        ${this._activeView === "total"
+                            ? this.localize("node_detail.house_forecast.total")
+                            : this.localize("node_detail.house_forecast.baseline")}
+                    </div>
+                    <div class="forecast-detail-track ${!hasData ? "empty" : ""}">
+                        ${columns.map((col) => this._renderDetailColumn(col))}
+                    </div>
+                </div>
+                ${this._renderDetailAxis(columns)}
+            </div>
+        `;
+    }
+
+    private _renderBreakdownChart(day: HouseForecastDay, axisColumns: HouseDetailColumnModel[]) {
+        const rows = this._buildBreakdownRows(day);
+        const hasData = axisColumns.length > 0;
+
+        return html`
+            <div
+                class="forecast-detail-chart"
+                style=${`--forecast-column-count:${Math.max(axisColumns.length, 1)};`}
+                aria-hidden="true"
+            >
+                ${rows.map((row) => html`
                     <div class="forecast-detail-row">
-                        <div class="forecast-detail-row-label">
-                            ${this._activeView === "total"
-                                ? this.localize("node_detail.house_forecast.total")
-                                : this.localize("node_detail.house_forecast.baseline")}
-                        </div>
+                        <div class="forecast-detail-row-label">${row.label}</div>
                         <div class="forecast-detail-track ${!hasData ? "empty" : ""}">
-                            ${columns.map((col) => this._renderDetailColumn(col))}
+                            ${row.columns.map((col) => this._renderConsumerDetailColumn(col, row.colorMix))}
                         </div>
                     </div>
-                    <div class="forecast-detail-axis">
-                        <div class="forecast-detail-axis-spacer" aria-hidden="true"></div>
-                        <div class="forecast-detail-axis-grid">
-                            ${columns.map((col) => html`
-                                <span class="forecast-detail-axis-tick ${col.isPast ? "past" : ""}">${col.hourLabel ?? ""}</span>
-                            `)}
-                        </div>
-                    </div>
+                `)}
+                ${this._renderDetailAxis(axisColumns)}
+            </div>
+        `;
+    }
+
+    private _renderDetailAxis(columns: HouseDetailColumnModel[]) {
+        return html`
+            <div class="forecast-detail-axis">
+                <div class="forecast-detail-axis-spacer" aria-hidden="true"></div>
+                <div class="forecast-detail-axis-grid">
+                    ${columns.map((col) => html`
+                        <span class="forecast-detail-axis-tick ${col.isPast ? "past" : ""}">${col.hourLabel ?? ""}</span>
+                    `)}
                 </div>
+            </div>
+        `;
+    }
+
+    private _renderConsumerDetailColumn(col: ConsumerDetailColumnModel, colorMix: string) {
+        return html`
+            <div
+                class="forecast-detail-column ${col.isPast ? "past" : ""}"
+                title=${`${this._formatHour(col.timestamp)} · ${this._formatEnergy(col.valueKwh)}`}
+            >
+                ${col.valueKwh > 0 ? html`
+                    <span
+                        class="forecast-detail-bar"
+                        style=${`color:${colorMix}; --forecast-bar-height:${col.heightPercent}%; --forecast-bar-offset:0%;`}
+                    ></span>
+                ` : nothing}
             </div>
         `;
     }
@@ -405,6 +514,55 @@ export class HelmanHouseForecastDetail extends LitElement {
                 isPast: this._isPastTimestamp(hour.timestamp, day),
             };
         });
+    }
+
+    private _buildBreakdownRows(day: HouseForecastDay): ConsumerDetailRowModel[] {
+        const hours = day.hours;
+        if (hours.length === 0) {
+            return [];
+        }
+
+        const allValues = hours.flatMap((h) => [
+            h.baselineKwh,
+            ...h.consumers.map((c) => c.valueKwh),
+        ]);
+        const maxValue = Math.max(...allValues.map((v) => Math.max(v, 0)), 0);
+
+        const rows: ConsumerDetailRowModel[] = [];
+
+        for (let i = 0; i < day.consumerDaySums.length; i++) {
+            const { entityId, label } = day.consumerDaySums[i];
+            const pct = CONSUMER_COLOR_PERCENTS[i % CONSUMER_COLOR_PERCENTS.length];
+            const colorMix = `color-mix(in srgb, var(--primary-color) ${pct}%, transparent)`;
+
+            const columns: ConsumerDetailColumnModel[] = hours.map((hour) => {
+                const valueKwh = hour.consumers.find((c) => c.entityId === entityId)?.valueKwh ?? 0;
+                return {
+                    timestamp: hour.timestamp,
+                    valueKwh,
+                    heightPercent: this._normalizeBarHeight(Math.max(valueKwh, 0), maxValue, MAX_BAR_HEIGHT),
+                    isPast: this._isPastTimestamp(hour.timestamp, day),
+                };
+            });
+
+            rows.push({ entityId, label, colorMix, columns });
+        }
+
+        // Baseline row at the bottom
+        const baselineColumns: ConsumerDetailColumnModel[] = hours.map((hour) => ({
+            timestamp: hour.timestamp,
+            valueKwh: hour.baselineKwh,
+            heightPercent: this._normalizeBarHeight(Math.max(hour.baselineKwh, 0), maxValue, MAX_BAR_HEIGHT),
+            isPast: this._isPastTimestamp(hour.timestamp, day),
+        }));
+        rows.push({
+            entityId: "__baseline__",
+            label: this.localize("node_detail.house_forecast.baseline"),
+            colorMix: "var(--secondary-text-color)",
+            columns: baselineColumns,
+        });
+
+        return rows;
     }
 
     private _normalizeBarHeight(value: number, maxValue: number, maxHeightPercent: number): number {
