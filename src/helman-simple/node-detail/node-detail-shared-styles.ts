@@ -568,4 +568,78 @@ export const nodeDetailSharedStyles = css`
         color: var(--secondary-text-color);
         font-size: 0.9rem;
     }
+
+    .forecast-day-consumption-value {
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .forecast-day-consumption-unit {
+        display: inline-block;
+        margin-inline-start: 0.2rem;
+        font-size: 0.5em;
+        font-weight: 700;
+        line-height: 1;
+        vertical-align: baseline;
+        white-space: nowrap;
+    }
+
+    .forecast-day-chart-bar.house-total {
+        color: var(--primary-color);
+    }
+
+    .forecast-day-chart-bar.house-baseline {
+        color: var(--secondary-text-color);
+        opacity: 0.65;
+    }
+
+    .forecast-detail-bar.house-consumption {
+        color: var(--primary-color);
+    }
+
+    .forecast-detail-band {
+        position: absolute;
+        left: 15%;
+        right: 15%;
+        height: 2px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.35;
+        pointer-events: none;
+        color: var(--primary-color);
+    }
+
+    .forecast-detail-band.lower,
+    .forecast-detail-band.upper {
+        bottom: var(--forecast-band-offset, 0%);
+    }
+
+    .forecast-view-toggle {
+        display: inline-flex;
+        padding: 2px;
+        border-radius: 999px;
+        background: var(--secondary-background-color);
+        align-self: flex-start;
+    }
+
+    .forecast-view-toggle-btn {
+        padding: 3px 12px;
+        border: none;
+        border-radius: 999px;
+        background: none;
+        color: var(--secondary-text-color);
+        font: inherit;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 120ms ease, color 120ms ease;
+        white-space: nowrap;
+    }
+
+    .forecast-view-toggle-btn.active {
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
 `;
