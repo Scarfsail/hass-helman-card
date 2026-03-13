@@ -5,6 +5,7 @@ A Home Assistant Lovelace custom card to visualize and control household electri
 - Live power and per-bucket history bars (configurable buckets and duration)
 - Sources vs Consumers layout with animated flow arrows scaled by max power
 - House device tree built from Energy device consumption prefs (with “Unmeasured power”)
+- Optional house consumption forecast in the `custom:helman-simple-card` house detail (total, baseline, and breakdown views)
 - Entity disambiguation via HA Labels for power sensor and power switch selection
 - Group devices by label categories (e.g., Location, Type) with emojis/text
 - Optional aggregate info for Solar (today + forecast), Grid (import/export), and Battery (charge/empty ETA)
@@ -88,6 +89,8 @@ Note: Label names must match HA Labels exactly (see Settings → Automations & S
   - `power`: sensor entity_id — Total house power.
   - `today_energy`: sensor entity_id — Optional; today's house energy consumption (any energy unit supported).
 
+Note: House consumption forecast uses a separate shared/backend config surface. See “House consumption forecast” below.
+
 #### GridDeviceConfig (`power_devices.grid`)
 - `entities`:
   - `power`: sensor entity_id — Grid power (positive import, negative export). The card treats import/export explicitly when rendering.
@@ -142,6 +145,40 @@ Usage notes:
 - All energy sensors (House `today_energy`, Grid `today_import`/`today_export`, Solar `today_energy` and `remaining_today_energy_forecast`) automatically detect their units from the sensor's `unit_of_measurement` attribute and convert appropriately. Supported units include Wh, kWh, MWh, and GWh.
 - Label selection for power sensor/switch requires the Label Registry (core) and correct label assignment in HA.
 
+## House consumption forecast
+
+The current house forecast UI is rendered in the house detail of `custom:helman-simple-card`.
+
+It is driven by the shared Helman config under `power_devices.house.forecast`; it is not a dedicated Lovelace YAML option of `custom:helman-simple-card`.
+
+```yaml
+power_devices:
+  house:
+    forecast:
+      total_energy_entity_id: sensor.house_energy_total
+      min_history_days: 14
+      training_window_days: 42
+      deferrable_consumers:
+        - energy_entity_id: sensor.ev_charging_energy_total
+          label: EV Charging
+        - energy_entity_id: sensor.pool_heating_energy_total
+          label: Pool Heating
+```
+
+- `total_energy_entity_id`: required cumulative energy sensor used as the house forecast source.
+- `min_history_days`: optional minimum history span from the oldest available hourly statistics row before charts can be shown. Default: `14`.
+- `training_window_days`: optional Recorder/statistics lookback window used to build the forecast. Default: `42`. Keep this greater than or equal to `min_history_days`, otherwise the backend never queries far enough back to satisfy the threshold.
+- `deferrable_consumers`: optional per-consumer forecast inputs.
+  - `energy_entity_id`: required cumulative energy sensor for the consumer.
+  - `label`: optional UI label for the breakdown view. Falls back to the entity_id if omitted.
+
+Operational notes:
+
+- `house.entities.today_energy` is not a fallback source for the house forecast.
+- v1 checks history span from the oldest available Recorder row; it does not validate gaps or continuity inside that window.
+- Each deferrable consumer must be a non-overlapping sub-meter already included in the configured house total. The backend derives baseline as `house total - sum(deferrables)`.
+- The 168-hour forecast is grouped by calendar day in the UI, so the house detail usually shows today plus the next 7 dates.
+
 
 ## Examples
 
@@ -195,8 +232,11 @@ others_group_label: Other
 
 ## Tips and troubleshooting
 - No devices shown under house: ensure Energy → Device consumption is configured and your power sensors feed the statistics used there.
+- House forecast in `custom:helman-simple-card` not visible or only showing a status message: confirm shared `power_devices.house.forecast.total_energy_entity_id` config is set, `training_window_days` is not smaller than `min_history_days`, and Recorder has hourly statistics spanning at least `min_history_days` from the oldest available row. `today_energy` alone does not enable the forecast.
+- Strange baseline or breakdown numbers: make sure each configured deferrable consumer is a non-overlapping sub-meter already included in the configured house total.
 - Unmeasured power: a synthetic child is added per node (except virtual grouping nodes) to account for parent minus sum(children).
 - History bars frozen: confirm `history_bucket_duration` and that entities update frequently; the card appends live samples between history refreshes.
+- House forecast updates hourly in the backend and is served from a persisted snapshot between refreshes.
 - Regex cleaner: JavaScript flags are not inline here; the card applies `g`. Use character classes for case-insensitivity (e.g., `[Pp]ower`). Test your pattern safely.
 
 
