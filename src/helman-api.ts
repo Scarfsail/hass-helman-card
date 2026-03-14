@@ -146,8 +146,49 @@ export interface HouseConsumptionForecastDTO {
     series: HouseConsumptionForecastHourDTO[];
 }
 
+export interface BatteryCapacityForecastHourDTO {
+    timestamp: string;
+    durationHours: number;
+    solarKwh: number;
+    baselineHouseKwh: number;
+    netKwh: number;
+    chargedKwh: number;
+    dischargedKwh: number;
+    remainingEnergyKwh: number;
+    socPct: number;
+    importedFromGridKwh: number;
+    exportedToGridKwh: number;
+    hitMinSoc: boolean;
+    hitMaxSoc: boolean;
+    limitedByChargePower: boolean;
+    limitedByDischargePower: boolean;
+}
+
+export interface BatteryCapacityForecastDTO {
+    status: ForecastStatus;
+    generatedAt: string | null;
+    startedAt: string | null;
+    unit: "kWh";
+    resolution: "hour";
+    horizonHours: number;
+    model: string | null;
+    nominalCapacityKwh: number | null;
+    currentRemainingEnergyKwh: number | null;
+    currentSoc: number | null;
+    minSoc: number | null;
+    maxSoc: number | null;
+    chargeEfficiency: number | null;
+    dischargeEfficiency: number | null;
+    maxChargePowerW: number | null;
+    maxDischargePowerW: number | null;
+    partialReason: string | null;
+    coverageUntil: string | null;
+    series: BatteryCapacityForecastHourDTO[];
+}
+
 export interface ForecastPayload {
     solar: SolarForecastDTO;
     grid: GridForecastDTO;
     house_consumption: HouseConsumptionForecastDTO;
+    battery_capacity: BatteryCapacityForecastDTO;
 }

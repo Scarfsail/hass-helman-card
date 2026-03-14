@@ -45,6 +45,7 @@ export interface HouseDeviceConfig extends PowerDeviceConfigBase {
 }
 
 export interface BatteryDeviceConfig extends PowerDeviceConfigBase {
+    forecast?: BatteryForecastConfig;
     entities: {
         power: string;
         capacity?: string;
@@ -52,6 +53,13 @@ export interface BatteryDeviceConfig extends PowerDeviceConfigBase {
         max_soc?: string;
         remaining_energy?: string;
     }
+}
+
+export interface BatteryForecastConfig {
+    charge_efficiency?: number;
+    discharge_efficiency?: number;
+    max_charge_power_w?: number;
+    max_discharge_power_w?: number;
 }
 
 export type DeviceConfig = SolarDeviceConfig | GridDeviceConfig | HouseDeviceConfig | BatteryDeviceConfig;
