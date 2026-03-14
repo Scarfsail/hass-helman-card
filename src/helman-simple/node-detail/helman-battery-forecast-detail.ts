@@ -7,6 +7,12 @@ import { getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
 import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman/forecast-loader";
 import type { LocalizeFunction } from "../../localize/localize";
 import {
+    buildBatteryDetailChartModel,
+    type BatteryChartBuildContext,
+    type BatteryDetailChartModel,
+    type BatteryDetailColumnModel,
+} from "./battery-capacity-forecast-chart-model";
+import {
     buildBatteryCapacityForecastModel,
     type BatteryCapacityForecastDay,
 } from "./battery-capacity-forecast-detail-model";
@@ -22,6 +28,7 @@ interface BatteryModelInputs {
     seriesLength: number;
     coverageUntil: string | null;
     currentSoc: number | null;
+    currentRemainingEnergyKwh: number | null;
     timeZone: string;
     currentDayKey: string | null;
 }
@@ -68,6 +75,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
         this._forecastDays = buildBatteryCapacityForecastModel({
             series: this._batteryForecast?.series ?? [],
             currentSoc: this._batteryForecast?.currentSoc ?? null,
+            currentRemainingEnergyKwh: this._batteryForecast?.currentRemainingEnergyKwh ?? null,
             timeZone: next.timeZone,
             now,
         });
@@ -149,7 +157,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
                 <button
                     type="button"
                     class="forecast-day-summary"
-                    @click=${() => this._toggleDay(day.dayKey)}
+                    @click=${() => void this._toggleDay(day.dayKey)}
                     aria-expanded=${String(isExpanded)}
                     aria-controls=${isExpanded ? BATTERY_FORECAST_DETAIL_PANEL_ID : nothing}
                     aria-label=${this._buildDayCardAriaLabel(day, dayLabel, primaryLabel, energyLabel)}
@@ -185,19 +193,31 @@ export class HelmanBatteryForecastDetail extends LitElement {
         const dayLabel = this._formatDayLabel(day);
         const primaryLabel = this._getPrimaryLabel(day);
         const energyLabel = this._getEnergyLabel(day);
+        const detail = buildBatteryDetailChartModel({
+            day,
+            nominalCapacityKwh: this._batteryForecast?.nominalCapacityKwh ?? null,
+            minSoc: this._batteryForecast?.minSoc ?? null,
+            maxSoc: this._batteryForecast?.maxSoc ?? null,
+            context: this._buildChartContext(),
+        });
+        const coverageNote = !day.coversDayEnd
+            ? this._batteryForecast?.status === "partial"
+                ? `${this._getPartialNote(this._batteryForecast?.partialReason ?? null)} ${this.localize("node_detail.battery_forecast.coverage_until")}: ${this._formatTimestamp(day.coverageEndsAt)}`
+                : `${this.localize("node_detail.battery_forecast.coverage_until")}: ${this._formatTimestamp(day.coverageEndsAt)}`
+            : null;
 
         return html`
             <div
                 id=${BATTERY_FORECAST_DETAIL_PANEL_ID}
                 class="forecast-detail-panel"
                 role="region"
-                aria-label=${`${dayLabel}. ${this.localize("node_detail.battery_forecast.daily_summary")}`}
+                aria-label=${`${dayLabel}. ${this.localize("node_detail.battery_forecast.hourly_detail")}`}
             >
                 <div class="forecast-detail-panel-header">
                     <div class="forecast-detail-panel-heading">
                         <div class="forecast-detail-panel-title">${dayLabel}</div>
                         <div class="forecast-detail-panel-subtitle">
-                            ${this.localize("node_detail.battery_forecast.daily_summary")}
+                            ${this.localize("node_detail.battery_forecast.hourly_detail")}
                         </div>
                     </div>
                 </div>
@@ -219,11 +239,146 @@ export class HelmanBatteryForecastDetail extends LitElement {
                         this._formatEnergy(day.endRemainingEnergyKwh),
                     )}
                 </div>
-                ${!day.coversDayEnd ? html`
-                    <div class="detail-row">
-                        <span class="label">${this.localize("node_detail.battery_forecast.coverage_until")}</span>
-                        <span class="value">${this._formatTimestamp(day.coverageEndsAt)}</span>
+                ${coverageNote !== null ? html`
+                    <div class="forecast-status-note">${coverageNote}</div>
+                ` : nothing}
+                ${this._renderDetailChart(detail)}
+            </div>
+        `;
+    }
+
+    private _renderDetailChart(detail: BatteryDetailChartModel) {
+        const columnCount = Math.max(detail.columns.length, 1);
+
+        return html`
+            <div
+                class="forecast-detail-chart"
+                style=${`--forecast-column-count:${columnCount};`}
+                aria-hidden="true"
+            >
+                ${this._renderSocRow(detail)}
+                ${this._renderEnergyRow(detail)}
+                ${this._renderMovementRow(detail)}
+                <div class="forecast-detail-axis">
+                    <div class="forecast-detail-axis-spacer" aria-hidden="true"></div>
+                    <div class="forecast-detail-axis-grid">
+                        ${detail.columns.map((column) => html`
+                            <span class="forecast-detail-axis-tick ${column.isPast ? "past" : ""}">
+                                ${column.hourLabel ?? ""}
+                            </span>
+                        `)}
                     </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderSocRow(detail: BatteryDetailChartModel) {
+        return html`
+            <div class="forecast-detail-row primary">
+                <div class="forecast-detail-row-label">${this.localize("node_detail.battery.soc")}</div>
+                <div class="forecast-detail-track battery-soc">
+                    ${detail.minSocOffsetPercent !== null ? html`
+                        <span
+                            class="forecast-detail-reference-line min-soc"
+                            style=${`--forecast-reference-offset:${detail.minSocOffsetPercent}%;`}
+                        ></span>
+                    ` : nothing}
+                    ${detail.maxSocOffsetPercent !== null ? html`
+                        <span
+                            class="forecast-detail-reference-line max-soc"
+                            style=${`--forecast-reference-offset:${detail.maxSocOffsetPercent}%;`}
+                        ></span>
+                    ` : nothing}
+                    ${detail.columns.map((column) => this._renderSocColumn(column))}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderSocColumn(column: BatteryDetailColumnModel) {
+        return html`
+            <div
+                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                title=${this._buildSocColumnTitle(column)}
+            >
+                ${column.socChangeHeightPercent > 0 ? html`
+                    <span
+                        class="forecast-detail-battery-change"
+                        style=${`--forecast-change-offset:${column.socChangeOffsetPercent}%; --forecast-change-height:${column.socChangeHeightPercent}%;`}
+                    ></span>
+                ` : nothing}
+                <span
+                    class="forecast-detail-battery-step"
+                    style=${`--forecast-step-offset:${column.socStepOffsetPercent}%;`}
+                ></span>
+                <span
+                    class="forecast-detail-battery-dot ${column.hitMinSoc ? "hit-min" : ""} ${column.hitMaxSoc ? "hit-max" : ""}"
+                    style=${`--forecast-dot-offset:${column.socStepOffsetPercent}%;`}
+                ></span>
+            </div>
+        `;
+    }
+
+    private _renderEnergyRow(detail: BatteryDetailChartModel) {
+        return html`
+            <div class="forecast-detail-row">
+                <div class="forecast-detail-row-label">${this.localize("node_detail.battery_forecast.energy")}</div>
+                <div class="forecast-detail-track battery-energy ${detail.columns.length === 0 ? "empty" : ""}">
+                    ${detail.columns.map((column) => this._renderEnergyColumn(column))}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderEnergyColumn(column: BatteryDetailColumnModel) {
+        return html`
+            <div
+                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                title=${this._buildEnergyColumnTitle(column)}
+            >
+                ${column.remainingEnergyKwh > 0 ? html`
+                    <span
+                        class="forecast-detail-bar battery-energy"
+                        style=${`--forecast-bar-height:${column.remainingEnergyHeightPercent}%; --forecast-bar-offset:0%;`}
+                    ></span>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderMovementRow(detail: BatteryDetailChartModel) {
+        const hasData = detail.columns.some((column) => Math.abs(column.movementValueKwh) > 0);
+        const trackClass = [
+            "forecast-detail-track",
+            "battery-movement",
+            !hasData ? "empty" : "",
+            detail.hasBidirectionalMovement ? "has-negative" : "",
+        ].filter(Boolean).join(" ");
+
+        return html`
+            <div class="forecast-detail-row">
+                <div class="forecast-detail-row-label">
+                    ${this.localize("node_detail.battery_forecast.charge_discharge")}
+                </div>
+                <div class=${trackClass}>
+                    ${detail.columns.map((column) => this._renderMovementColumn(column))}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderMovementColumn(column: BatteryDetailColumnModel) {
+        return html`
+            <div
+                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                title=${this._buildMovementColumnTitle(column)}
+            >
+                ${column.movementHeightPercent > 0 ? html`
+                    <span
+                        class="forecast-detail-bar battery-movement ${column.movementToneClass}"
+                        style=${`--forecast-bar-height:${column.movementHeightPercent}%; --forecast-bar-offset:${column.movementOffsetPercent}%;`}
+                    ></span>
                 ` : nothing}
             </div>
         `;
@@ -268,6 +423,28 @@ export class HelmanBatteryForecastDetail extends LitElement {
         }).format(date);
     }
 
+    private _formatHour(value: string): string {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return value;
+        }
+
+        return new Intl.DateTimeFormat(this.hass.locale?.language ?? this.hass.language ?? "cs", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: this.hass.config.time_zone ?? "UTC",
+        }).format(date);
+    }
+
+    private _formatHourRange(start: string, end: string): string {
+        return `${this._formatHour(start)}–${this._formatHour(end)}`;
+    }
+
+    private _formatDurationHours(value: number): string {
+        const fractionDigits = value < 1 ? 2 : Number.isInteger(value) ? 0 : 1;
+        return `${value.toFixed(fractionDigits)} h`;
+    }
+
     private get _batteryForecast(): BatteryCapacityForecastDTO | null {
         return this._forecast?.battery_capacity ?? null;
     }
@@ -281,6 +458,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
             seriesLength: batteryForecast?.series.length ?? 0,
             coverageUntil: batteryForecast?.coverageUntil ?? null,
             currentSoc: batteryForecast?.currentSoc ?? null,
+            currentRemainingEnergyKwh: batteryForecast?.currentRemainingEnergyKwh ?? null,
             timeZone: this.hass?.config.time_zone ?? "UTC",
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
         };
@@ -292,12 +470,33 @@ export class HelmanBatteryForecastDetail extends LitElement {
             || this._modelInputs?.seriesLength !== next.seriesLength
             || this._modelInputs?.coverageUntil !== next.coverageUntil
             || this._modelInputs?.currentSoc !== next.currentSoc
+            || this._modelInputs?.currentRemainingEnergyKwh !== next.currentRemainingEnergyKwh
             || this._modelInputs?.timeZone !== next.timeZone
             || this._modelInputs?.currentDayKey !== next.currentDayKey;
     }
 
-    private _toggleDay(dayKey: string): void {
+    private _buildChartContext(): BatteryChartBuildContext {
+        return {
+            currentDayKey: this._currentLocalParts?.dayKey ?? null,
+            currentHour: this._currentLocalParts?.hour ?? null,
+            locale: this.hass.locale?.language || navigator.language,
+            timeZone: this.hass.config.time_zone ?? "UTC",
+        };
+    }
+
+    private async _toggleDay(dayKey: string): Promise<void> {
         this._selectedDayKey = this._selectedDayKey === dayKey ? null : dayKey;
+
+        if (this._selectedDayKey === null) {
+            return;
+        }
+
+        await this.updateComplete;
+        this.renderRoot.querySelector<HTMLElement>(`#${BATTERY_FORECAST_DETAIL_PANEL_ID}`)?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "nearest",
+        });
     }
 
     private _getPrimaryLabel(day: BatteryCapacityForecastDay): string {
@@ -348,6 +547,47 @@ export class HelmanBatteryForecastDetail extends LitElement {
         const display = getDisplayEnergyUnit(valueKwh);
         const fractionDigits = display.unit === "Wh" ? 0 : 1;
         return `${display.value.toFixed(fractionDigits)} ${display.unit}`;
+    }
+
+    private _buildSocColumnTitle(column: BatteryDetailColumnModel): string {
+        return [
+            this._formatHourRange(column.timestamp, column.endsAt),
+            `${this.localize("node_detail.battery.soc")}: ${this._formatSocWithUnit(column.startSocPct)} → ${this._formatSocWithUnit(column.endSocPct)}`,
+            `${this.localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,
+        ].join(" · ");
+    }
+
+    private _buildEnergyColumnTitle(column: BatteryDetailColumnModel): string {
+        return [
+            this._formatHourRange(column.timestamp, column.endsAt),
+            `${this.localize("node_detail.battery_forecast.energy")}: ${this._formatEnergy(column.remainingEnergyKwh)}`,
+            `${this.localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,
+        ].join(" · ");
+    }
+
+    private _buildMovementColumnTitle(column: BatteryDetailColumnModel): string {
+        const parts = [
+            this._formatHourRange(column.timestamp, column.endsAt),
+            `${this.localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,
+        ];
+
+        if (column.chargedKwh > 0) {
+            parts.push(`${this.localize("node_detail.battery_forecast.charged")}: ${this._formatEnergy(column.chargedKwh)}`);
+        }
+        if (column.dischargedKwh > 0) {
+            parts.push(`${this.localize("node_detail.battery_forecast.discharged")}: ${this._formatEnergy(column.dischargedKwh)}`);
+        }
+        if (column.importedFromGridKwh > 0) {
+            parts.push(`${this.localize("node_detail.battery_forecast.imported_from_grid")}: ${this._formatEnergy(column.importedFromGridKwh)}`);
+        }
+        if (column.exportedToGridKwh > 0) {
+            parts.push(`${this.localize("node_detail.battery_forecast.exported_to_grid")}: ${this._formatEnergy(column.exportedToGridKwh)}`);
+        }
+        if (parts.length === 2) {
+            parts.push(`${this.localize("node_detail.battery_forecast.charge_discharge")}: ${this._formatEnergy(0)}`);
+        }
+
+        return parts.join(" · ");
     }
 
     private _buildDayCardAriaLabel(

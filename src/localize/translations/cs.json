@@ -100,7 +100,14 @@
       "end_energy": "Energie na konci dne",
       "last_energy": "Energie na konci pokrytí",
       "daily_summary": "Denní souhrn",
-      "detail_coming_soon": "Denní a hodinový detail přidáme v dalším kroku."
+      "hourly_detail": "Hodinový detail",
+      "energy": "Energie",
+      "charge_discharge": "Tok",
+      "charged": "Nabito",
+      "discharged": "Vybito",
+      "imported_from_grid": "Import ze sítě",
+      "exported_to_grid": "Export do sítě",
+      "slot_duration": "Délka slotu"
     }
   }
 }

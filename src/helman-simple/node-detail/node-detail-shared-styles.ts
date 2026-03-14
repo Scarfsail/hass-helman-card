@@ -479,6 +479,10 @@ export const nodeDetailSharedStyles = css`
         bottom: 50%;
     }
 
+    .forecast-detail-track.battery-movement.has-negative::before {
+        bottom: 50%;
+    }
+
     .forecast-detail-track.empty::after {
         content: "";
         position: absolute;
@@ -498,6 +502,12 @@ export const nodeDetailSharedStyles = css`
 
     .forecast-detail-column.past .forecast-detail-bar,
     .forecast-detail-column.past .forecast-detail-highlight {
+        opacity: 0.38;
+    }
+
+    .forecast-detail-column.past .forecast-detail-battery-change,
+    .forecast-detail-column.past .forecast-detail-battery-step,
+    .forecast-detail-column.past .forecast-detail-battery-dot {
         opacity: 0.38;
     }
 
@@ -651,6 +661,18 @@ export const nodeDetailSharedStyles = css`
         color: var(--primary-color);
     }
 
+    .forecast-detail-bar.battery-energy {
+        color: color-mix(in srgb, var(--primary-color) 62%, transparent);
+    }
+
+    .forecast-detail-bar.battery-movement.charge {
+        color: var(--success-color, #2e7d32);
+    }
+
+    .forecast-detail-bar.battery-movement.discharge {
+        color: var(--error-color, #c62828);
+    }
+
     .forecast-detail-band {
         position: absolute;
         left: 15%;
@@ -666,5 +688,75 @@ export const nodeDetailSharedStyles = css`
     .forecast-detail-band.lower,
     .forecast-detail-band.upper {
         bottom: var(--forecast-band-offset, 0%);
+    }
+
+    .forecast-detail-reference-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: var(--forecast-reference-offset, 0%);
+        z-index: 0;
+        border-top: 1px dashed currentColor;
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+    .forecast-detail-reference-line.min-soc {
+        color: var(--error-color, #c62828);
+    }
+
+    .forecast-detail-reference-line.max-soc {
+        color: var(--success-color, #2e7d32);
+    }
+
+    .forecast-detail-battery-change,
+    .forecast-detail-battery-step,
+    .forecast-detail-battery-dot {
+        position: absolute;
+        color: var(--primary-color);
+        pointer-events: none;
+    }
+
+    .forecast-detail-battery-change {
+        left: 50%;
+        z-index: 1;
+        bottom: var(--forecast-change-offset, 0%);
+        width: 4px;
+        height: var(--forecast-change-height, 0%);
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.45;
+    }
+
+    .forecast-detail-battery-step {
+        left: 0;
+        right: 0;
+        z-index: 1;
+        bottom: var(--forecast-step-offset, 0%);
+        height: 2px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.82;
+    }
+
+    .forecast-detail-battery-dot {
+        left: 50%;
+        z-index: 2;
+        bottom: var(--forecast-dot-offset, 0%);
+        width: 10px;
+        height: 10px;
+        transform: translate(-50%, 50%);
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 0 2px var(--card-background-color);
+    }
+
+    .forecast-detail-battery-dot.hit-min {
+        color: var(--error-color, #c62828);
+    }
+
+    .forecast-detail-battery-dot.hit-max {
+        color: var(--success-color, #2e7d32);
     }
 `;

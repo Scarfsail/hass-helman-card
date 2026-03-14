@@ -9,6 +9,8 @@ export interface BatteryCapacityForecastDay {
     dayKey: string;
     isToday: boolean;
     isTomorrow: boolean;
+    startSocPct: number;
+    startRemainingEnergyKwh: number;
     endSocPct: number;
     minSocPct: number;
     maxSocPct: number;
@@ -21,6 +23,7 @@ export interface BatteryCapacityForecastDay {
 interface BuildBatteryCapacityForecastModelParams {
     series: BatteryCapacityForecastHourDTO[];
     currentSoc: number | null;
+    currentRemainingEnergyKwh: number | null;
     timeZone: string;
     now?: Date;
 }
@@ -28,6 +31,7 @@ interface BuildBatteryCapacityForecastModelParams {
 export function buildBatteryCapacityForecastModel({
     series,
     currentSoc,
+    currentRemainingEnergyKwh,
     timeZone,
     now = new Date(),
 }: BuildBatteryCapacityForecastModelParams): BatteryCapacityForecastDay[] {
@@ -55,6 +59,7 @@ export function buildBatteryCapacityForecastModel({
     }
 
     let previousDayEndSoc: number | null = currentSoc;
+    let previousDayEndEnergy: number | null = currentRemainingEnergyKwh;
 
     return Array.from(dayMap.keys())
         .sort()
@@ -71,14 +76,20 @@ export function buildBatteryCapacityForecastModel({
             const dayStartSoc = Number.isFinite(previousDayEndSoc ?? NaN)
                 ? previousDayEndSoc
                 : slots[0].socPct;
+            const dayStartEnergy = Number.isFinite(previousDayEndEnergy ?? NaN)
+                ? previousDayEndEnergy
+                : slots[0].remainingEnergyKwh;
             const daySocSamples = [dayStartSoc, ...slots.map((slot) => slot.socPct)];
 
             previousDayEndSoc = lastSlot.socPct;
+            previousDayEndEnergy = lastSlot.remainingEnergyKwh;
 
             return {
                 dayKey,
                 isToday: dayKey === todayKey,
                 isTomorrow: dayKey === tomorrowKey,
+                startSocPct: dayStartSoc,
+                startRemainingEnergyKwh: dayStartEnergy,
                 endSocPct: lastSlot.socPct,
                 minSocPct: Math.min(...daySocSamples),
                 maxSocPct: Math.max(...daySocSamples),
