@@ -143,6 +143,7 @@ export interface HouseConsumptionForecastDTO {
     historyDaysAvailable: number;
     requiredHistoryDays: number;
     model: string | null;
+    currentHour?: HouseConsumptionForecastHourDTO;
     series: HouseConsumptionForecastHourDTO[];
 }
 
