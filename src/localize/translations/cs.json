@@ -69,13 +69,12 @@
     },
     "house_forecast": {
       "title": "Předpověď spotřeby",
-      "total": "Celkem",
       "baseline": "Základ",
+      "deferrables": "Odložitelné",
       "insufficient_history": "Předpověď bude dostupná po %d dnech historie.",
       "unavailable": "Předpověď spotřeby není momentálně dostupná.",
       "no_data": "Žádná data předpovědi spotřeby.",
-      "hourly_detail": "Hodinový detail",
-      "breakdown": "Rozpad"
+      "hourly_detail": "Hodinový detail"
     }
   }
 }

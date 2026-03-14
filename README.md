@@ -5,7 +5,7 @@ A Home Assistant Lovelace custom card to visualize and control household electri
 - Live power and per-bucket history bars (configurable buckets and duration)
 - Sources vs Consumers layout with animated flow arrows scaled by max power
 - House device tree built from Energy device consumption prefs (with “Unmeasured power”)
-- Optional house consumption forecast in the `custom:helman-simple-card` house detail (total, baseline, and breakdown views)
+- Optional house consumption forecast in the `custom:helman-simple-card` house detail with base and deferrable breakdown charts
 - Entity disambiguation via HA Labels for power sensor and power switch selection
 - Group devices by label categories (e.g., Location, Type) with emojis/text
 - Optional aggregate info for Solar (today + forecast), Grid (import/export), and Battery (charge/empty ETA)
@@ -170,7 +170,7 @@ power_devices:
 - `training_window_days`: optional Recorder/statistics lookback window used to build the forecast. Default: `42`. Keep this greater than or equal to `min_history_days`, otherwise the backend never queries far enough back to satisfy the threshold.
 - `deferrable_consumers`: optional per-consumer forecast inputs.
   - `energy_entity_id`: required cumulative energy sensor for the consumer.
-  - `label`: optional UI label for the breakdown view. Falls back to the entity_id if omitted.
+  - `label`: optional UI label for the deferrable breakdown. Falls back to the entity_id if omitted.
 
 Operational notes:
 

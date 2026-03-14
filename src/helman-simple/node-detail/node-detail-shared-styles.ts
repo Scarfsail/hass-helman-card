@@ -403,6 +403,13 @@ export const nodeDetailSharedStyles = css`
         letter-spacing: 0.05em;
     }
 
+    .forecast-detail-row-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .forecast-detail-summary-value {
         font-size: 0.85rem;
         font-weight: 600;
@@ -419,6 +426,12 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-detail-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .forecast-detail-breakdown {
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -580,6 +593,15 @@ export const nodeDetailSharedStyles = css`
         line-height: 1.2;
     }
 
+    .forecast-day-primary-label {
+        color: var(--secondary-text-color);
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
     .forecast-day-consumption-unit {
         display: inline-block;
         margin-inline-start: 0.2rem;
@@ -590,7 +612,29 @@ export const nodeDetailSharedStyles = css`
         white-space: nowrap;
     }
 
-    .forecast-day-chart-bar.house-total {
+    .forecast-day-secondary-metric {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+        color: var(--secondary-text-color);
+        font-size: 0.72rem;
+        line-height: 1.2;
+    }
+
+    .forecast-day-secondary-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .forecast-day-secondary-value {
+        flex-shrink: 0;
+        font-weight: 600;
+    }
+
+    .forecast-day-chart-bar.house-deferrable {
         color: var(--secondary-text-color);
     }
 
@@ -622,33 +666,5 @@ export const nodeDetailSharedStyles = css`
     .forecast-detail-band.lower,
     .forecast-detail-band.upper {
         bottom: var(--forecast-band-offset, 0%);
-    }
-
-    .forecast-view-toggle {
-        display: inline-flex;
-        padding: 2px;
-        border-radius: 999px;
-        background: var(--secondary-background-color);
-        align-self: flex-start;
-    }
-
-    .forecast-view-toggle-btn {
-        padding: 3px 12px;
-        border: none;
-        border-radius: 999px;
-        background: none;
-        color: var(--secondary-text-color);
-        font: inherit;
-        font-size: 0.75rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 120ms ease, color 120ms ease;
-        white-space: nowrap;
-    }
-
-    .forecast-view-toggle-btn.active {
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 `;
