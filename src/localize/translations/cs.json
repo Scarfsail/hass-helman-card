@@ -92,6 +92,14 @@
       "partial_note": "Předpověď kapacity baterie je dostupná jen pro část horizontu.",
       "partial_reason_missing_current_hour_solar": "Předpověď nemůže začít, protože chybí solární data pro aktuální hodinu.",
       "partial_reason_solar_forecast_ended": "Předpověď končí tam, kde končí dostupná solární předpověď.",
+      "end_soc": "SoC na konci dne",
+      "last_soc": "Poslední SoC",
+      "soc_range": "Rozsah SoC",
+      "min_soc": "Nejnižší SoC",
+      "max_soc": "Nejvyšší SoC",
+      "end_energy": "Energie na konci dne",
+      "last_energy": "Energie na konci pokrytí",
+      "daily_summary": "Denní souhrn",
       "detail_coming_soon": "Denní a hodinový detail přidáme v dalším kroku."
     }
   }
