@@ -432,6 +432,11 @@ export const nodeDetailSharedStyles = css`
         align-items: center;
     }
 
+    .forecast-detail-row.primary .forecast-detail-row-label {
+        color: var(--primary-text-color);
+        font-weight: 700;
+    }
+
     .forecast-detail-track,
     .forecast-detail-axis-grid {
         position: relative;
@@ -586,12 +591,16 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-day-chart-bar.house-total {
-        color: var(--primary-color);
+        color: var(--secondary-text-color);
     }
 
     .forecast-day-chart-bar.house-baseline {
-        color: var(--secondary-text-color);
-        opacity: 0.65;
+        color: var(--primary-color);
+    }
+
+    .forecast-detail-row.primary .forecast-detail-track::before {
+        background: color-mix(in srgb, var(--primary-color) 26%, var(--divider-color));
+        opacity: 1;
     }
 
     .forecast-detail-bar.house-consumption {
