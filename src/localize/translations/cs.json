@@ -75,6 +75,24 @@
       "unavailable": "Předpověď spotřeby není momentálně dostupná.",
       "no_data": "Žádná data předpovědi spotřeby.",
       "hourly_detail": "Hodinový detail"
+    },
+    "battery_forecast": {
+      "title": "Předpověď kapacity",
+      "status_label": "Stav",
+      "status_not_configured": "Není nakonfigurováno",
+      "status_insufficient_history": "Nedostatek historie",
+      "status_unavailable": "Nedostupné",
+      "status_partial": "Částečné",
+      "status_available": "Dostupné",
+      "coverage_until": "Pokrytí do",
+      "not_configured": "Předpověď kapacity baterie není nakonfigurovaná.",
+      "insufficient_history": "Předpověď kapacity baterie bude dostupná, až bude mít předpověď spotřeby dost historie.",
+      "unavailable": "Předpověď kapacity baterie není momentálně dostupná.",
+      "no_data": "Žádná data předpovědi kapacity baterie.",
+      "partial_note": "Předpověď kapacity baterie je dostupná jen pro část horizontu.",
+      "partial_reason_missing_current_hour_solar": "Předpověď nemůže začít, protože chybí solární data pro aktuální hodinu.",
+      "partial_reason_solar_forecast_ended": "Předpověď končí tam, kde končí dostupná solární předpověď.",
+      "detail_coming_soon": "Denní a hodinový detail přidáme v dalším kroku."
     }
   }
 }
