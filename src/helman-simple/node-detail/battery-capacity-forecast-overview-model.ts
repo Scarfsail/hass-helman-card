@@ -8,6 +8,7 @@ import {
 export interface BatteryOverviewChartBarModel {
     heightPercent: number;
     isPast: boolean;
+    toneClass: "soft" | "hit-min" | "hit-max";
 }
 
 export interface BatteryOverviewCardModel {
@@ -29,6 +30,11 @@ export function buildBatteryOverviewCardModel({
         miniChartBars: day.slots.map((slot) => ({
             heightPercent: clampForecastPercent(slot.socPct) ?? 0,
             isPast: isPastForecastTimestamp(slot.timestamp, day.isToday, context),
+            toneClass: slot.hitMaxSoc
+                ? "hit-max"
+                : slot.hitMinSoc
+                    ? "hit-min"
+                    : "soft",
         })),
     };
 }

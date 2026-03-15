@@ -3,6 +3,17 @@ import { css } from "lit-element";
 export const nodeDetailSharedStyles = css`
     :host {
         display: block;
+        --forecast-battery-soc-soft: color-mix(
+            in srgb,
+            var(--simple-card-source-battery, #22c55e) 46%,
+            var(--secondary-text-color) 54%
+        );
+        --forecast-battery-soc-max: color-mix(
+            in srgb,
+            var(--simple-card-source-battery, #22c55e) 88%,
+            white 12%
+        );
+        --forecast-battery-soc-min: color-mix(in srgb, var(--error-color, #c62828) 72%, white 28%);
     }
 
     .content {
@@ -362,7 +373,28 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-day-chart-bar.battery-soc {
-        color: var(--simple-card-source-battery, #22c55e);
+        color: var(--forecast-battery-soc-soft);
+    }
+
+    .forecast-day-chart-bar.battery-soc.hit-max {
+        color: var(--forecast-battery-soc-max);
+    }
+
+    .forecast-day-chart-bar.battery-soc.hit-min {
+        color: var(--forecast-battery-soc-min);
+    }
+
+    .forecast-day-chart-bar.battery-soc.soft::before {
+        opacity: 0.72;
+    }
+
+    .forecast-day-chart-bar.battery-soc.hit-max::before {
+        opacity: 1;
+        box-shadow: 0 0 0 1px color-mix(
+            in srgb,
+            var(--simple-card-source-battery, #22c55e) 32%,
+            transparent
+        );
     }
 
     .forecast-day-chart-bar.past {
@@ -700,6 +732,10 @@ export const nodeDetailSharedStyles = css`
         opacity: 1;
     }
 
+    .forecast-detail-row.primary .forecast-detail-track.battery-soc::before {
+        background: color-mix(in srgb, var(--forecast-battery-soc-soft) 26%, var(--divider-color));
+    }
+
     .forecast-detail-bar.house-consumption {
         color: var(--primary-color);
     }
@@ -745,18 +781,18 @@ export const nodeDetailSharedStyles = css`
     }
 
     .forecast-detail-reference-line.min-soc {
-        color: var(--error-color, #c62828);
+        color: var(--forecast-battery-soc-min);
     }
 
     .forecast-detail-reference-line.max-soc {
-        color: var(--success-color, #2e7d32);
+        color: var(--forecast-battery-soc-max);
     }
 
     .forecast-detail-battery-change,
     .forecast-detail-battery-step,
     .forecast-detail-battery-dot {
         position: absolute;
-        color: var(--primary-color);
+        color: var(--forecast-battery-soc-soft);
         pointer-events: none;
     }
 
@@ -795,11 +831,36 @@ export const nodeDetailSharedStyles = css`
         box-shadow: 0 0 0 2px var(--card-background-color);
     }
 
+    .forecast-detail-battery-change.hit-min,
+    .forecast-detail-battery-step.hit-min,
     .forecast-detail-battery-dot.hit-min {
-        color: var(--error-color, #c62828);
+        color: var(--forecast-battery-soc-min);
     }
 
+    .forecast-detail-battery-change.hit-max,
+    .forecast-detail-battery-step.hit-max,
     .forecast-detail-battery-dot.hit-max {
-        color: var(--success-color, #2e7d32);
+        color: var(--forecast-battery-soc-max);
+    }
+
+    .forecast-detail-battery-change.hit-min,
+    .forecast-detail-battery-change.hit-max {
+        width: 6px;
+        opacity: 0.72;
+    }
+
+    .forecast-detail-battery-step.hit-min,
+    .forecast-detail-battery-step.hit-max {
+        height: 3px;
+        opacity: 1;
+    }
+
+    .forecast-detail-battery-dot.hit-min,
+    .forecast-detail-battery-dot.hit-max {
+        width: 12px;
+        height: 12px;
+        box-shadow:
+            0 0 0 2px var(--card-background-color),
+            0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
     }
 `;

@@ -293,6 +293,8 @@ export class HelmanBatteryForecastDetail extends LitElement {
     }
 
     private _renderSocColumn(column: BatteryDetailColumnModel) {
+        const socToneClass = this._getSocToneClass(column);
+
         return html`
             <div
                 class="forecast-detail-column ${column.isPast ? "past" : ""}"
@@ -300,16 +302,16 @@ export class HelmanBatteryForecastDetail extends LitElement {
             >
                 ${column.socChangeHeightPercent > 0 ? html`
                     <span
-                        class="forecast-detail-battery-change"
+                        class="forecast-detail-battery-change ${socToneClass}"
                         style=${`--forecast-change-offset:${column.socChangeOffsetPercent}%; --forecast-change-height:${column.socChangeHeightPercent}%;`}
                     ></span>
                 ` : nothing}
                 <span
-                    class="forecast-detail-battery-step"
+                    class="forecast-detail-battery-step ${socToneClass}"
                     style=${`--forecast-step-offset:${column.socStepOffsetPercent}%;`}
                 ></span>
                 <span
-                    class="forecast-detail-battery-dot ${column.hitMinSoc ? "hit-min" : ""} ${column.hitMaxSoc ? "hit-max" : ""}"
+                    class="forecast-detail-battery-dot ${socToneClass}"
                     style=${`--forecast-dot-offset:${column.socStepOffsetPercent}%;`}
                 ></span>
             </div>
@@ -328,7 +330,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
                 <div class=${chartClass}>
                     ${overview.miniChartBars.map((bar) => html`
                         <span
-                            class="forecast-day-chart-bar battery-soc ${bar.isPast ? "past" : ""}"
+                            class="forecast-day-chart-bar battery-soc ${bar.toneClass} ${bar.isPast ? "past" : ""}"
                             style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:0%;`}
                         ></span>
                     `)}
@@ -527,6 +529,14 @@ export class HelmanBatteryForecastDetail extends LitElement {
 
     private _formatSocRange(minSoc: number, maxSoc: number): string {
         return `${this._formatSoc(minSoc)}–${this._formatSoc(maxSoc)} %`;
+    }
+
+    private _getSocToneClass(column: BatteryDetailColumnModel): "soft" | "hit-min" | "hit-max" {
+        return column.hitMaxSoc
+            ? "hit-max"
+            : column.hitMinSoc
+                ? "hit-min"
+                : "soft";
     }
 
     private _formatEnergy(valueKwh: number): string {
