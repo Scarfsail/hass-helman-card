@@ -19,10 +19,12 @@ import {
     buildHouseForecastModel,
     type HouseForecastDay,
 } from "./house-forecast-detail-model";
+import { getLocalHourKey } from "./local-day-hour-axis";
 import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
 } from "./local-date-time-parts-cache";
+import { LocalHourBoundaryController } from "./local-hour-boundary-controller";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 
 type HouseConsumptionMetric = "baseline" | "deferrable";
@@ -45,6 +47,7 @@ interface HouseModelInputs {
     currentHourTimestamp: string | null;
     timeZone: string;
     currentDayKey: string | null;
+    currentHourKey: string | null;
 }
 
 const HOUSE_FORECAST_DETAIL_PANEL_ID = "house-forecast-detail-panel";
@@ -86,6 +89,11 @@ export class HelmanHouseForecastDetail extends LitElement {
     private _currentLocalParts: LocalDateTimeParts | null = null;
     private _modelInputs?: HouseModelInputs;
     private _forecastRefreshTimer: number | null = null;
+    private readonly _localHourBoundaryController = new LocalHourBoundaryController(
+        this,
+        () => this.hass?.config.time_zone ?? null,
+        () => this._handleLocalHourBoundary(),
+    );
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
@@ -108,9 +116,10 @@ export class HelmanHouseForecastDetail extends LitElement {
         super.willUpdate(changedProperties);
 
         const now = new Date();
-        this._currentLocalParts = getCachedLocalDateTimeParts(now, this.hass?.config.time_zone ?? "UTC");
+        const timeZone = this.hass?.config.time_zone ?? "UTC";
+        this._currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
 
-        const next = this._buildModelInputs();
+        const next = this._buildModelInputs(now);
         if (!this._haveModelInputsChanged(next)) {
             return;
         }
@@ -444,8 +453,9 @@ export class HelmanHouseForecastDetail extends LitElement {
         return this._forecast?.house_consumption ?? null;
     }
 
-    private _buildModelInputs(): HouseModelInputs {
+    private _buildModelInputs(now: Date): HouseModelInputs {
         const houseConsumption = this._houseConsumption;
+        const timeZone = this.hass?.config.time_zone ?? "UTC";
         return {
             generatedAt: houseConsumption?.generatedAt ?? null,
             seriesLength: houseConsumption?.series.length ?? 0,
@@ -454,8 +464,9 @@ export class HelmanHouseForecastDetail extends LitElement {
                 ? houseConsumption.actualHistory[houseConsumption.actualHistory.length - 1].timestamp
                 : null,
             currentHourTimestamp: houseConsumption?.currentHour?.timestamp ?? null,
-            timeZone: this.hass?.config.time_zone ?? "UTC",
+            timeZone,
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
+            currentHourKey: getLocalHourKey(now, timeZone),
         };
     }
 
@@ -466,15 +477,17 @@ export class HelmanHouseForecastDetail extends LitElement {
             || this._modelInputs?.actualHistoryLastTimestamp !== next.actualHistoryLastTimestamp
             || this._modelInputs?.currentHourTimestamp !== next.currentHourTimestamp
             || this._modelInputs?.timeZone !== next.timeZone
-            || this._modelInputs?.currentDayKey !== next.currentDayKey;
+            || this._modelInputs?.currentDayKey !== next.currentDayKey
+            || this._modelInputs?.currentHourKey !== next.currentHourKey;
     }
 
     private _buildChartContext(): HouseChartBuildContext {
+        const timeZone = this.hass.config.time_zone ?? "UTC";
         return {
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
-            currentHour: this._currentLocalParts?.hour ?? null,
+            currentHourKey: getLocalHourKey(new Date(), timeZone),
             locale: this.hass.locale?.language || navigator.language,
-            timeZone: this.hass.config.time_zone,
+            timeZone,
         };
     }
 
@@ -564,6 +577,14 @@ export class HelmanHouseForecastDetail extends LitElement {
             block: "nearest",
             inline: "nearest",
         });
+    }
+
+    private async _handleLocalHourBoundary(): Promise<void> {
+        if (!this.hass) {
+            return;
+        }
+
+        await this._refreshForecast();
     }
 
     private async _loadInitialForecast(): Promise<void> {

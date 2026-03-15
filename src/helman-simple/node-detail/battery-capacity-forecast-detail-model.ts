@@ -3,9 +3,10 @@ import type {
     BatteryCapacityForecastHourDTO,
 } from "../../helman-api";
 import {
-    buildLocalDayHourTimestamps,
+    buildLocalDayHourAxis,
+    getLocalHourKey,
     indexEntriesByLocalHour,
-} from "./actual-vs-forecast-day-axis";
+} from "./local-day-hour-axis";
 import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export type BatterySlotSource = "actual" | "forecast" | "gap";
@@ -60,7 +61,8 @@ export function buildBatteryCapacityForecastModel({
     now = new Date(),
 }: BuildBatteryCapacityForecastModelParams): BatteryCapacityForecastDay[] {
     const currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
-    if (currentLocalParts === null) {
+    const currentHourKey = getLocalHourKey(now, timeZone);
+    if (currentLocalParts === null || currentHourKey === null) {
         return [];
     }
 
@@ -71,7 +73,7 @@ export function buildBatteryCapacityForecastModel({
     const todaySlots = _buildTodaySlots({
         actualHistory,
         forecastSlots: forecastDayMap.get(todayKey) ?? [],
-        currentHourNumber: currentLocalParts.hour,
+        currentHourKey,
         dayKey: todayKey,
         timeZone,
     });
@@ -117,13 +119,13 @@ export function buildBatteryCapacityForecastModel({
 function _buildTodaySlots({
     actualHistory,
     forecastSlots,
-    currentHourNumber,
+    currentHourKey,
     dayKey,
     timeZone,
 }: {
     actualHistory: BatteryCapacityActualHourDTO[];
     forecastSlots: BatteryCapacityForecastSlot[];
-    currentHourNumber: number;
+    currentHourKey: string;
     dayKey: string;
     timeZone: string;
 }): BatteryCapacityForecastSlot[] {
@@ -132,14 +134,29 @@ function _buildTodaySlots({
         ...actualHistory.map((entry) => entry.timestamp),
         ...forecastSlots.map((slot) => slot.timestamp),
     ];
-    const pastSlots = buildLocalDayHourTimestamps(dayKey, timeZone, referenceTimestamps)
-        .filter(({ hour }) => hour < currentHourNumber)
-        .map(({ hour, timestamp }) => {
-            const actualSlot = actualByHour.get(hour);
-            return actualSlot !== undefined
+    if (referenceTimestamps.length === 0) {
+        return [];
+    }
+
+    const currentHourStartMs = _parseTimestampMs(currentHourKey);
+    if (currentHourStartMs === null) {
+        return forecastSlots;
+    }
+
+    const pastSlots: BatteryCapacityForecastSlot[] = [];
+    for (const axisPoint of buildLocalDayHourAxis(dayKey, timeZone, referenceTimestamps)) {
+        const axisPointMs = _parseTimestampMs(axisPoint.timestamp);
+        if (axisPointMs === null || axisPointMs >= currentHourStartMs) {
+            continue;
+        }
+
+        const actualSlot = actualByHour.get(axisPoint.hourKey);
+        pastSlots.push(
+            actualSlot !== undefined
                 ? _buildActualSlot(actualSlot)
-                : _buildGapSlot(timestamp);
-        });
+                : _buildGapSlot(axisPoint.timestamp)
+        );
+    }
 
     return [...pastSlots, ...forecastSlots];
 }
@@ -266,6 +283,11 @@ function _computeSlotEnd(timestamp: string, durationHours: number): string {
     }
 
     return new Date(startMs + durationHours * 3600000).toISOString();
+}
+
+function _parseTimestampMs(timestamp: string): number | null {
+    const parsedMs = new Date(timestamp).getTime();
+    return Number.isNaN(parsedMs) ? null : parsedMs;
 }
 
 function _addDaysToDayKey(dayKey: string, days: number): string {

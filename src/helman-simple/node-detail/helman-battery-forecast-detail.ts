@@ -20,10 +20,12 @@ import {
     buildBatteryCapacityForecastModel,
     type BatteryCapacityForecastDay,
 } from "./battery-capacity-forecast-detail-model";
+import { getLocalHourKey } from "./local-day-hour-axis";
 import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
 } from "./local-date-time-parts-cache";
+import { LocalHourBoundaryController } from "./local-hour-boundary-controller";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 
 interface BatteryModelInputs {
@@ -37,6 +39,7 @@ interface BatteryModelInputs {
     currentSoc: number | null;
     timeZone: string;
     currentDayKey: string | null;
+    currentHourKey: string | null;
 }
 
 const BATTERY_FORECAST_DETAIL_PANEL_ID = "battery-forecast-detail-panel";
@@ -49,6 +52,11 @@ export class HelmanBatteryForecastDetail extends LitElement {
     private _currentLocalParts: LocalDateTimeParts | null = null;
     private _modelInputs?: BatteryModelInputs;
     private _forecastRefreshTimer: number | null = null;
+    private readonly _localHourBoundaryController = new LocalHourBoundaryController(
+        this,
+        () => this.hass?.config.time_zone ?? null,
+        () => this._handleLocalHourBoundary(),
+    );
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
@@ -71,9 +79,10 @@ export class HelmanBatteryForecastDetail extends LitElement {
         super.willUpdate(changedProperties);
 
         const now = new Date();
-        this._currentLocalParts = getCachedLocalDateTimeParts(now, this.hass?.config.time_zone ?? "UTC");
+        const timeZone = this.hass?.config.time_zone ?? "UTC";
+        this._currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
 
-        const next = this._buildModelInputs();
+        const next = this._buildModelInputs(now);
         if (!this._haveModelInputsChanged(next)) {
             return;
         }
@@ -446,8 +455,9 @@ export class HelmanBatteryForecastDetail extends LitElement {
         return this._forecast?.battery_capacity ?? null;
     }
 
-    private _buildModelInputs(): BatteryModelInputs {
+    private _buildModelInputs(now: Date): BatteryModelInputs {
         const batteryForecast = this._batteryForecast;
+        const timeZone = this.hass?.config.time_zone ?? "UTC";
 
         return {
             generatedAt: batteryForecast?.generatedAt ?? null,
@@ -460,8 +470,9 @@ export class HelmanBatteryForecastDetail extends LitElement {
                 : null,
             coverageUntil: batteryForecast?.coverageUntil ?? null,
             currentSoc: batteryForecast?.currentSoc ?? null,
-            timeZone: this.hass?.config.time_zone ?? "UTC",
+            timeZone,
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
+            currentHourKey: getLocalHourKey(now, timeZone),
         };
     }
 
@@ -475,15 +486,17 @@ export class HelmanBatteryForecastDetail extends LitElement {
             || this._modelInputs?.coverageUntil !== next.coverageUntil
             || this._modelInputs?.currentSoc !== next.currentSoc
             || this._modelInputs?.timeZone !== next.timeZone
-            || this._modelInputs?.currentDayKey !== next.currentDayKey;
+            || this._modelInputs?.currentDayKey !== next.currentDayKey
+            || this._modelInputs?.currentHourKey !== next.currentHourKey;
     }
 
     private _buildChartContext(): BatteryChartBuildContext {
+        const timeZone = this.hass.config.time_zone ?? "UTC";
         return {
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
-            currentHour: this._currentLocalParts?.hour ?? null,
+            currentHourKey: getLocalHourKey(new Date(), timeZone),
             locale: this.hass.locale?.language || navigator.language,
-            timeZone: this.hass.config.time_zone ?? "UTC",
+            timeZone,
         };
     }
 
@@ -615,6 +628,14 @@ export class HelmanBatteryForecastDetail extends LitElement {
         }
 
         return parts.join(". ");
+    }
+
+    private async _handleLocalHourBoundary(): Promise<void> {
+        if (!this.hass) {
+            return;
+        }
+
+        await this._refreshForecast();
     }
 
     private async _loadInitialForecast(): Promise<void> {

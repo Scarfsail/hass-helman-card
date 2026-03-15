@@ -1,8 +1,9 @@
 import type { ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../helman-api";
 import {
-    buildLocalDayHourTimestamps,
+    buildLocalDayHourAxis,
+    getLocalHourKey,
     indexEntriesByLocalHour,
-} from "./actual-vs-forecast-day-axis";
+} from "./local-day-hour-axis";
 import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export type SolarHourSource = "actual" | "forecast" | "gap";
@@ -44,7 +45,8 @@ export function buildForecastDetailModel({
     now = new Date(),
 }: BuildForecastDetailModelParams): ForecastDetailDayModel[] {
     const currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
-    if (currentLocalParts === null) {
+    const currentHourKey = getLocalHourKey(now, timeZone);
+    if (currentLocalParts === null || currentHourKey === null) {
         return [];
     }
 
@@ -52,7 +54,7 @@ export function buildForecastDetailModel({
         solarForecast,
         timeZone,
         currentLocalParts.dayKey,
-        currentLocalParts.hour,
+        currentHourKey,
     );
     const priceDayMap = _groupPointsByDay(
         gridForecast?.points ?? [],
@@ -72,7 +74,7 @@ export function buildForecastDetailModel({
         const solarSummaryKwh = dayKey === todayKey
             ? remainingTodayKwhOverride
                 ?? solarForecast?.remainingTodayKwh
-                ?? _sumRemainingSolarKwh(solarHours, timeZone, currentLocalParts.hour)
+                ?? _sumRemainingSolarKwh(solarHours, currentHourKey)
             : _sumSolarHourValuesKwh(solarHours);
 
         return {
@@ -100,7 +102,7 @@ function _groupSolarHoursByDay(
     solarForecast: SolarForecastDTO | null,
     timeZone: string,
     currentLocalDayKey: string,
-    currentHour: number,
+    currentHourKey: string,
 ): Map<string, ForecastSolarHourPoint[]> {
     const dayMap = new Map<string, ForecastSolarHourPoint[]>();
     const actualHistory = solarForecast?.actualHistory ?? [];
@@ -110,7 +112,7 @@ function _groupSolarHoursByDay(
         forecastPoints,
         timeZone,
         dayKey: currentLocalDayKey,
-        currentHour,
+        currentHourKey,
     });
 
     if (todayHours.length > 0) {
@@ -144,13 +146,13 @@ function _buildTodaySolarHours({
     forecastPoints,
     timeZone,
     dayKey,
-    currentHour,
+    currentHourKey,
 }: {
     actualHistory: ForecastPointDTO[];
     forecastPoints: ForecastPointDTO[];
     timeZone: string;
     dayKey: string;
-    currentHour: number;
+    currentHourKey: string;
 }): ForecastSolarHourPoint[] {
     const referenceTimestamps = [
         ...actualHistory.map((entry) => entry.timestamp),
@@ -162,10 +164,15 @@ function _buildTodaySolarHours({
 
     const actualByHour = indexEntriesByLocalHour(actualHistory, timeZone, dayKey);
     const forecastByHour = indexEntriesByLocalHour(forecastPoints, timeZone, dayKey);
+    const currentHourStartMs = _parseTimestampMs(currentHourKey);
+    if (currentHourStartMs === null) {
+        return [];
+    }
 
-    return buildLocalDayHourTimestamps(dayKey, timeZone, referenceTimestamps).map(({ hour, timestamp }) => {
-        if (hour < currentHour) {
-            const actualPoint = actualByHour.get(hour);
+    return buildLocalDayHourAxis(dayKey, timeZone, referenceTimestamps).map(({ hourKey, timestamp }) => {
+        const hourStartMs = _parseTimestampMs(timestamp);
+        if (hourStartMs !== null && hourStartMs < currentHourStartMs) {
+            const actualPoint = actualByHour.get(hourKey);
             return actualPoint !== undefined
                 ? {
                     timestamp: actualPoint.timestamp,
@@ -179,7 +186,7 @@ function _buildTodaySolarHours({
                 };
         }
 
-        const forecastPoint = forecastByHour.get(hour);
+        const forecastPoint = forecastByHour.get(hourKey);
         return forecastPoint !== undefined
             ? {
                 timestamp: forecastPoint.timestamp,
@@ -237,13 +244,17 @@ function _sumSolarHourValuesKwh(points: ForecastSolarHourPoint[]): number | null
 
 function _sumRemainingSolarKwh(
     points: ForecastSolarHourPoint[],
-    timeZone: string,
-    currentHour: number,
+    currentHourKey: string,
 ): number | null {
+    const currentHourStartMs = _parseTimestampMs(currentHourKey);
+    if (currentHourStartMs === null) {
+        return null;
+    }
+
     const remainingValues = points
         .filter((point) => {
-            const parts = getCachedLocalDateTimeParts(point.timestamp, timeZone);
-            return parts !== null && parts.hour >= currentHour && point.value !== null;
+            const pointMs = _parseTimestampMs(point.timestamp);
+            return pointMs !== null && pointMs >= currentHourStartMs && point.value !== null;
         })
         .map((point) => point.value as number);
 
@@ -266,4 +277,9 @@ function _comparePointsByTimestamp(a: ForecastPointDTO, b: ForecastPointDTO): nu
 
 function _compareSolarHoursByTimestamp(a: ForecastSolarHourPoint, b: ForecastSolarHourPoint): number {
     return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+}
+
+function _parseTimestampMs(timestamp: string): number | null {
+    const parsedMs = new Date(timestamp).getTime();
+    return Number.isNaN(parsedMs) ? null : parsedMs;
 }

@@ -3,9 +3,10 @@ import type {
     HouseConsumptionForecastHourDTO,
 } from "../../helman-api";
 import {
-    buildLocalDayHourTimestamps,
+    buildLocalDayHourAxis,
+    getLocalHourKey,
     indexEntriesByLocalHour,
-} from "./actual-vs-forecast-day-axis";
+} from "./local-day-hour-axis";
 import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export type HouseForecastHourSource = "actual" | "forecast" | "gap";
@@ -62,13 +63,13 @@ export function buildHouseForecastModel({
     now = new Date(),
 }: BuildHouseForecastModelParams): HouseForecastDay[] {
     const currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
-    if (currentLocalParts === null) {
+    const currentHourKey = getLocalHourKey(now, timeZone);
+    if (currentLocalParts === null || currentHourKey === null) {
         return [];
     }
 
     const todayKey = currentLocalParts.dayKey;
     const tomorrowKey = _addDaysToDayKey(todayKey, 1);
-    const currentHourNumber = currentLocalParts.hour;
     const forecastDayMap = new Map<string, HouseForecastHour[]>();
 
     if (currentHour !== null) {
@@ -95,7 +96,7 @@ export function buildHouseForecastModel({
                 ? _buildTodayHours({
                     actualHistory,
                     forecastHours,
-                    currentHourNumber,
+                    currentHourKey,
                     dayKey,
                     timeZone,
                 })
@@ -121,13 +122,13 @@ export function buildHouseForecastModel({
 function _buildTodayHours({
     actualHistory,
     forecastHours,
-    currentHourNumber,
+    currentHourKey,
     dayKey,
     timeZone,
 }: {
     actualHistory: HouseConsumptionActualHourDTO[];
     forecastHours: HouseForecastHour[];
-    currentHourNumber: number;
+    currentHourKey: string;
     dayKey: string;
     timeZone: string;
 }): HouseForecastHour[] {
@@ -137,16 +138,21 @@ function _buildTodayHours({
         ...actualHistory.map((entry) => entry.timestamp),
         ...forecastHours.map((hour) => hour.timestamp),
     ];
+    const currentHourStartMs = _parseTimestampMs(currentHourKey);
+    if (currentHourStartMs === null) {
+        return forecastHours;
+    }
 
-    return buildLocalDayHourTimestamps(dayKey, timeZone, referenceTimestamps).map(({ hour, timestamp }) => {
-        if (hour < currentHourNumber) {
-            const actualHour = actualByHour.get(hour);
+    return buildLocalDayHourAxis(dayKey, timeZone, referenceTimestamps).map(({ hourKey, timestamp }) => {
+        const hourStartMs = _parseTimestampMs(timestamp);
+        if (hourStartMs !== null && hourStartMs < currentHourStartMs) {
+            const actualHour = actualByHour.get(hourKey);
             return actualHour !== undefined
                 ? _buildActualHour(actualHour)
                 : _buildGapHour(timestamp);
         }
 
-        const forecastHour = forecastByHour.get(hour);
+        const forecastHour = forecastByHour.get(hourKey);
         return forecastHour ?? _buildGapHour(timestamp);
     });
 }
@@ -265,15 +271,21 @@ function _indexHoursByLocalHour(
     hours: HouseForecastHour[],
     timeZone: string,
     dayKey: string,
-): Map<number, HouseForecastHour> {
-    const hoursByLocalHour = new Map<number, HouseForecastHour>();
+): Map<string, HouseForecastHour> {
+    const hoursByLocalHour = new Map<string, HouseForecastHour>();
     for (const hour of hours) {
         const parts = getCachedLocalDateTimeParts(hour.timestamp, timeZone);
-        if (parts === null || parts.dayKey !== dayKey || hoursByLocalHour.has(parts.hour)) {
+        const hourKey = getLocalHourKey(hour.timestamp, timeZone);
+        if (
+            parts === null
+            || parts.dayKey !== dayKey
+            || hourKey === null
+            || hoursByLocalHour.has(hourKey)
+        ) {
             continue;
         }
 
-        hoursByLocalHour.set(parts.hour, hour);
+        hoursByLocalHour.set(hourKey, hour);
     }
 
     return hoursByLocalHour;
@@ -287,4 +299,9 @@ function _addDaysToDayKey(dayKey: string, days: number): string {
     const date = new Date(`${dayKey}T00:00:00Z`);
     date.setUTCDate(date.getUTCDate() + days);
     return date.toISOString().slice(0, 10);
+}
+
+function _parseTimestampMs(timestamp: string): number | null {
+    const parsedMs = new Date(timestamp).getTime();
+    return Number.isNaN(parsedMs) ? null : parsedMs;
 }

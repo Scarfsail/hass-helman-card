@@ -21,6 +21,8 @@ import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
 } from "./local-date-time-parts-cache";
+import { getLocalHourKey } from "./local-day-hour-axis";
+import { LocalHourBoundaryController } from "./local-hour-boundary-controller";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 
 interface ForecastHourSlot {
@@ -85,6 +87,7 @@ interface ForecastModelInputs {
     timeZone: string;
     remainingTodayKwh: number | null | undefined;
     currentDayKey: string | null;
+    currentHourKey: string | null;
 }
 
 const FORECAST_DETAIL_PANEL_ID = "forecast-day-detail-panel";
@@ -105,6 +108,11 @@ export class HelmanForecastDetail extends LitElement {
     private _maxSolarGaugeValueKwh = 0;
     private _miniChartScale: ForecastMiniChartScaleModel = EMPTY_MINI_CHART_SCALE;
     private _forecastRefreshTimer: number | null = null;
+    private readonly _localHourBoundaryController = new LocalHourBoundaryController(
+        this,
+        () => this.hass?.config.time_zone ?? null,
+        () => this._handleLocalHourBoundary(),
+    );
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
@@ -129,7 +137,7 @@ export class HelmanForecastDetail extends LitElement {
         const now = new Date();
         this._currentLocalParts = this._getCurrentLocalDateTimeParts(now);
 
-        const nextForecastModelInputs = this._buildForecastModelInputs();
+        const nextForecastModelInputs = this._buildForecastModelInputs(now);
         if (!this._hasForecastModelInputsChanged(nextForecastModelInputs)) {
             return;
         }
@@ -1011,13 +1019,15 @@ export class HelmanForecastDetail extends LitElement {
         return `${parts.dayKey}:${parts.hour}`;
     }
 
-    private _buildForecastModelInputs(): ForecastModelInputs {
+    private _buildForecastModelInputs(now: Date): ForecastModelInputs {
+        const timeZone = this.hass.config.time_zone;
         return {
             solarForecast: this._solarForecast,
             gridForecast: this._gridForecast,
-            timeZone: this.hass.config.time_zone,
+            timeZone,
             remainingTodayKwh: this._readRemainingTodayKwh(),
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
+            currentHourKey: getLocalHourKey(now, timeZone),
         };
     }
 
@@ -1026,7 +1036,8 @@ export class HelmanForecastDetail extends LitElement {
             || this._forecastModelInputs?.gridForecast !== nextForecastModelInputs.gridForecast
             || this._forecastModelInputs?.timeZone !== nextForecastModelInputs.timeZone
             || this._forecastModelInputs?.remainingTodayKwh !== nextForecastModelInputs.remainingTodayKwh
-            || this._forecastModelInputs?.currentDayKey !== nextForecastModelInputs.currentDayKey;
+            || this._forecastModelInputs?.currentDayKey !== nextForecastModelInputs.currentDayKey
+            || this._forecastModelInputs?.currentHourKey !== nextForecastModelInputs.currentHourKey;
     }
 
     private _getCurrentLocalDateTimeParts(now: Date = new Date()): LocalDateTimeParts | null {
@@ -1034,11 +1045,12 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _buildChartContext(currentLocalParts: LocalDateTimeParts | null): ForecastChartBuildContext {
+        const timeZone = this.hass.config.time_zone;
         return {
             currentDayKey: currentLocalParts?.dayKey ?? null,
-            currentHour: currentLocalParts?.hour ?? null,
+            currentHourKey: getLocalHourKey(new Date(), timeZone),
             locale: this.hass.locale?.language || navigator.language,
-            timeZone: this.hass.config.time_zone,
+            timeZone,
         };
     }
 
@@ -1109,6 +1121,14 @@ export class HelmanForecastDetail extends LitElement {
 
     private get _gridForecast(): GridForecastDTO | null {
         return this._forecast?.grid ?? null;
+    }
+
+    private async _handleLocalHourBoundary(): Promise<void> {
+        if (!this.hass) {
+            return;
+        }
+
+        await this._refreshForecast();
     }
 
     private async _loadInitialForecast(): Promise<void> {

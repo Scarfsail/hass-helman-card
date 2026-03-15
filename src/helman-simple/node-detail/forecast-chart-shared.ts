@@ -2,7 +2,7 @@ import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export interface ForecastChartBuildContext {
     currentDayKey: string | null;
-    currentHour: number | null;
+    currentHourKey: string | null;
     locale: string;
     timeZone: string;
 }
@@ -69,7 +69,7 @@ export function isPastForecastTimestamp(
     isToday: boolean,
     context: ForecastChartBuildContext,
 ): boolean {
-    if (!isToday || context.currentDayKey === null || context.currentHour === null) {
+    if (!isToday || context.currentDayKey === null || context.currentHourKey === null) {
         return false;
     }
 
@@ -78,7 +78,13 @@ export function isPastForecastTimestamp(
         return false;
     }
 
-    return parts.dayKey === context.currentDayKey && parts.hour < context.currentHour;
+    const currentHourStartMs = new Date(context.currentHourKey).getTime();
+    const timestampMs = new Date(timestamp).getTime();
+    if (Number.isNaN(currentHourStartMs) || Number.isNaN(timestampMs)) {
+        return false;
+    }
+
+    return parts.dayKey === context.currentDayKey && timestampMs < currentHourStartMs;
 }
 
 export function normalizeForecastBarHeight(
