@@ -1,5 +1,10 @@
 import type { HouseForecastDay, HouseForecastHour } from "./house-forecast-detail-model";
-import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
+import {
+    buildSparseHourLabelMap,
+    isPastForecastTimestamp,
+    normalizeForecastBarHeight,
+    type ForecastChartBuildContext,
+} from "./forecast-chart-shared";
 
 export interface HouseMetricAccessors {
     getHourValue(hour: HouseForecastHour): number;
@@ -7,12 +12,7 @@ export interface HouseMetricAccessors {
     getUpperValue(hour: HouseForecastHour): number;
 }
 
-export interface HouseChartBuildContext {
-    currentDayKey: string | null;
-    currentHour: number | null;
-    locale: string;
-    timeZone: string;
-}
+export type HouseChartBuildContext = ForecastChartBuildContext;
 
 export interface HouseMiniChartBarModel {
     heightPercent: number;
@@ -65,12 +65,12 @@ export function buildHouseMiniChartBars(
     context: HouseChartBuildContext,
 ): HouseMiniChartBarModel[] {
     return day.hours.map((hour) => ({
-        heightPercent: _normalizeBarHeight(
+        heightPercent: normalizeForecastBarHeight(
             Math.max(accessors.getHourValue(hour), 0),
             maxValue,
             MINI_CHART_MAX_BAR_HEIGHT,
         ),
-        isPast: _isPastTimestamp(hour.timestamp, day.isToday, context),
+        isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
     }));
 }
 
@@ -84,7 +84,7 @@ export function buildHouseDetailColumns(
         valueKwh: accessors.getHourValue(hour),
         lowerKwh: accessors.getLowerValue(hour),
         upperKwh: accessors.getUpperValue(hour),
-        isPast: _isPastTimestamp(hour.timestamp, day.isToday, context),
+        isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
     }));
     const maxValue = Math.max(
         ...points.map((point) => Math.max(point.valueKwh, point.upperKwh, 0)),
@@ -118,7 +118,7 @@ export function buildHouseDeferrableBreakdownRows(
                 valueKwh: snapshot?.valueKwh ?? 0,
                 lowerKwh: snapshot?.lowerKwh ?? 0,
                 upperKwh: snapshot?.upperKwh ?? 0,
-                isPast: _isPastTimestamp(hour.timestamp, day.isToday, context),
+                isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
             };
         });
 
@@ -139,7 +139,7 @@ function _buildBandedColumns(
         return [];
     }
 
-    const sparseLabels = _buildSparseHourLabelMap(
+    const sparseLabels = buildSparseHourLabelMap(
         points.map((point) => point.timestamp),
         context,
     );
@@ -163,7 +163,7 @@ function _buildBandedColumns(
     return points.map((point, index) => ({
         timestamp: point.timestamp,
         valueKwh: point.valueKwh,
-        heightPercent: _normalizeBarHeight(
+        heightPercent: normalizeForecastBarHeight(
             Math.max(point.valueKwh, 0),
             maxValue,
             DETAIL_MAX_BAR_HEIGHT,
@@ -179,98 +179,4 @@ function _buildBandedColumns(
         isMin: index === minIndex && Number.isFinite(minKwh),
         isPast: point.isPast,
     }));
-}
-
-function _buildSparseHourLabelMap(
-    timestamps: string[],
-    context: HouseChartBuildContext,
-): Map<number, string> {
-    if (timestamps.length === 0) {
-        return new Map();
-    }
-
-    const targetIndices = timestamps.length <= 6
-        ? timestamps.map((_, index) => index)
-        : [
-            0,
-            Math.round((timestamps.length - 1) / 3),
-            Math.round(((timestamps.length - 1) * 2) / 3),
-            timestamps.length - 1,
-        ];
-    const labelIndices = new Set<number>();
-
-    for (const targetIndex of targetIndices) {
-        let bestIndex = targetIndex;
-        let bestDistance = Number.POSITIVE_INFINITY;
-
-        for (let index = 0; index < timestamps.length; index++) {
-            if (labelIndices.has(index)) {
-                continue;
-            }
-
-            const parts = getCachedLocalDateTimeParts(timestamps[index], context.timeZone);
-            if (parts === null || parts.hour % 6 !== 0) {
-                continue;
-            }
-
-            const distance = Math.abs(index - targetIndex);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestIndex = index;
-            }
-        }
-
-        labelIndices.add(bestIndex);
-    }
-
-    for (const targetIndex of targetIndices) {
-        if (labelIndices.size >= Math.min(targetIndices.length, timestamps.length)) {
-            break;
-        }
-
-        labelIndices.add(targetIndex);
-    }
-
-    return new Map(
-        Array.from(labelIndices)
-            .sort((left, right) => left - right)
-            .map((index) => [index, _formatHourAxisLabel(timestamps[index], context)]),
-    );
-}
-
-function _formatHourAxisLabel(timestamp: string, context: HouseChartBuildContext): string {
-    return new Date(timestamp).toLocaleTimeString(context.locale, {
-        timeZone: context.timeZone,
-        hour: "2-digit",
-        hourCycle: "h23",
-    });
-}
-
-function _isPastTimestamp(
-    timestamp: string,
-    isToday: boolean,
-    context: HouseChartBuildContext,
-): boolean {
-    if (!isToday || context.currentDayKey === null || context.currentHour === null) {
-        return false;
-    }
-
-    const parts = getCachedLocalDateTimeParts(timestamp, context.timeZone);
-    if (parts === null) {
-        return false;
-    }
-
-    return parts.dayKey === context.currentDayKey && parts.hour < context.currentHour;
-}
-
-function _normalizeBarHeight(
-    value: number,
-    maxValue: number,
-    maxHeightPercent: number,
-): number {
-    if (value <= 0 || maxValue <= 0) {
-        return 0;
-    }
-
-    return Math.max((value / maxValue) * maxHeightPercent, maxHeightPercent * 0.12);
 }

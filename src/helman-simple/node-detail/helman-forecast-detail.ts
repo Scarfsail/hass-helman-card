@@ -8,6 +8,12 @@ import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman
 import type { LocalizeFunction } from "../../localize/localize";
 import { buildForecastDetailModel, type ForecastDetailDayModel } from "./forecast-detail-model";
 import {
+    buildSparseHourLabelMap,
+    isPastForecastTimestamp,
+    normalizeForecastBarHeight,
+    type ForecastChartBuildContext,
+} from "./forecast-chart-shared";
+import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
 } from "./local-date-time-parts-cache";
@@ -193,23 +199,23 @@ export class HelmanForecastDetail extends LitElement {
                          <div class="forecast-day-label">${dayLabel}</div>
                          <span class="forecast-day-toggle" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
                       </div>
-                      ${this._hasSolarSummary(day) ? html`
-                          <div class="forecast-day-solar-value" title=${this._getSolarSummaryLabel(day) ?? nothing}>
-                             ${day.isToday && totalSolarGaugeWidthPercent > remainingSolarGaugeWidthPercent ? html`
-                                 <span
-                                     class="forecast-day-solar-gauge muted"
-                                     style=${`width:${totalSolarGaugeWidthPercent}%;`}
-                                     aria-hidden="true"
-                                 ></span>
-                             ` : nothing}
-                             ${remainingSolarGaugeWidthPercent > 0 ? html`
-                                 <span
-                                     class="forecast-day-solar-gauge"
-                                     style=${`width:${remainingSolarGaugeWidthPercent}%;`}
-                                     aria-hidden="true"
-                                 ></span>
-                             ` : nothing}
-                             ${this._renderSolarSummary(day)}
+                       ${this._hasSolarSummary(day) ? html`
+                           <div class="forecast-day-gauge solar" title=${this._getSolarSummaryLabel(day) ?? nothing}>
+                              ${day.isToday && totalSolarGaugeWidthPercent > remainingSolarGaugeWidthPercent ? html`
+                                  <span
+                                      class="forecast-day-gauge-fill muted"
+                                      style=${`width:${totalSolarGaugeWidthPercent}%;`}
+                                      aria-hidden="true"
+                                  ></span>
+                              ` : nothing}
+                              ${remainingSolarGaugeWidthPercent > 0 ? html`
+                                  <span
+                                      class="forecast-day-gauge-fill"
+                                      style=${`width:${remainingSolarGaugeWidthPercent}%;`}
+                                      aria-hidden="true"
+                                  ></span>
+                              ` : nothing}
+                              ${this._renderSolarSummary(day)}
                           </div>
                        ` : html`
                            <div class="forecast-day-placeholder" title=${solarUnavailable}>—</div>
@@ -495,8 +501,8 @@ export class HelmanForecastDetail extends LitElement {
         const display = this._getEnergyDisplay(valueKwh);
 
         return html`
-            <span class="forecast-day-solar-primary">${display.value}</span>
-            <span class="forecast-day-solar-unit">${display.unit}</span>
+            <span class="forecast-day-gauge-primary">${display.value}</span>
+            <span class="forecast-day-gauge-unit">${display.unit}</span>
         `;
     }
 
@@ -539,6 +545,7 @@ export class HelmanForecastDetail extends LitElement {
         miniChartScale: ForecastMiniChartScaleModel,
         currentLocalParts: LocalDateTimeParts | null,
     ): ForecastMiniChartModel {
+        const chartContext = this._buildChartContext(currentLocalParts);
         const points = type === "solar" ? day.solarHours : day.priceHours;
         if (points.length === 0) {
             return {
@@ -550,14 +557,14 @@ export class HelmanForecastDetail extends LitElement {
         if (type === "solar") {
             return {
                 bars: points.map((point) => ({
-                    heightPercent: this._normalizeBarHeight(
+                    heightPercent: normalizeForecastBarHeight(
                         Math.max(point.value, 0),
                         miniChartScale.maxSolarHourValue,
                         100,
                     ),
                     offsetPercent: 0,
                     toneClass: "solar",
-                    isPast: this._isPastTimestamp(point.timestamp, day, currentLocalParts),
+                    isPast: isPastForecastTimestamp(point.timestamp, day.isToday, chartContext),
                 })),
                 hasNegativeValues: false,
             };
@@ -567,7 +574,7 @@ export class HelmanForecastDetail extends LitElement {
 
         return {
             bars: points.map((point) => {
-                const heightPercent = this._normalizeBarHeight(
+                const heightPercent = normalizeForecastBarHeight(
                     Math.abs(point.value),
                     maxAbsolutePriceValue,
                     hasNegativePriceValues ? 50 : 100,
@@ -581,7 +588,7 @@ export class HelmanForecastDetail extends LitElement {
                             ? 50
                             : 0,
                     toneClass: this._getPriceToneClass(point.value),
-                    isPast: this._isPastTimestamp(point.timestamp, day, currentLocalParts),
+                    isPast: isPastForecastTimestamp(point.timestamp, day.isToday, chartContext),
                 };
             }),
             hasNegativeValues: hasNegativePriceValues,
@@ -603,6 +610,7 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _buildDetailChartModel(day: ForecastDetailDayModel, currentLocalParts: LocalDateTimeParts | null): ForecastDetailChartModel {
+        const chartContext = this._buildChartContext(currentLocalParts);
         const slots = this._buildHourSlots(day);
         const maxSolarSlot = this._findMaxSolarSlot(slots);
         const minPriceSlot = this._findPriceHighlightSlot(slots, "min");
@@ -610,18 +618,21 @@ export class HelmanForecastDetail extends LitElement {
         const maxSolarValue = Math.max(...slots.map((slot) => Math.max(slot.solarValue ?? 0, 0)), 0);
         const hasNegativePriceValues = slots.some((slot) => (slot.priceValue ?? 0) < 0);
         const maxAbsolutePrice = Math.max(...slots.map((slot) => Math.abs(slot.priceValue ?? 0)), 0);
-        const sparseHourLabels = this._buildSparseHourLabelMap(slots);
+        const sparseHourLabels = buildSparseHourLabelMap(
+            slots.map((slot) => slot.timestamp),
+            chartContext,
+        );
         const maxSolarBarHeight = 78;
         const maxPriceBarHeight = hasNegativePriceValues ? 34 : 78;
 
         return {
             columns: slots.map((slot, index) => {
-                const solarHeightPercent = this._normalizeBarHeight(
+                const solarHeightPercent = normalizeForecastBarHeight(
                     Math.max(slot.solarValue ?? 0, 0),
                     maxSolarValue,
                     maxSolarBarHeight,
                 );
-                const priceHeightPercent = this._normalizeBarHeight(
+                const priceHeightPercent = normalizeForecastBarHeight(
                     Math.abs(slot.priceValue ?? 0),
                     maxAbsolutePrice,
                     maxPriceBarHeight,
@@ -645,21 +656,13 @@ export class HelmanForecastDetail extends LitElement {
                     isMaxSolar: maxSolarSlot?.timestamp === slot.timestamp,
                     isMinPrice: minPriceSlot?.timestamp === slot.timestamp,
                     isMaxPrice: maxPriceSlot?.timestamp === slot.timestamp,
-                    isPast: this._isPastTimestamp(slot.timestamp, day, currentLocalParts),
+                    isPast: isPastForecastTimestamp(slot.timestamp, day.isToday, chartContext),
                 };
             }),
             hasNegativePriceValues,
             maxPriceSlot,
             minPriceSlot,
         };
-    }
-
-    private _normalizeBarHeight(value: number, maxValue: number, maxHeightPercent: number): number {
-        if (value <= 0 || maxValue <= 0) {
-            return 0;
-        }
-
-        return Math.max((value / maxValue) * maxHeightPercent, maxHeightPercent * 0.12);
     }
 
     private _buildDayButtonLabel(day: ForecastDetailDayModel, dayLabel: string): string {
@@ -737,11 +740,11 @@ export class HelmanForecastDetail extends LitElement {
             const sharedDisplay = this._getSharedEnergyDisplay(day.solarSummaryKwh!, day.solarTotalKwh);
 
             return html`
-                <span class="forecast-day-solar-primary">${sharedDisplay.primary}</span>
-                <span class="forecast-day-solar-separator" aria-hidden="true">/</span>
-                <span class="forecast-day-solar-secondary">
+                <span class="forecast-day-gauge-primary">${sharedDisplay.primary}</span>
+                <span class="forecast-day-gauge-separator" aria-hidden="true">/</span>
+                <span class="forecast-day-gauge-secondary">
                     ${sharedDisplay.secondary}
-                    <span class="forecast-day-solar-unit">${sharedDisplay.unit}</span>
+                    <span class="forecast-day-gauge-unit">${sharedDisplay.unit}</span>
                 </span>
             `;
         }
@@ -965,60 +968,6 @@ export class HelmanForecastDetail extends LitElement {
         });
     }
 
-    private _buildSparseHourLabelMap(slots: ForecastHourSlot[]): Map<number, string> {
-        if (slots.length === 0) {
-            return new Map();
-        }
-
-        const targetIndices = slots.length <= 6
-            ? slots.map((_, index) => index)
-            : [
-                0,
-                Math.round((slots.length - 1) / 3),
-                Math.round(((slots.length - 1) * 2) / 3),
-                slots.length - 1,
-            ];
-        const labelIndices = new Set<number>();
-
-        for (const targetIndex of targetIndices) {
-            let bestIndex = targetIndex;
-            let bestDistance = Number.POSITIVE_INFINITY;
-
-            for (let index = 0; index < slots.length; index++) {
-                if (labelIndices.has(index)) {
-                    continue;
-                }
-
-                const localDateTimeParts = this._getLocalDateTimeParts(slots[index].timestamp);
-                if (localDateTimeParts === null || localDateTimeParts.hour % 6 !== 0) {
-                    continue;
-                }
-
-                const distance = Math.abs(index - targetIndex);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    bestIndex = index;
-                }
-            }
-
-            labelIndices.add(bestIndex);
-        }
-
-        for (const targetIndex of targetIndices) {
-            if (labelIndices.size >= Math.min(targetIndices.length, slots.length)) {
-                break;
-            }
-
-            labelIndices.add(targetIndex);
-        }
-
-        return new Map(
-            Array.from(labelIndices)
-                .sort((left, right) => left - right)
-                .map((index) => [index, this._formatHourAxisLabel(slots[index].timestamp)]),
-        );
-    }
-
     private _getPointKey(timestamp: string): string | null {
         if (!timestamp) {
             return null;
@@ -1054,25 +1003,17 @@ export class HelmanForecastDetail extends LitElement {
         return this._getLocalDateTimeParts(now);
     }
 
-    private _getLocalDateTimeParts(value: Date | string): LocalDateTimeParts | null {
-        return getCachedLocalDateTimeParts(value, this.hass.config.time_zone);
+    private _buildChartContext(currentLocalParts: LocalDateTimeParts | null): ForecastChartBuildContext {
+        return {
+            currentDayKey: currentLocalParts?.dayKey ?? null,
+            currentHour: currentLocalParts?.hour ?? null,
+            locale: this.hass.locale?.language || navigator.language,
+            timeZone: this.hass.config.time_zone,
+        };
     }
 
-    private _isPastTimestamp(
-        timestamp: string,
-        day: ForecastDetailDayModel,
-        currentLocalParts: LocalDateTimeParts | null,
-    ): boolean {
-        if (!day.isToday || currentLocalParts === null) {
-            return false;
-        }
-
-        const pointParts = this._getLocalDateTimeParts(timestamp);
-        if (pointParts === null) {
-            return false;
-        }
-
-        return pointParts.dayKey === currentLocalParts.dayKey && pointParts.hour < currentLocalParts.hour;
+    private _getLocalDateTimeParts(value: Date | string): LocalDateTimeParts | null {
+        return getCachedLocalDateTimeParts(value, this.hass.config.time_zone);
     }
 
     private _buildColumnTitle(labelKey: string, timestamp: string, value: string): string {
@@ -1090,16 +1031,6 @@ export class HelmanForecastDetail extends LitElement {
         );
     }
 
-    private _formatHourAxisLabel(timestamp: string): string {
-        return new Date(timestamp).toLocaleTimeString(
-            this.hass.locale?.language || navigator.language,
-            {
-                timeZone: this.hass.config.time_zone,
-                hour: "2-digit",
-                hourCycle: "h23",
-            },
-        );
-    }
 
     private _getStatusNote(): string | null {
         const statuses = [this._solarForecast?.status, this._gridForecast?.status];

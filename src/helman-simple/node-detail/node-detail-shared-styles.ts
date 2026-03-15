@@ -151,7 +151,7 @@ export const nodeDetailSharedStyles = css`
         line-height: 1;
     }
 
-    .forecast-day-solar-value {
+    .forecast-day-gauge {
         display: flex;
         flex-wrap: wrap;
         position: relative;
@@ -161,51 +161,81 @@ export const nodeDetailSharedStyles = css`
         min-width: 0;
         padding-inline-start: 5px;
         border-radius: 4px;
-        background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
-        color: rgba(58, 46, 16, 0.98);
         font-size: 0.96rem;
         font-weight: 700;
         line-height: 1.2;
     }
 
-    .forecast-day-solar-value > :not(.forecast-day-solar-gauge) {
+    .forecast-day-gauge > :not(.forecast-day-gauge-fill) {
         position: relative;
         z-index: 1;
     }
 
-    .forecast-day-solar-gauge {
+    .forecast-day-gauge-fill {
         position: absolute;
         inset: 0 auto 0 0;
         z-index: 0;
         border-radius: inherit;
-        background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
         pointer-events: none;
     }
 
-    .forecast-day-solar-gauge.muted {
+    .forecast-day-gauge.solar {
+        background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
+        color: rgba(58, 46, 16, 0.98);
+    }
+
+    .forecast-day-gauge.solar .forecast-day-gauge-fill {
+        background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
+    }
+
+    .forecast-day-gauge.solar .forecast-day-gauge-fill.muted {
         background: linear-gradient(90deg, rgba(233, 193, 91, 0.42), rgba(202, 158, 45, 0.3));
     }
 
-    .forecast-day-solar-primary {
+    .forecast-day-gauge.battery {
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, transparent),
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 10%, transparent)
+        );
+    }
+
+    .forecast-day-gauge.battery .forecast-day-gauge-fill {
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 66%, white 8%),
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 44%, transparent)
+        );
+    }
+
+    .forecast-day-gauge.solar .forecast-day-gauge-primary {
         color: rgba(58, 46, 16, 0.98);
         text-shadow:
             0 0 1px rgba(255, 248, 224, 0.85),
             0 1px 1px rgba(73, 57, 16, 0.18);
     }
 
-    .forecast-day-solar-separator,
-    .forecast-day-solar-secondary {
+    .forecast-day-gauge.battery .forecast-day-gauge-primary,
+    .forecast-day-gauge.battery .forecast-day-gauge-unit {
+        color: color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 34%, var(--primary-text-color));
+        text-shadow:
+            0 0 1px rgba(255, 255, 255, 0.55),
+            0 1px 1px rgba(24, 44, 28, 0.12);
+    }
+
+    .forecast-day-gauge.solar .forecast-day-gauge-separator,
+    .forecast-day-gauge.solar .forecast-day-gauge-secondary {
         color: rgba(88, 70, 24, 0.96);
         text-shadow:
             0 0 1px rgba(255, 248, 224, 0.78),
             0 1px 1px rgba(73, 57, 16, 0.14);
     }
 
-    .forecast-day-solar-secondary {
+    .forecast-day-gauge-secondary {
         font-weight: 600;
     }
 
-    .forecast-day-solar-unit {
+    .forecast-day-gauge-unit {
         display: inline-block;
         margin-inline-start: 0.2rem;
         font-size: 0.5em;
@@ -215,7 +245,8 @@ export const nodeDetailSharedStyles = css`
         white-space: nowrap;
     }
 
-    .forecast-day-price-line {
+    .forecast-day-price-line,
+    .forecast-day-range-line {
         --forecast-day-price-font-size: 0.74rem;
         display: flex;
         flex-wrap: wrap;
@@ -225,6 +256,14 @@ export const nodeDetailSharedStyles = css`
         font-size: var(--forecast-day-price-font-size);
         font-weight: 600;
         line-height: 1.2;
+    }
+
+    .forecast-day-range-line {
+        color: var(--secondary-text-color);
+    }
+
+    .forecast-day-range-value {
+        color: var(--primary-text-color);
     }
 
     .forecast-day-price-chip {
@@ -320,6 +359,10 @@ export const nodeDetailSharedStyles = css`
 
     .forecast-day-chart-bar.solar {
         color: var(--simple-card-source-solar, #facc15);
+    }
+
+    .forecast-day-chart-bar.battery-soc {
+        color: var(--simple-card-source-battery, #22c55e);
     }
 
     .forecast-day-chart-bar.past {

@@ -10,11 +10,11 @@ export interface BatteryCapacityForecastDay {
     isToday: boolean;
     isTomorrow: boolean;
     startSocPct: number;
-    startRemainingEnergyKwh: number;
     endSocPct: number;
     minSocPct: number;
+    minSocAt: string | null;
     maxSocPct: number;
-    endRemainingEnergyKwh: number;
+    maxSocAt: string | null;
     coverageEndsAt: string;
     coversDayEnd: boolean;
     slots: BatteryCapacityForecastSlot[];
@@ -23,7 +23,7 @@ export interface BatteryCapacityForecastDay {
 interface BuildBatteryCapacityForecastModelParams {
     series: BatteryCapacityForecastHourDTO[];
     currentSoc: number | null;
-    currentRemainingEnergyKwh: number | null;
+    startedAt: string | null;
     timeZone: string;
     now?: Date;
 }
@@ -31,7 +31,7 @@ interface BuildBatteryCapacityForecastModelParams {
 export function buildBatteryCapacityForecastModel({
     series,
     currentSoc,
-    currentRemainingEnergyKwh,
+    startedAt,
     timeZone,
     now = new Date(),
 }: BuildBatteryCapacityForecastModelParams): BatteryCapacityForecastDay[] {
@@ -59,7 +59,6 @@ export function buildBatteryCapacityForecastModel({
     }
 
     let previousDayEndSoc: number | null = currentSoc;
-    let previousDayEndEnergy: number | null = currentRemainingEnergyKwh;
 
     return Array.from(dayMap.keys())
         .sort()
@@ -76,24 +75,26 @@ export function buildBatteryCapacityForecastModel({
             const dayStartSoc = Number.isFinite(previousDayEndSoc ?? NaN)
                 ? previousDayEndSoc
                 : slots[0].socPct;
-            const dayStartEnergy = Number.isFinite(previousDayEndEnergy ?? NaN)
-                ? previousDayEndEnergy
-                : slots[0].remainingEnergyKwh;
-            const daySocSamples = [dayStartSoc, ...slots.map((slot) => slot.socPct)];
+            const daySocExtrema = _buildDaySocExtrema(
+                dayKey,
+                todayKey,
+                slots,
+                dayStartSoc,
+                startedAt,
+            );
 
             previousDayEndSoc = lastSlot.socPct;
-            previousDayEndEnergy = lastSlot.remainingEnergyKwh;
 
             return {
                 dayKey,
                 isToday: dayKey === todayKey,
                 isTomorrow: dayKey === tomorrowKey,
                 startSocPct: dayStartSoc,
-                startRemainingEnergyKwh: dayStartEnergy,
                 endSocPct: lastSlot.socPct,
-                minSocPct: Math.min(...daySocSamples),
-                maxSocPct: Math.max(...daySocSamples),
-                endRemainingEnergyKwh: lastSlot.remainingEnergyKwh,
+                minSocPct: daySocExtrema.minSocPct,
+                minSocAt: daySocExtrema.minSocAt,
+                maxSocPct: daySocExtrema.maxSocPct,
+                maxSocAt: daySocExtrema.maxSocAt,
                 coverageEndsAt: lastSlot.endsAt,
                 coversDayEnd: coverageEndLocalParts !== null && coverageEndLocalParts.dayKey > dayKey,
                 slots,
@@ -115,4 +116,54 @@ function _addDaysToDayKey(dayKey: string, days: number): string {
     const date = new Date(`${dayKey}T00:00:00Z`);
     date.setUTCDate(date.getUTCDate() + days);
     return date.toISOString().slice(0, 10);
+}
+
+interface BatterySocSample {
+    socPct: number;
+    at: string;
+}
+
+function _buildDaySocExtrema(
+    dayKey: string,
+    todayKey: string,
+    slots: BatteryCapacityForecastSlot[],
+    dayStartSoc: number,
+    startedAt: string | null,
+): {
+    minSocPct: number;
+    minSocAt: string;
+    maxSocPct: number;
+    maxSocAt: string;
+} {
+    const dayStartAt = dayKey === todayKey && startedAt !== null
+        ? startedAt
+        : slots[0].timestamp;
+    const samples: BatterySocSample[] = [
+        {
+            socPct: dayStartSoc,
+            at: dayStartAt,
+        },
+        ...slots.map((slot) => ({
+            socPct: slot.socPct,
+            at: slot.endsAt,
+        })),
+    ];
+
+    let minSample = samples[0];
+    let maxSample = samples[0];
+    for (const sample of samples.slice(1)) {
+        if (sample.socPct < minSample.socPct) {
+            minSample = sample;
+        }
+        if (sample.socPct > maxSample.socPct) {
+            maxSample = sample;
+        }
+    }
+
+    return {
+        minSocPct: minSample.socPct,
+        minSocAt: minSample.at,
+        maxSocPct: maxSample.socPct,
+        maxSocAt: maxSample.at,
+    };
 }
