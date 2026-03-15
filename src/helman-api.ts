@@ -103,6 +103,7 @@ export interface SolarForecastDTO {
     unit: string | null;
     remainingTodayKwh?: number | null;
     remainingTodayEnergyEntityId?: string | null;
+    actualHistory: ForecastPointDTO[];
     points: ForecastPointDTO[]; // hourly solar forecast points
 }
 
@@ -133,6 +134,22 @@ export interface HouseConsumptionForecastHourDTO {
     deferrableConsumers: DeferrableConsumerHourValueDTO[];
 }
 
+export interface HouseConsumptionActualValueDTO {
+    value: number;
+}
+
+export interface HouseConsumptionActualConsumerHourDTO {
+    entityId: string;
+    label: string;
+    value: number;
+}
+
+export interface HouseConsumptionActualHourDTO {
+    timestamp: string;
+    nonDeferrable: HouseConsumptionActualValueDTO;
+    deferrableConsumers: HouseConsumptionActualConsumerHourDTO[];
+}
+
 export interface HouseConsumptionForecastDTO {
     status: ForecastStatus;
     generatedAt: string | null;
@@ -143,8 +160,15 @@ export interface HouseConsumptionForecastDTO {
     historyDaysAvailable: number;
     requiredHistoryDays: number;
     model: string | null;
+    actualHistory: HouseConsumptionActualHourDTO[];
     currentHour?: HouseConsumptionForecastHourDTO;
     series: HouseConsumptionForecastHourDTO[];
+}
+
+export interface BatteryCapacityActualHourDTO {
+    timestamp: string;
+    startSocPct: number;
+    socPct: number;
 }
 
 export interface BatteryCapacityForecastHourDTO {
@@ -184,6 +208,7 @@ export interface BatteryCapacityForecastDTO {
     maxDischargePowerW: number | null;
     partialReason: string | null;
     coverageUntil: string | null;
+    actualHistory: BatteryCapacityActualHourDTO[];
     series: BatteryCapacityForecastHourDTO[];
 }
 

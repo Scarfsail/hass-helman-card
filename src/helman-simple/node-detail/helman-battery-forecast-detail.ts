@@ -31,6 +31,8 @@ interface BatteryModelInputs {
     startedAt: string | null;
     status: BatteryCapacityForecastDTO["status"] | null;
     seriesLength: number;
+    actualHistoryLength: number;
+    actualHistoryLastTimestamp: string | null;
     coverageUntil: string | null;
     currentSoc: number | null;
     timeZone: string;
@@ -77,6 +79,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
         }
 
         this._forecastDays = buildBatteryCapacityForecastModel({
+            actualHistory: this._batteryForecast?.actualHistory ?? [],
             series: this._batteryForecast?.series ?? [],
             currentSoc: this._batteryForecast?.currentSoc ?? null,
             startedAt: this._batteryForecast?.startedAt ?? null,
@@ -297,23 +300,25 @@ export class HelmanBatteryForecastDetail extends LitElement {
 
         return html`
             <div
-                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""} ${column.source}"
                 title=${this._buildSocColumnTitle(column)}
             >
-                ${column.socChangeHeightPercent > 0 ? html`
+                ${column.endSocPct !== null && column.socChangeHeightPercent > 0 ? html`
                     <span
                         class="forecast-detail-battery-change ${socToneClass}"
                         style=${`--forecast-change-offset:${column.socChangeOffsetPercent}%; --forecast-change-height:${column.socChangeHeightPercent}%;`}
                     ></span>
                 ` : nothing}
-                <span
-                    class="forecast-detail-battery-step ${socToneClass}"
-                    style=${`--forecast-step-offset:${column.socStepOffsetPercent}%;`}
-                ></span>
-                <span
-                    class="forecast-detail-battery-dot ${socToneClass}"
-                    style=${`--forecast-dot-offset:${column.socStepOffsetPercent}%;`}
-                ></span>
+                ${column.endSocPct !== null ? html`
+                    <span
+                        class="forecast-detail-battery-step ${socToneClass}"
+                        style=${`--forecast-step-offset:${column.socStepOffsetPercent}%;`}
+                    ></span>
+                    <span
+                        class="forecast-detail-battery-dot ${socToneClass}"
+                        style=${`--forecast-dot-offset:${column.socStepOffsetPercent}%;`}
+                    ></span>
+                ` : nothing}
             </div>
         `;
     }
@@ -330,7 +335,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
                 <div class=${chartClass}>
                     ${overview.miniChartBars.map((bar) => html`
                         <span
-                            class="forecast-day-chart-bar battery-soc ${bar.toneClass} ${bar.isPast ? "past" : ""}"
+                            class="forecast-day-chart-bar battery-soc ${bar.toneClass} ${bar.isPast ? "past" : ""} ${bar.isGap ? "gap" : ""}"
                             style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:0%;`}
                         ></span>
                     `)}
@@ -340,7 +345,7 @@ export class HelmanBatteryForecastDetail extends LitElement {
     }
 
     private _renderMovementRow(detail: BatteryDetailChartModel) {
-        const hasData = detail.columns.some((column) => Math.abs(column.movementValueKwh) > 0);
+        const hasData = detail.columns.some((column) => column.hasMovementData && Math.abs(column.movementValueKwh) > 0);
         const trackClass = [
             "forecast-detail-track",
             "battery-movement",
@@ -363,10 +368,10 @@ export class HelmanBatteryForecastDetail extends LitElement {
     private _renderMovementColumn(column: BatteryDetailColumnModel) {
         return html`
             <div
-                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""} ${column.source}"
                 title=${this._buildMovementColumnTitle(column)}
             >
-                ${column.movementHeightPercent > 0 ? html`
+                ${column.hasMovementData && column.movementHeightPercent > 0 ? html`
                     <span
                         class="forecast-detail-bar battery-movement ${column.movementToneClass}"
                         style=${`--forecast-bar-height:${column.movementHeightPercent}%; --forecast-bar-offset:${column.movementOffsetPercent}%;`}
@@ -449,6 +454,10 @@ export class HelmanBatteryForecastDetail extends LitElement {
             startedAt: batteryForecast?.startedAt ?? null,
             status: batteryForecast?.status ?? null,
             seriesLength: batteryForecast?.series.length ?? 0,
+            actualHistoryLength: batteryForecast?.actualHistory.length ?? 0,
+            actualHistoryLastTimestamp: batteryForecast?.actualHistory.length
+                ? batteryForecast.actualHistory[batteryForecast.actualHistory.length - 1].timestamp
+                : null,
             coverageUntil: batteryForecast?.coverageUntil ?? null,
             currentSoc: batteryForecast?.currentSoc ?? null,
             timeZone: this.hass?.config.time_zone ?? "UTC",
@@ -461,6 +470,8 @@ export class HelmanBatteryForecastDetail extends LitElement {
             || this._modelInputs?.startedAt !== next.startedAt
             || this._modelInputs?.status !== next.status
             || this._modelInputs?.seriesLength !== next.seriesLength
+            || this._modelInputs?.actualHistoryLength !== next.actualHistoryLength
+            || this._modelInputs?.actualHistoryLastTimestamp !== next.actualHistoryLastTimestamp
             || this._modelInputs?.coverageUntil !== next.coverageUntil
             || this._modelInputs?.currentSoc !== next.currentSoc
             || this._modelInputs?.timeZone !== next.timeZone
@@ -546,14 +557,28 @@ export class HelmanBatteryForecastDetail extends LitElement {
     }
 
     private _buildSocColumnTitle(column: BatteryDetailColumnModel): string {
+        if (column.isGap || column.endSocPct === null) {
+            return [
+                this._formatHourRange(column.timestamp, column.endsAt),
+                this.localize("node_detail.battery_forecast.no_data"),
+            ].join(" · ");
+        }
+
         return [
             this._formatHourRange(column.timestamp, column.endsAt),
-            `${this.localize("node_detail.battery.soc")}: ${this._formatSocWithUnit(column.startSocPct)} → ${this._formatSocWithUnit(column.endSocPct)}`,
+            `${this.localize("node_detail.battery.soc")}: ${this._formatSocWithUnit(column.startSocPct ?? column.endSocPct)} → ${this._formatSocWithUnit(column.endSocPct)}`,
             `${this.localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,
         ].join(" · ");
     }
 
     private _buildMovementColumnTitle(column: BatteryDetailColumnModel): string {
+        if (!column.hasMovementData) {
+            return [
+                this._formatHourRange(column.timestamp, column.endsAt),
+                this.localize("node_detail.battery_forecast.no_data"),
+            ].join(" · ");
+        }
+
         const parts = [
             this._formatHourRange(column.timestamp, column.endsAt),
             `${this.localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,

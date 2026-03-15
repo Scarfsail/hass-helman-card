@@ -7,12 +7,19 @@ interface PowerDeviceConfigBase {
     power_sensor_label?: string;
     power_switch_label?: string;
 }
+
+export interface SolarForecastConfig {
+    daily_energy_entity_ids?: string[];
+    total_energy_entity_id?: string;
+}
+
 export interface SolarDeviceConfig extends PowerDeviceConfigBase {
     entities:{
         power: string;
         today_energy?: string;
         remaining_today_energy_forecast?: string;
     }
+    forecast?: SolarForecastConfig;
 }
 
 export interface GridDeviceConfig extends PowerDeviceConfigBase {

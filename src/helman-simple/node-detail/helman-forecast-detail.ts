@@ -6,7 +6,11 @@ import type { ForecastPayload, ForecastPointDTO, GridForecastDTO, SolarForecastD
 import { convertToKWh, getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
 import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman/forecast-loader";
 import type { LocalizeFunction } from "../../localize/localize";
-import { buildForecastDetailModel, type ForecastDetailDayModel } from "./forecast-detail-model";
+import {
+    buildForecastDetailModel,
+    type ForecastDetailDayModel,
+    type ForecastSolarHourPoint,
+} from "./forecast-detail-model";
 import {
     buildSparseHourLabelMap,
     isPastForecastTimestamp,
@@ -22,6 +26,7 @@ import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 interface ForecastHourSlot {
     timestamp: string;
     solarValue: number | null;
+    solarSource: ForecastSolarHourPoint["source"] | null;
     priceValue: number | null;
 }
 
@@ -30,6 +35,7 @@ interface ForecastMiniChartBar {
     offsetPercent: number;
     toneClass: string;
     isPast: boolean;
+    isGap: boolean;
 }
 
 interface ForecastMiniChartModel {
@@ -46,6 +52,7 @@ interface ForecastMiniChartScaleModel {
 interface ForecastDetailColumnModel {
     timestamp: string;
     solarValue: number | null;
+    solarSource: ForecastSolarHourPoint["source"] | null;
     solarHeightPercent: number;
     priceValue: number | null;
     priceHeightPercent: number;
@@ -326,7 +333,7 @@ export class HelmanForecastDetail extends LitElement {
                 <div class=${chartClass}>
                     ${chart.bars.map((bar) => html`
                         <span
-                            class="forecast-day-chart-bar ${bar.toneClass} ${bar.isPast ? "past" : ""}"
+                            class="forecast-day-chart-bar ${bar.toneClass} ${bar.isPast ? "past" : ""} ${bar.isGap ? "gap" : ""}"
                             style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:${bar.offsetPercent}%;`}
                         ></span>
                     `)}
@@ -374,7 +381,7 @@ export class HelmanForecastDetail extends LitElement {
 
         return html`
             <div
-                class="forecast-detail-column ${column.isPast ? "past" : ""}"
+                class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.solarSource === "gap" ? "gap" : ""} ${column.solarSource ?? ""}"
                 title=${this._buildColumnTitle(
                     "node_detail.forecast_detail.solar_label",
                     column.timestamp,
@@ -556,15 +563,16 @@ export class HelmanForecastDetail extends LitElement {
 
         if (type === "solar") {
             return {
-                bars: points.map((point) => ({
+                bars: day.solarHours.map((point) => ({
                     heightPercent: normalizeForecastBarHeight(
-                        Math.max(point.value, 0),
+                        Math.max(point.value ?? 0, 0),
                         miniChartScale.maxSolarHourValue,
                         100,
                     ),
                     offsetPercent: 0,
                     toneClass: "solar",
                     isPast: isPastForecastTimestamp(point.timestamp, day.isToday, chartContext),
+                    isGap: point.source === "gap",
                 })),
                 hasNegativeValues: false,
             };
@@ -589,6 +597,7 @@ export class HelmanForecastDetail extends LitElement {
                             : 0,
                     toneClass: this._getPriceToneClass(point.value),
                     isPast: isPastForecastTimestamp(point.timestamp, day.isToday, chartContext),
+                    isGap: false,
                 };
             }),
             hasNegativeValues: hasNegativePriceValues,
@@ -598,7 +607,7 @@ export class HelmanForecastDetail extends LitElement {
     private _buildMiniChartScaleModel(days: ForecastDetailDayModel[]): ForecastMiniChartScaleModel {
         return {
             maxSolarHourValue: Math.max(
-                ...days.flatMap((day) => day.solarHours.map((point) => Math.max(point.value, 0))),
+                ...days.flatMap((day) => day.solarHours.map((point) => Math.max(point.value ?? 0, 0))),
                 0,
             ),
             maxAbsolutePriceValue: Math.max(
@@ -641,6 +650,7 @@ export class HelmanForecastDetail extends LitElement {
                 return {
                     timestamp: slot.timestamp,
                     solarValue: slot.solarValue,
+                    solarSource: slot.solarSource,
                     solarHeightPercent,
                     priceValue: slot.priceValue,
                     priceHeightPercent,
@@ -899,7 +909,7 @@ export class HelmanForecastDetail extends LitElement {
     private _buildHourSlots(day: ForecastDetailDayModel): ForecastHourSlot[] {
         const slots = new Map<string, ForecastHourSlot>();
 
-        this._mergeHourPoints(slots, day.solarHours, "solar");
+        this._mergeSolarHours(slots, day.solarHours);
         this._mergeHourPoints(slots, day.priceHours, "price");
 
         return Array.from(slots.values()).sort(
@@ -907,10 +917,9 @@ export class HelmanForecastDetail extends LitElement {
         );
     }
 
-    private _mergeHourPoints(
+    private _mergeSolarHours(
         slots: Map<string, ForecastHourSlot>,
-        points: ForecastPointDTO[],
-        type: "solar" | "price",
+        points: ForecastSolarHourPoint[],
     ): void {
         for (const point of points) {
             const hourKey = this._getPointKey(point.timestamp);
@@ -921,13 +930,38 @@ export class HelmanForecastDetail extends LitElement {
             const slot = slots.get(hourKey) ?? {
                 timestamp: point.timestamp,
                 solarValue: null,
+                solarSource: null,
                 priceValue: null,
             };
-            if (type === "solar") {
-                slot.solarValue = point.value;
-            } else {
-                slot.priceValue = point.value;
+            slot.solarValue = point.value;
+            slot.solarSource = point.source;
+
+            if (new Date(point.timestamp).getTime() < new Date(slot.timestamp).getTime()) {
+                slot.timestamp = point.timestamp;
             }
+
+            slots.set(hourKey, slot);
+        }
+    }
+
+    private _mergeHourPoints(
+        slots: Map<string, ForecastHourSlot>,
+        points: ForecastPointDTO[],
+        type: "price",
+    ): void {
+        for (const point of points) {
+            const hourKey = this._getPointKey(point.timestamp);
+            if (hourKey === null) {
+                continue;
+            }
+
+            const slot = slots.get(hourKey) ?? {
+                timestamp: point.timestamp,
+                solarValue: null,
+                solarSource: null,
+                priceValue: null,
+            };
+            slot.priceValue = point.value;
 
             if (new Date(point.timestamp).getTime() < new Date(slot.timestamp).getTime()) {
                 slot.timestamp = point.timestamp;
@@ -969,16 +1003,12 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private _getPointKey(timestamp: string): string | null {
-        if (!timestamp) {
+        const parts = this._getLocalDateTimeParts(timestamp);
+        if (parts === null) {
             return null;
         }
 
-        const date = new Date(timestamp);
-        if (Number.isNaN(date.getTime())) {
-            return null;
-        }
-
-        return String(date.getTime());
+        return `${parts.dayKey}:${parts.hour}`;
     }
 
     private _buildForecastModelInputs(): ForecastModelInputs {

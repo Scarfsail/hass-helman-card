@@ -40,6 +40,9 @@ interface HouseConsumptionPresentation {
 interface HouseModelInputs {
     generatedAt: string | null;
     seriesLength: number;
+    actualHistoryLength: number;
+    actualHistoryLastTimestamp: string | null;
+    currentHourTimestamp: string | null;
     timeZone: string;
     currentDayKey: string | null;
 }
@@ -113,6 +116,8 @@ export class HelmanHouseForecastDetail extends LitElement {
         }
 
         this._forecastDays = buildHouseForecastModel({
+            actualHistory: this._houseConsumption?.actualHistory ?? [],
+            currentHour: this._houseConsumption?.currentHour ?? null,
             series: this._houseConsumption?.series ?? [],
             timeZone: next.timeZone,
             now,
@@ -151,7 +156,10 @@ export class HelmanHouseForecastDetail extends LitElement {
             `;
         }
 
-        if (!houseConsumption.series.length) {
+        if (!houseConsumption.series.length
+            && !houseConsumption.actualHistory.length
+            && houseConsumption.currentHour === undefined
+        ) {
             return html`
                 <div class="forecast-section">
                     <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
@@ -245,7 +253,7 @@ export class HelmanHouseForecastDetail extends LitElement {
                 <div class="forecast-day-chart-track ${isEmpty ? "empty" : ""}">
                     ${bars.map((bar) => html`
                         <span
-                            class="forecast-day-chart-bar ${toneClass} ${bar.isPast ? "past" : ""}"
+                            class="forecast-day-chart-bar ${toneClass} ${bar.isPast ? "past" : ""} ${bar.isGap ? "gap" : ""}"
                             style=${`--forecast-bar-height:${bar.heightPercent}%;`}
                         ></span>
                     `)}
@@ -376,35 +384,38 @@ export class HelmanHouseForecastDetail extends LitElement {
         const colorStyle = colorMix ? `color:${colorMix};` : "";
         const barClass = colorMix ? "forecast-detail-bar" : "forecast-detail-bar house-consumption";
         const isSharedHighlight = col.isMin && col.isMax;
+        const titleValue = col.valueKwh !== null
+            ? this._formatEnergy(col.valueKwh)
+            : this.localize("node_detail.house_forecast.no_data");
 
         return html`
             <div
-                class="forecast-detail-column ${col.isPast ? "past" : ""}"
-                title=${`${this._formatHour(col.timestamp)} · ${this._formatEnergy(col.valueKwh)}`}
+                class="forecast-detail-column ${col.isPast ? "past" : ""} ${col.isGap ? "gap" : ""} ${col.source}"
+                title=${`${this._formatHour(col.timestamp)} · ${titleValue}`}
             >
-                ${col.valueKwh > 0 && (col.isMax || isSharedHighlight) ? html`
+                ${col.valueKwh !== null && col.valueKwh > 0 && (col.isMax || isSharedHighlight) ? html`
                     <span class="forecast-detail-highlight top" style=${colorStyle}>
                         ${isSharedHighlight ? "↕" : "↑"} ${this._formatEnergy(col.valueKwh)}
                     </span>
                 ` : nothing}
-                ${col.valueKwh > 0 && col.isMin && !isSharedHighlight ? html`
+                ${col.valueKwh !== null && col.valueKwh > 0 && col.isMin && !isSharedHighlight ? html`
                     <span class="forecast-detail-highlight bottom" style=${colorStyle}>
                         ↓ ${this._formatEnergy(col.valueKwh)}
                     </span>
                 ` : nothing}
-                ${col.valueKwh > 0 ? html`
+                ${col.valueKwh !== null && col.valueKwh > 0 ? html`
                     <span
                         class=${barClass}
                         style=${`${colorStyle}--forecast-bar-height:${col.heightPercent}%; --forecast-bar-offset:0%;`}
                     ></span>
                 ` : nothing}
-                ${col.bandLowerPercent > 0 ? html`
+                ${col.bandLowerPercent !== null && col.bandLowerPercent > 0 ? html`
                     <span
                         class="forecast-detail-band lower"
                         style=${`${colorStyle}--forecast-band-offset:${col.bandLowerPercent}%;`}
                     ></span>
                 ` : nothing}
-                ${col.bandUpperPercent > 0 ? html`
+                ${col.bandUpperPercent !== null && col.bandUpperPercent > 0 ? html`
                     <span
                         class="forecast-detail-band upper"
                         style=${`${colorStyle}--forecast-band-offset:${col.bandUpperPercent}%;`}
@@ -438,6 +449,11 @@ export class HelmanHouseForecastDetail extends LitElement {
         return {
             generatedAt: houseConsumption?.generatedAt ?? null,
             seriesLength: houseConsumption?.series.length ?? 0,
+            actualHistoryLength: houseConsumption?.actualHistory.length ?? 0,
+            actualHistoryLastTimestamp: houseConsumption?.actualHistory.length
+                ? houseConsumption.actualHistory[houseConsumption.actualHistory.length - 1].timestamp
+                : null,
+            currentHourTimestamp: houseConsumption?.currentHour?.timestamp ?? null,
             timeZone: this.hass?.config.time_zone ?? "UTC",
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
         };
@@ -446,6 +462,9 @@ export class HelmanHouseForecastDetail extends LitElement {
     private _haveModelInputsChanged(next: HouseModelInputs): boolean {
         return this._modelInputs?.generatedAt !== next.generatedAt
             || this._modelInputs?.seriesLength !== next.seriesLength
+            || this._modelInputs?.actualHistoryLength !== next.actualHistoryLength
+            || this._modelInputs?.actualHistoryLastTimestamp !== next.actualHistoryLastTimestamp
+            || this._modelInputs?.currentHourTimestamp !== next.currentHourTimestamp
             || this._modelInputs?.timeZone !== next.timeZone
             || this._modelInputs?.currentDayKey !== next.currentDayKey;
     }

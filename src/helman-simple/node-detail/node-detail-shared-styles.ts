@@ -413,6 +413,21 @@ export const nodeDetailSharedStyles = css`
         opacity: 0.95;
     }
 
+    .forecast-day-chart-bar.gap::before {
+        display: none;
+    }
+
+    .forecast-day-chart-bar.gap::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 10%;
+        bottom: 10%;
+        border-left: 1px dashed var(--divider-color);
+        opacity: 0.45;
+        transform: translateX(-50%);
+    }
+
     .forecast-day-placeholder {
         color: var(--secondary-text-color);
         font-size: 0.9rem;
@@ -573,6 +588,17 @@ export const nodeDetailSharedStyles = css`
     .forecast-detail-column {
         position: relative;
         min-width: 0;
+    }
+
+    .forecast-detail-column.gap::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 8px;
+        bottom: 8px;
+        border-left: 1px dashed var(--divider-color);
+        opacity: 0.5;
+        transform: translateX(-50%);
     }
 
     .forecast-detail-column.past .forecast-detail-bar,

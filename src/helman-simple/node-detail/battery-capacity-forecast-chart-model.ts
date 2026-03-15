@@ -1,4 +1,7 @@
-import type { BatteryCapacityForecastDay } from "./battery-capacity-forecast-detail-model";
+import type {
+    BatteryCapacityForecastDay,
+    BatterySlotSource,
+} from "./battery-capacity-forecast-detail-model";
 import {
     buildSparseHourLabelMap,
     clampForecastPercent,
@@ -10,13 +13,15 @@ import {
 export type BatteryChartBuildContext = ForecastChartBuildContext;
 
 export interface BatteryDetailColumnModel {
+    source: BatterySlotSource;
     timestamp: string;
     endsAt: string;
     durationHours: number;
     hourLabel: string | null;
     isPast: boolean;
-    startSocPct: number;
-    endSocPct: number;
+    isGap: boolean;
+    startSocPct: number | null;
+    endSocPct: number | null;
     socChangeOffsetPercent: number;
     socChangeHeightPercent: number;
     socStepOffsetPercent: number;
@@ -32,6 +37,7 @@ export interface BatteryDetailColumnModel {
     hitMaxSoc: boolean;
     limitedByChargePower: boolean;
     limitedByDischargePower: boolean;
+    hasMovementData: boolean;
 }
 
 export interface BatteryDetailChartModel {
@@ -60,23 +66,26 @@ export function buildBatteryDetailChartModel({
     const timestamps = day.slots.map((slot) => slot.timestamp);
     const sparseHourLabels = buildSparseHourLabelMap(timestamps, context);
     const movementMaxKwh = Math.max(
-        ...day.slots.map((slot) => Math.max(slot.chargedKwh, slot.dischargedKwh, 0)),
+        ...day.slots.map((slot) => slot.source === "forecast"
+            ? Math.max(slot.chargedKwh, slot.dischargedKwh, 0)
+            : 0),
         0,
     );
-    const hasBidirectionalMovement = day.slots.some((slot) => slot.chargedKwh > 0)
-        && day.slots.some((slot) => slot.dischargedKwh > 0);
+    const hasBidirectionalMovement = day.slots.some((slot) => slot.source === "forecast" && slot.chargedKwh > 0)
+        && day.slots.some((slot) => slot.source === "forecast" && slot.dischargedKwh > 0);
 
     return {
         columns: day.slots.map((slot, index) => {
-            const startSocPct = index === 0 ? day.startSocPct : day.slots[index - 1].socPct;
-            const endSocPct = slot.socPct;
-            const normalizedStartSoc = clampForecastPercent(startSocPct) ?? 0;
-            const normalizedEndSoc = clampForecastPercent(endSocPct) ?? 0;
-            const movementValueKwh = slot.chargedKwh > 0
-                ? slot.chargedKwh
-                : slot.dischargedKwh > 0
-                    ? -slot.dischargedKwh
-                    : 0;
+            const normalizedStartSoc = clampForecastPercent(slot.startSocPct);
+            const normalizedEndSoc = clampForecastPercent(slot.socPct);
+            const hasMovementData = slot.source === "forecast";
+            const movementValueKwh = !hasMovementData
+                ? 0
+                : slot.chargedKwh > 0
+                    ? slot.chargedKwh
+                    : slot.dischargedKwh > 0
+                        ? -slot.dischargedKwh
+                        : 0;
             const movementHeightPercent = normalizeForecastBarHeight(
                 Math.abs(movementValueKwh),
                 movementMaxKwh,
@@ -84,16 +93,22 @@ export function buildBatteryDetailChartModel({
             );
 
             return {
+                source: slot.source,
                 timestamp: slot.timestamp,
                 endsAt: slot.endsAt,
                 durationHours: slot.durationHours,
                 hourLabel: sparseHourLabels.get(index) ?? null,
                 isPast: isPastForecastTimestamp(slot.timestamp, day.isToday, context),
-                startSocPct,
-                endSocPct,
-                socChangeOffsetPercent: Math.min(normalizedStartSoc, normalizedEndSoc),
-                socChangeHeightPercent: Math.abs(normalizedEndSoc - normalizedStartSoc),
-                socStepOffsetPercent: normalizedEndSoc,
+                isGap: slot.source === "gap",
+                startSocPct: slot.startSocPct,
+                endSocPct: slot.socPct,
+                socChangeOffsetPercent: normalizedStartSoc !== null && normalizedEndSoc !== null
+                    ? Math.min(normalizedStartSoc, normalizedEndSoc)
+                    : 0,
+                socChangeHeightPercent: normalizedStartSoc !== null && normalizedEndSoc !== null
+                    ? Math.abs(normalizedEndSoc - normalizedStartSoc)
+                    : 0,
+                socStepOffsetPercent: normalizedEndSoc ?? normalizedStartSoc ?? 0,
                 movementValueKwh,
                 movementHeightPercent,
                 movementOffsetPercent: movementValueKwh === 0 || !hasBidirectionalMovement
@@ -114,6 +129,7 @@ export function buildBatteryDetailChartModel({
                 hitMaxSoc: slot.hitMaxSoc,
                 limitedByChargePower: slot.limitedByChargePower,
                 limitedByDischargePower: slot.limitedByDischargePower,
+                hasMovementData,
             };
         }),
         minSocOffsetPercent: clampForecastPercent(minSoc),

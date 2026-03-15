@@ -8,6 +8,7 @@ import {
 export interface BatteryOverviewChartBarModel {
     heightPercent: number;
     isPast: boolean;
+    isGap: boolean;
     toneClass: "soft" | "hit-min" | "hit-max";
 }
 
@@ -30,6 +31,7 @@ export function buildBatteryOverviewCardModel({
         miniChartBars: day.slots.map((slot) => ({
             heightPercent: clampForecastPercent(slot.socPct) ?? 0,
             isPast: isPastForecastTimestamp(slot.timestamp, day.isToday, context),
+            isGap: slot.source === "gap",
             toneClass: slot.hitMaxSoc
                 ? "hit-max"
                 : slot.hitMinSoc

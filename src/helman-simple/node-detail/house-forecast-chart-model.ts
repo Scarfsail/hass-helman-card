@@ -1,4 +1,8 @@
-import type { HouseForecastDay, HouseForecastHour } from "./house-forecast-detail-model";
+import type {
+    HouseForecastDay,
+    HouseForecastHour,
+    HouseForecastHourSource,
+} from "./house-forecast-detail-model";
 import {
     buildSparseHourLabelMap,
     isPastForecastTimestamp,
@@ -7,9 +11,9 @@ import {
 } from "./forecast-chart-shared";
 
 export interface HouseMetricAccessors {
-    getHourValue(hour: HouseForecastHour): number;
-    getLowerValue(hour: HouseForecastHour): number;
-    getUpperValue(hour: HouseForecastHour): number;
+    getHourValue(hour: HouseForecastHour): number | null;
+    getLowerValue(hour: HouseForecastHour): number | null;
+    getUpperValue(hour: HouseForecastHour): number | null;
 }
 
 export type HouseChartBuildContext = ForecastChartBuildContext;
@@ -17,18 +21,22 @@ export type HouseChartBuildContext = ForecastChartBuildContext;
 export interface HouseMiniChartBarModel {
     heightPercent: number;
     isPast: boolean;
+    isGap: boolean;
 }
 
 export interface HouseDetailColumnModel {
     timestamp: string;
-    valueKwh: number;
+    valueKwh: number | null;
     heightPercent: number;
-    bandLowerPercent: number;
-    bandUpperPercent: number;
+    bandLowerPercent: number | null;
+    bandUpperPercent: number | null;
     hourLabel: string | null;
     isMax: boolean;
     isMin: boolean;
     isPast: boolean;
+    isGap: boolean;
+    source: HouseForecastHourSource;
+    hasConfidenceBand: boolean;
 }
 
 export interface HouseBreakdownRowModel {
@@ -39,10 +47,11 @@ export interface HouseBreakdownRowModel {
 
 interface BandedPoint {
     timestamp: string;
-    valueKwh: number;
-    lowerKwh: number;
-    upperKwh: number;
+    valueKwh: number | null;
+    lowerKwh: number | null;
+    upperKwh: number | null;
     isPast: boolean;
+    source: HouseForecastHourSource;
 }
 
 const DETAIL_MAX_BAR_HEIGHT = 78;
@@ -53,7 +62,7 @@ export function computeHouseMetricMax(
     accessors: HouseMetricAccessors,
 ): number {
     return Math.max(
-        ...days.flatMap((day) => day.hours.map((hour) => accessors.getHourValue(hour))),
+        ...days.flatMap((day) => day.hours.map((hour) => accessors.getHourValue(hour) ?? 0)),
         0,
     );
 }
@@ -64,14 +73,18 @@ export function buildHouseMiniChartBars(
     maxValue: number,
     context: HouseChartBuildContext,
 ): HouseMiniChartBarModel[] {
-    return day.hours.map((hour) => ({
-        heightPercent: normalizeForecastBarHeight(
-            Math.max(accessors.getHourValue(hour), 0),
-            maxValue,
-            MINI_CHART_MAX_BAR_HEIGHT,
-        ),
-        isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
-    }));
+    return day.hours.map((hour) => {
+        const valueKwh = accessors.getHourValue(hour);
+        return {
+            heightPercent: normalizeForecastBarHeight(
+                Math.max(valueKwh ?? 0, 0),
+                maxValue,
+                MINI_CHART_MAX_BAR_HEIGHT,
+            ),
+            isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
+            isGap: hour.source === "gap",
+        };
+    });
 }
 
 export function buildHouseDetailColumns(
@@ -85,9 +98,10 @@ export function buildHouseDetailColumns(
         lowerKwh: accessors.getLowerValue(hour),
         upperKwh: accessors.getUpperValue(hour),
         isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
+        source: hour.source,
     }));
     const maxValue = Math.max(
-        ...points.map((point) => Math.max(point.valueKwh, point.upperKwh, 0)),
+        ...points.map((point) => Math.max(point.valueKwh ?? 0, point.upperKwh ?? 0, 0)),
         0,
     );
 
@@ -115,10 +129,11 @@ export function buildHouseDeferrableBreakdownRows(
             const snapshot = hour.consumers.find((item) => item.entityId === consumer.entityId);
             return {
                 timestamp: hour.timestamp,
-                valueKwh: snapshot?.valueKwh ?? 0,
-                lowerKwh: snapshot?.lowerKwh ?? 0,
-                upperKwh: snapshot?.upperKwh ?? 0,
+                valueKwh: snapshot?.valueKwh ?? (hour.source === "gap" ? null : 0),
+                lowerKwh: snapshot?.lowerKwh ?? null,
+                upperKwh: snapshot?.upperKwh ?? null,
                 isPast: isPastForecastTimestamp(hour.timestamp, day.isToday, context),
+                source: hour.source,
             };
         });
 
@@ -144,12 +159,15 @@ function _buildBandedColumns(
         context,
     );
 
-    let maxIndex = 0;
+    let maxIndex = -1;
     let maxKwh = 0;
     let minIndex = -1;
     let minKwh = Number.POSITIVE_INFINITY;
     for (let index = 0; index < points.length; index++) {
         const valueKwh = points[index].valueKwh;
+        if (valueKwh === null) {
+            continue;
+        }
         if (valueKwh > maxKwh) {
             maxKwh = valueKwh;
             maxIndex = index;
@@ -160,23 +178,33 @@ function _buildBandedColumns(
         }
     }
 
-    return points.map((point, index) => ({
-        timestamp: point.timestamp,
-        valueKwh: point.valueKwh,
-        heightPercent: normalizeForecastBarHeight(
-            Math.max(point.valueKwh, 0),
-            maxValue,
-            DETAIL_MAX_BAR_HEIGHT,
-        ),
-        bandLowerPercent: maxValue > 0
-            ? Math.min((Math.max(point.lowerKwh, 0) / maxValue) * DETAIL_MAX_BAR_HEIGHT, DETAIL_MAX_BAR_HEIGHT)
-            : 0,
-        bandUpperPercent: maxValue > 0
-            ? Math.min((Math.max(point.upperKwh, 0) / maxValue) * DETAIL_MAX_BAR_HEIGHT, DETAIL_MAX_BAR_HEIGHT)
-            : 0,
-        hourLabel: sparseLabels.get(index) ?? null,
-        isMax: index === maxIndex && maxKwh > 0,
-        isMin: index === minIndex && Number.isFinite(minKwh),
-        isPast: point.isPast,
-    }));
+    return points.map((point, index) => {
+        const valueKwh = point.valueKwh;
+        const hasConfidenceBand = point.source === "forecast"
+            && point.lowerKwh !== null
+            && point.upperKwh !== null;
+
+        return {
+            timestamp: point.timestamp,
+            valueKwh,
+            heightPercent: normalizeForecastBarHeight(
+                Math.max(valueKwh ?? 0, 0),
+                maxValue,
+                DETAIL_MAX_BAR_HEIGHT,
+            ),
+            bandLowerPercent: hasConfidenceBand && maxValue > 0
+                ? Math.min((Math.max(point.lowerKwh ?? 0, 0) / maxValue) * DETAIL_MAX_BAR_HEIGHT, DETAIL_MAX_BAR_HEIGHT)
+                : null,
+            bandUpperPercent: hasConfidenceBand && maxValue > 0
+                ? Math.min((Math.max(point.upperKwh ?? 0, 0) / maxValue) * DETAIL_MAX_BAR_HEIGHT, DETAIL_MAX_BAR_HEIGHT)
+                : null,
+            hourLabel: sparseLabels.get(index) ?? null,
+            isMax: index === maxIndex && maxKwh > 0,
+            isMin: index === minIndex && Number.isFinite(minKwh),
+            isPast: point.isPast,
+            isGap: point.source === "gap",
+            source: point.source,
+            hasConfidenceBand,
+        };
+    });
 }
