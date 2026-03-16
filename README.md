@@ -179,6 +179,40 @@ Operational notes:
 - Each deferrable consumer must be a non-overlapping sub-meter already included in the configured house total. The backend derives baseline as `house total - sum(deferrables)`.
 - The 168-hour forecast is grouped by calendar day in the UI, so the house detail usually shows today plus the next 7 dates.
 
+## Standalone forecast card
+
+The standalone forecast card is available as `custom:helman-forecast-card`.
+
+It loads the shared `helman/get_forecast` payload once, then renders a unified forecast view that can combine:
+
+- solar production
+- battery SoC and charge/discharge flow
+- house consumption
+- grid price
+
+Each day card can show the available sections in a single expandable card. Missing sections are hidden entirely, and the expanded detail uses one shared hourly axis for all visible rows.
+
+```yaml
+type: custom:helman-forecast-card
+transparent_background: false
+mobile_density: compact
+show_solar: true
+show_battery: true
+show_house: true
+show_price: true
+```
+
+Options:
+
+- `transparent_background`: removes card background and shadow.
+- `mobile_density`: `comfortable` (default) or `compact` for tighter narrow-screen spacing.
+- `show_solar`: hide/show the solar section.
+- `show_battery`: hide/show the battery section.
+- `show_house`: hide/show the house section.
+- `show_price`: hide/show the price section.
+
+The standalone forecast card uses the same backend forecast configuration described above for solar, house, battery, and price data. These YAML options only control presentation of the unified Lovelace card.
+
 
 ## Examples
 

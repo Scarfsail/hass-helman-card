@@ -676,21 +676,21 @@ export const nodeDetailSharedStyles = css`
     .forecast-day-price-chip.price-positive,
     .forecast-detail-track.price .forecast-detail-bar.price-positive,
     .forecast-detail-highlight.price-positive {
-        color: var(--success-color, #2e7d32);
+        color: var(--forecast-price-positive, #8d6e63);
     }
 
     .forecast-day-chart-track.price .forecast-day-chart-bar.price-negative,
     .forecast-day-price-chip.price-negative,
     .forecast-detail-track.price .forecast-detail-bar.price-negative,
     .forecast-detail-highlight.price-negative {
-        color: var(--error-color, #c62828);
+        color: var(--forecast-price-negative, #6d4c41);
     }
 
     .forecast-day-chart-track.price .forecast-day-chart-bar.price-neutral,
     .forecast-day-price-chip.price-neutral,
     .forecast-detail-track.price .forecast-detail-bar.price-neutral,
     .forecast-detail-highlight.price-neutral {
-        color: var(--warning-color, #ef6c00);
+        color: var(--forecast-price-neutral, #a1887f);
     }
 
     .muted {

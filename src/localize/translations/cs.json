@@ -62,7 +62,8 @@
       "hourly_detail": "Hodinový detail",
       "partial_note": "Některá data předpovědi mohou chybět.",
       "unavailable_note": "Část předpovědi není momentálně dostupná.",
-      "forecast_unavailable": "Předpověď není momentálně dostupná."
+      "forecast_unavailable": "Předpověď není momentálně dostupná.",
+      "no_sections_enabled": "V konfiguraci karty nejsou povolené žádné sekce předpovědi."
     },
     "house": {
       "power": "Výkon"
