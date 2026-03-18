@@ -6,6 +6,7 @@ import type { ForecastPayload, HouseConsumptionForecastDTO } from "../../helman-
 import { getDisplayEnergyUnit } from "../../helman/energy-unit-converter";
 import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman/forecast-loader";
 import type { LocalizeFunction } from "../../localize/localize";
+import { getForecastConsumerColorMix } from "./forecast-render-helpers";
 import {
     buildHouseDeferrableBreakdownRows,
     buildHouseDetailColumns,
@@ -19,6 +20,11 @@ import {
     buildHouseForecastModel,
     type HouseForecastDay,
 } from "./house-forecast-detail-model";
+import {
+    renderHouseBreakdownDisclosureRow,
+    renderHouseBreakdownSummary,
+    renderHouseDetailRow,
+} from "./house-detail-chart-renderer";
 import { getLocalHourKey } from "./local-day-hour-axis";
 import {
     getCachedLocalDateTimeParts,
@@ -51,7 +57,7 @@ interface HouseModelInputs {
 }
 
 const HOUSE_FORECAST_DETAIL_PANEL_ID = "house-forecast-detail-panel";
-const CONSUMER_COLOR_PERCENTS = [95, 70, 50, 35] as const;
+const HOUSE_FORECAST_BREAKDOWN_ID = "house-forecast-breakdown";
 const PRIMARY_HOUSE_METRIC: HouseConsumptionMetric = "baseline";
 const HOUSE_OVERVIEW_ORDER: readonly HouseConsumptionMetric[] = [PRIMARY_HOUSE_METRIC, "deferrable"] as const;
 const HOUSE_PRESENTATIONS: Record<HouseConsumptionMetric, HouseConsumptionPresentation> = {
@@ -102,6 +108,7 @@ export class HelmanHouseForecastDetail extends LitElement {
 
     @state() private _forecast: ForecastPayload | null = null;
     @state() private _selectedDayKey: string | null = null;
+    @state() private _isBreakdownExpanded = false;
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -136,6 +143,10 @@ export class HelmanHouseForecastDetail extends LitElement {
             baseline: this._computeMiniChartMax(this._forecastDays, "baseline"),
             deferrable: this._computeMiniChartMax(this._forecastDays, "deferrable"),
         };
+        if (this._selectedDayKey !== null && !this._forecastDays.some((day) => day.dayKey === this._selectedDayKey)) {
+            this._selectedDayKey = null;
+            this._isBreakdownExpanded = false;
+        }
         this._modelInputs = next;
     }
 
@@ -302,12 +313,19 @@ export class HelmanHouseForecastDetail extends LitElement {
     private _renderDetailPanel(day: HouseForecastDay) {
         const dayLabel = this._formatDayLabel(day);
         const chartContext = this._buildChartContext();
+        const formatEnergy = this._formatEnergy.bind(this);
+        const formatHour = this._formatHour.bind(this);
+        const noDataLabel = this.localize("node_detail.house_forecast.no_data");
         const baseColumns = buildHouseDetailColumns(
             day,
             this._getPrimaryPresentation().accessors,
             chartContext,
         );
-        const breakdownRows = buildHouseDeferrableBreakdownRows(day, chartContext);
+        const hasBreakdown = day.consumerDaySums.length > 0;
+        const breakdownRows = hasBreakdown && this._isBreakdownExpanded
+            ? buildHouseDeferrableBreakdownRows(day, chartContext)
+            : [];
+        const showBreakdown = breakdownRows.length > 0;
         const columnCount = Math.max(baseColumns.length, 1);
 
         return html`
@@ -331,31 +349,49 @@ export class HelmanHouseForecastDetail extends LitElement {
                     style=${`--forecast-column-count:${columnCount};`}
                     aria-hidden="true"
                 >
-                    ${this._renderChartRow(
-                        this.localize(this._getPrimaryPresentation().labelKey),
-                        baseColumns,
-                        true,
-                    )}
-                    ${breakdownRows.length === 0 ? this._renderDetailAxis(baseColumns) : nothing}
+                    ${renderHouseDetailRow({
+                        label: this.localize("node_detail.house_forecast.baseline_detail"),
+                        columns: baseColumns,
+                        isPrimary: true,
+                        multilineLabel: true,
+                        formatHour,
+                        formatEnergy,
+                        noDataLabel,
+                    })}
+                    ${!showBreakdown ? this._renderDetailAxis(baseColumns) : nothing}
                 </div>
-                ${breakdownRows.length > 0 ? html`
-                    <div class="forecast-detail-breakdown">
-                        ${this._renderBreakdownSummary(day)}
-                        <div
-                            class="forecast-detail-chart"
-                            style=${`--forecast-column-count:${columnCount};`}
-                            aria-hidden="true"
-                        >
-                            ${breakdownRows.map((row, index) => this._renderChartRow(
-                                row.label,
-                                row.columns,
-                                false,
-                                this._getConsumerColorMix(index),
-                            ))}
-                            ${this._renderDetailAxis(baseColumns)}
+                ${hasBreakdown ? renderHouseBreakdownDisclosureRow({
+                    expanded: showBreakdown,
+                    controlsId: HOUSE_FORECAST_BREAKDOWN_ID,
+                    onToggle: this._toggleBreakdown.bind(this),
+                    showLabel: this.localize("node_detail.house_forecast.show_deferrables"),
+                    hideLabel: this.localize("node_detail.house_forecast.hide_deferrables"),
+                }) : nothing}
+                <div id=${HOUSE_FORECAST_BREAKDOWN_ID} ?hidden=${!showBreakdown}>
+                    ${showBreakdown ? html`
+                        <div class="forecast-detail-breakdown">
+                            ${renderHouseBreakdownSummary({
+                                items: day.consumerDaySums,
+                                formatEnergy,
+                            })}
+                            <div
+                                class="forecast-detail-chart"
+                                style=${`--forecast-column-count:${columnCount};`}
+                                aria-hidden="true"
+                            >
+                                ${breakdownRows.map((row, index) => renderHouseDetailRow({
+                                    label: row.label,
+                                    columns: row.columns,
+                                    colorMix: getForecastConsumerColorMix(index),
+                                    formatHour,
+                                    formatEnergy,
+                                    noDataLabel,
+                                }))}
+                                ${this._renderDetailAxis(baseColumns)}
+                            </div>
                         </div>
-                    </div>
-                ` : nothing}
+                    ` : nothing}
+                </div>
             </div>
         `;
     }
@@ -376,88 +412,6 @@ export class HelmanHouseForecastDetail extends LitElement {
                         </div>
                     `;
                 })}
-            </div>
-        `;
-    }
-
-    private _renderBreakdownSummary(day: HouseForecastDay) {
-        return html`
-            <div class="forecast-detail-summary">
-                ${day.consumerDaySums.map((consumer) => html`
-                    <div class="forecast-detail-summary-item">
-                        <span class="forecast-detail-summary-label">
-                            ${consumer.label}
-                        </span>
-                        <span class="forecast-detail-summary-value">
-                            ${this._formatEnergy(consumer.totalKwh)}
-                        </span>
-                    </div>
-                `)}
-            </div>
-        `;
-    }
-
-    private _renderChartRow(
-        label: string,
-        columns: HouseDetailColumnModel[],
-        isPrimary = false,
-        colorMix?: string,
-    ) {
-        const rowClass = ["forecast-detail-row", isPrimary ? "primary" : ""]
-            .filter(Boolean)
-            .join(" ");
-
-        return html`
-            <div class=${rowClass}>
-                <div class="forecast-detail-row-label">${label}</div>
-                <div class="forecast-detail-track ${columns.length === 0 ? "empty" : ""}">
-                    ${columns.map((column) => this._renderChartColumn(column, colorMix))}
-                </div>
-            </div>
-        `;
-    }
-
-    private _renderChartColumn(col: HouseDetailColumnModel, colorMix?: string) {
-        const colorStyle = colorMix ? `color:${colorMix};` : "";
-        const barClass = colorMix ? "forecast-detail-bar" : "forecast-detail-bar house-consumption";
-        const isSharedHighlight = col.isMin && col.isMax;
-        const titleValue = col.valueKwh !== null
-            ? this._formatEnergy(col.valueKwh)
-            : this.localize("node_detail.house_forecast.no_data");
-
-        return html`
-            <div
-                class="forecast-detail-column ${col.isPast ? "past" : ""} ${col.isGap ? "gap" : ""} ${col.source}"
-                title=${`${this._formatHour(col.timestamp)} · ${titleValue}`}
-            >
-                ${col.valueKwh !== null && col.valueKwh > 0 && (col.isMax || isSharedHighlight) ? html`
-                    <span class="forecast-detail-highlight top" style=${colorStyle}>
-                        ${isSharedHighlight ? "↕" : "↑"} ${this._formatEnergy(col.valueKwh)}
-                    </span>
-                ` : nothing}
-                ${col.valueKwh !== null && col.valueKwh > 0 && col.isMin && !isSharedHighlight ? html`
-                    <span class="forecast-detail-highlight bottom" style=${colorStyle}>
-                        ↓ ${this._formatEnergy(col.valueKwh)}
-                    </span>
-                ` : nothing}
-                ${col.valueKwh !== null && col.valueKwh > 0 ? html`
-                    <span
-                        class=${barClass}
-                        style=${`${colorStyle}--forecast-bar-height:${col.heightPercent}%; --forecast-bar-offset:0%;`}
-                    ></span>
-                ` : nothing}
-                ${col.bandLowerPercent !== null && col.bandLowerPercent > 0 ? html`
-                    <span
-                        class="forecast-detail-band lower"
-                        style=${`${colorStyle}--forecast-band-offset:${col.bandLowerPercent}%;`}
-                    ></span>
-                ` : nothing}
-                ${col.bandUpperPercent !== null && col.bandUpperPercent > 0 ? html`
-                    <span
-                        class="forecast-detail-band upper"
-                        style=${`${colorStyle}--forecast-band-offset:${col.bandUpperPercent}%;`}
-                    ></span>
-                ` : nothing}
             </div>
         `;
     }
@@ -587,13 +541,13 @@ export class HelmanHouseForecastDetail extends LitElement {
         return `${this.localize("node_detail.house_forecast.title")}: ${dayLabel}. ${values}`;
     }
 
-    private _getConsumerColorMix(index: number): string {
-        const pct = CONSUMER_COLOR_PERCENTS[index % CONSUMER_COLOR_PERCENTS.length];
-        return `color-mix(in srgb, var(--primary-color) ${pct}%, transparent)`;
+    private _toggleBreakdown(): void {
+        this._isBreakdownExpanded = !this._isBreakdownExpanded;
     }
 
     private async _toggleDay(dayKey: string): Promise<void> {
         this._selectedDayKey = this._selectedDayKey === dayKey ? null : dayKey;
+        this._isBreakdownExpanded = false;
 
         if (this._selectedDayKey === null) {
             return;

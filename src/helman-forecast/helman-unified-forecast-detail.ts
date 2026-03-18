@@ -5,20 +5,18 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { ForecastPayload } from "../helman-api";
 import { convertToKWh, getDisplayEnergyUnit } from "../helman/energy-unit-converter";
 import type { LocalizeFunction } from "../localize/localize";
-import {
-    type BatteryDetailChartModel,
-} from "../helman-simple/node-detail/battery-capacity-forecast-chart-model";
 import { renderBatteryDetailRow } from "../helman-simple/node-detail/battery-detail-chart-renderer";
-import type {
-    HouseBreakdownRowModel,
-    HouseDetailColumnModel,
-} from "../helman-simple/node-detail/house-forecast-chart-model";
 import {
     formatForecastDayLabel,
     formatForecastHour,
     formatForecastHourRange,
     getForecastConsumerColorMix,
 } from "../helman-simple/node-detail/forecast-render-helpers";
+import {
+    renderHouseBreakdownDisclosureRow,
+    renderHouseBreakdownSummary,
+    renderHouseDetailRow,
+} from "../helman-simple/node-detail/house-detail-chart-renderer";
 import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
@@ -56,11 +54,14 @@ interface UnifiedForecastModelInputs {
     remainingTodayKwh: number | null | undefined;
     sectionVisibility: HelmanForecastSectionVisibility;
     selectedDayKey: string | null;
+    houseBreakdownExpanded: boolean;
     batteryMinSoc: number | null;
     batteryMaxSoc: number | null;
 }
 
 const UNIFIED_FORECAST_DETAIL_PANEL_ID = "unified-forecast-detail-panel";
+const UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID = "unified-house-breakdown-summary";
+const UNIFIED_HOUSE_BREAKDOWN_ROWS_ID = "unified-house-breakdown-rows";
 const EMPTY_SECTION_VISIBILITY: HelmanForecastSectionVisibility = {
     solar: true,
     battery: true,
@@ -136,6 +137,12 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 letter-spacing: 0.05em;
             }
 
+            .forecast-detail-breakdown-rows {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
             @media (max-width: 600px) {
                 .unified-forecast-root.density-compact .forecast-detail-days {
                     grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -190,6 +197,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     @property({ type: Boolean }) public showSectionTitle = true;
 
     @state() private _selectedDayKey: string | null = null;
+    @state() private _isHouseBreakdownExpanded = false;
 
     willUpdate(changedProperties: Map<string, unknown>): void {
         super.willUpdate(changedProperties);
@@ -214,6 +222,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
         if (this._selectedDayKey !== null && !this._forecastModel.days.some((day) => day.dayKey === this._selectedDayKey)) {
             this._selectedDayKey = null;
+            this._isHouseBreakdownExpanded = false;
         }
 
         const selectedDay = this._forecastModel.days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
@@ -223,6 +232,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 chartContext,
                 batteryMinSoc: nextInputs.batteryMinSoc,
                 batteryMaxSoc: nextInputs.batteryMaxSoc,
+                includeHouseBreakdownRows: nextInputs.houseBreakdownExpanded,
             })
             : null;
         this._modelInputs = nextInputs;
@@ -415,7 +425,12 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         const batteryCoverageNote = day.battery !== null && !day.battery.coversDayEnd
             ? this._getBatteryCoverageNote(day.battery)
             : null;
+        const formatEnergy = this._formatEnergy.bind(this);
+        const formatHouseHour = (timestamp: string) => formatForecastHour(timestamp, this._locale, this.hass.config.time_zone);
+        const noDataLabel = this.localize("node_detail.house_forecast.no_data");
+        const hasBreakdown = detail.house?.hasBreakdown ?? false;
         const breakdownRows = detail.house?.breakdownRows ?? [];
+        const showBreakdown = hasBreakdown && this._isHouseBreakdownExpanded;
         const columnCount = Math.max(detail.axis.columns.length, 1);
 
         return html`
@@ -456,36 +471,78 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 ${batteryCoverageNote !== null ? html`
                     <div class="forecast-status-note">${batteryCoverageNote}</div>
                 ` : nothing}
-                ${breakdownRows.length > 0 ? this._renderBreakdownSummary(breakdownRows) : nothing}
-                <div class="forecast-detail-chart" style=${`--forecast-column-count:${columnCount};`} aria-hidden="true">
-                    ${detail.solar !== null ? this._renderSolarDetailRow(detail.solar) : nothing}
-                    ${detail.battery !== null ? renderBatteryDetailRow({
-                        detail: detail.battery,
-                        rowLabel: this.localize("node_detail.battery_forecast.soc_flow"),
-                        localize: this.localize,
-                        formatHourRange: (start, end) => formatForecastHourRange(
-                            start,
-                            end,
-                            this._locale,
-                            this.hass.config.time_zone,
-                        ),
-                        formatDurationHours: this._formatDurationHours.bind(this),
-                        formatEnergy: this._formatEnergy.bind(this),
-                        formatSocWithUnit: this._formatSocWithUnit.bind(this),
+                <div class="forecast-detail-chart" style=${`--forecast-column-count:${columnCount};`}>
+                    ${detail.solar !== null ? html`
+                        <div aria-hidden="true">${this._renderSolarDetailRow(detail.solar)}</div>
+                    ` : nothing}
+                    ${detail.battery !== null ? html`
+                        <div aria-hidden="true">
+                            ${renderBatteryDetailRow({
+                                detail: detail.battery,
+                                rowLabel: this.localize("node_detail.battery_forecast.soc_flow"),
+                                localize: this.localize,
+                                formatHourRange: (start, end) => formatForecastHourRange(
+                                    start,
+                                    end,
+                                    this._locale,
+                                    this.hass.config.time_zone,
+                                ),
+                                formatDurationHours: this._formatDurationHours.bind(this),
+                                formatEnergy: this._formatEnergy.bind(this),
+                                formatSocWithUnit: this._formatSocWithUnit.bind(this),
+                            })}
+                        </div>
+                    ` : nothing}
+                    ${detail.price !== null ? html`
+                        <div aria-hidden="true">${this._renderPriceDetailRow(detail.price)}</div>
+                    ` : nothing}
+                    ${detail.house !== null ? html`
+                        <div aria-hidden="true">
+                            ${renderHouseDetailRow({
+                                label: this.localize("node_detail.house_forecast.baseline_detail"),
+                                columns: detail.house.columns,
+                                isPrimary: true,
+                                multilineLabel: true,
+                                formatHour: formatHouseHour,
+                                formatEnergy,
+                                noDataLabel,
+                            })}
+                        </div>
+                    ` : nothing}
+                    ${hasBreakdown ? renderHouseBreakdownDisclosureRow({
+                        expanded: showBreakdown,
+                        controlsId: `${UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID} ${UNIFIED_HOUSE_BREAKDOWN_ROWS_ID}`,
+                        onToggle: this._toggleHouseBreakdown.bind(this),
+                        showLabel: this.localize("node_detail.house_forecast.show_deferrables"),
+                        hideLabel: this.localize("node_detail.house_forecast.hide_deferrables"),
                     }) : nothing}
-                    ${detail.price !== null ? this._renderPriceDetailRow(detail.price) : nothing}
-                    ${detail.house !== null ? this._renderHouseDetailRow(
-                        this.localize("node_detail.house_forecast.baseline"),
-                        detail.house.columns,
-                        true,
-                    ) : nothing}
-                    ${breakdownRows.map((row, index) => this._renderHouseDetailRow(
-                        row.label,
-                        row.columns,
-                        false,
-                        getForecastConsumerColorMix(index),
-                    ))}
-                    ${this._renderSharedAxis(detail)}
+                    <div id=${UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID} ?hidden=${!showBreakdown}>
+                        ${showBreakdown && detail.house !== null ? html`
+                            <div class="unified-breakdown-summary">
+                                <div class="unified-breakdown-title">${this.localize("node_detail.house_forecast.deferrables")}</div>
+                                ${renderHouseBreakdownSummary({
+                                    items: detail.house.breakdownSummaryItems,
+                                    formatEnergy,
+                                })}
+                            </div>
+                        ` : nothing}
+                    </div>
+                    <div
+                        id=${UNIFIED_HOUSE_BREAKDOWN_ROWS_ID}
+                        class="forecast-detail-breakdown-rows"
+                        aria-hidden="true"
+                        ?hidden=${!showBreakdown}
+                    >
+                        ${showBreakdown ? breakdownRows.map((row, index) => renderHouseDetailRow({
+                            label: row.label,
+                            columns: row.columns,
+                            colorMix: getForecastConsumerColorMix(index),
+                            formatHour: formatHouseHour,
+                            formatEnergy,
+                            noDataLabel,
+                        })) : nothing}
+                    </div>
+                    <div aria-hidden="true">${this._renderSharedAxis(detail)}</div>
                 </div>
             </div>
         `;
@@ -496,24 +553,6 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             <div class="forecast-detail-summary-item">
                 <span class="forecast-detail-summary-label">${label}</span>
                 <span class="forecast-detail-summary-value">${value}</span>
-            </div>
-        `;
-    }
-
-    private _renderBreakdownSummary(rows: HouseBreakdownRowModel[]) {
-        return html`
-            <div class="unified-breakdown-summary">
-                <div class="unified-breakdown-title">${this.localize("node_detail.house_forecast.deferrables")}</div>
-                <div class="forecast-detail-summary">
-                    ${rows.map((row) => html`
-                        <div class="forecast-detail-summary-item">
-                            <span class="forecast-detail-summary-label">${row.label}</span>
-                            <span class="forecast-detail-summary-value">${this._formatEnergy(
-                                row.columns.reduce((sum, column) => sum + (column.valueKwh ?? 0), 0),
-                            )}</span>
-                        </div>
-                    `)}
-                </div>
             </div>
         `;
     }
@@ -604,73 +643,6 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                     <span
                         class="forecast-detail-bar ${column.toneClass}"
                         style=${`--forecast-bar-height:${column.heightPercent}%; --forecast-bar-offset:${column.offsetPercent}%;`}
-                    ></span>
-                ` : nothing}
-            </div>
-        `;
-    }
-
-    private _renderHouseDetailRow(
-        label: string,
-        columns: HouseDetailColumnModel[],
-        isPrimary = false,
-        colorMix?: string,
-    ) {
-        const rowClass = ["forecast-detail-row", isPrimary ? "primary" : ""].filter(Boolean).join(" ");
-        const trackClass = [
-            "forecast-detail-track",
-            columns.some((column) => column.valueKwh !== null) ? "" : "empty",
-        ].filter(Boolean).join(" ");
-
-        return html`
-            <div class=${rowClass}>
-                <div class="forecast-detail-row-label">${label}</div>
-                <div class=${trackClass}>
-                    ${columns.map((column) => this._renderHouseDetailColumn(column, colorMix))}
-                </div>
-            </div>
-        `;
-    }
-
-    private _renderHouseDetailColumn(column: HouseDetailColumnModel, colorMix?: string) {
-        const colorStyle = colorMix ? `color:${colorMix};` : "";
-        const barClass = colorMix ? "forecast-detail-bar" : "forecast-detail-bar house-consumption";
-        const isSharedHighlight = column.isMin && column.isMax;
-        const titleValue = column.valueKwh !== null
-            ? this._formatEnergy(column.valueKwh)
-            : this.localize("node_detail.house_forecast.no_data");
-
-        return html`
-            <div
-                class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""} ${column.source}"
-                title=${`${formatForecastHour(column.timestamp, this._locale, this.hass.config.time_zone)} · ${titleValue}`}
-            >
-                ${column.valueKwh !== null && column.valueKwh > 0 && (column.isMax || isSharedHighlight) ? html`
-                    <span class="forecast-detail-highlight top" style=${colorStyle}>
-                        ${isSharedHighlight ? "↕" : "↑"} ${this._formatEnergy(column.valueKwh)}
-                    </span>
-                ` : nothing}
-                ${column.valueKwh !== null && column.valueKwh > 0 && column.isMin && !isSharedHighlight ? html`
-                    <span class="forecast-detail-highlight bottom" style=${colorStyle}>
-                        ↓ ${this._formatEnergy(column.valueKwh)}
-                    </span>
-                ` : nothing}
-                ${column.valueKwh !== null && column.valueKwh > 0 ? html`
-                    <span
-                        class=${barClass}
-                        style=${`${colorStyle}--forecast-bar-height:${column.heightPercent}%; --forecast-bar-offset:0%;`}
-                    ></span>
-                ` : nothing}
-                ${column.bandLowerPercent !== null && column.bandLowerPercent > 0 ? html`
-                    <span
-                        class="forecast-detail-band lower"
-                        style=${`${colorStyle}--forecast-band-offset:${column.bandLowerPercent}%;`}
-                    ></span>
-                ` : nothing}
-                ${column.bandUpperPercent !== null && column.bandUpperPercent > 0 ? html`
-                    <span
-                        class="forecast-detail-band upper"
-                        style=${`${colorStyle}--forecast-band-offset:${column.bandUpperPercent}%;`}
                     ></span>
                 ` : nothing}
             </div>
@@ -785,6 +757,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 price: this.sectionVisibility.price,
             },
             selectedDayKey: this._selectedDayKey,
+            houseBreakdownExpanded: this._isHouseBreakdownExpanded,
             batteryMinSoc: this.forecast?.battery_capacity.minSoc ?? null,
             batteryMaxSoc: this.forecast?.battery_capacity.maxSoc ?? null,
         };
@@ -798,6 +771,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             || this._modelInputs?.currentHourKey !== nextInputs.currentHourKey
             || this._modelInputs?.remainingTodayKwh !== nextInputs.remainingTodayKwh
             || this._modelInputs?.selectedDayKey !== nextInputs.selectedDayKey
+            || this._modelInputs?.houseBreakdownExpanded !== nextInputs.houseBreakdownExpanded
             || this._modelInputs?.batteryMinSoc !== nextInputs.batteryMinSoc
             || this._modelInputs?.batteryMaxSoc !== nextInputs.batteryMaxSoc
             || this._modelInputs?.sectionVisibility.solar !== nextInputs.sectionVisibility.solar
@@ -837,6 +811,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
     private async _toggleDay(dayKey: string): Promise<void> {
         this._selectedDayKey = this._selectedDayKey === dayKey ? null : dayKey;
+        this._isHouseBreakdownExpanded = false;
         if (this._selectedDayKey === null) {
             return;
         }
@@ -847,6 +822,10 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             block: "nearest",
             inline: "nearest",
         });
+    }
+
+    private _toggleHouseBreakdown(): void {
+        this._isHouseBreakdownExpanded = !this._isHouseBreakdownExpanded;
     }
 
     private _getBatteryCoverageNote(battery: UnifiedBatteryOverviewModel): string {

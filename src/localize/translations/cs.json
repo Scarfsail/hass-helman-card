@@ -78,8 +78,11 @@
     },
     "house_forecast": {
       "title": "Předpověď spotřeby",
-      "baseline": "Základ",
+      "baseline": "Základní Spotřeba",
+      "baseline_detail": "Základní\nSpotřeba",
       "deferrables": "Odložitelné",
+      "show_deferrables": "Zobrazit odložitelné spotřebiče",
+      "hide_deferrables": "Skrýt odložitelné spotřebiče",
       "insufficient_history": "Předpověď bude dostupná po %d dnech historie.",
       "unavailable": "Předpověď spotřeby není momentálně dostupná.",
       "no_data": "Žádná data předpovědi spotřeby.",

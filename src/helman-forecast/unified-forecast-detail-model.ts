@@ -19,6 +19,7 @@ import {
 import type {
     HouseForecastDay,
     HouseForecastHour,
+    type ConsumerDayTotal,
 } from "../helman-simple/node-detail/house-forecast-detail-model";
 import {
     buildHouseDeferrableBreakdownRows,
@@ -89,6 +90,8 @@ export interface UnifiedPriceDetailRowModel {
 
 export interface UnifiedHouseDetailModel {
     columns: HouseDetailColumnModel[];
+    hasBreakdown: boolean;
+    breakdownSummaryItems: ConsumerDayTotal[];
     breakdownRows: HouseBreakdownRowModel[];
 }
 
@@ -105,11 +108,13 @@ export function buildUnifiedForecastDetailModel({
     chartContext,
     batteryMinSoc,
     batteryMaxSoc,
+    includeHouseBreakdownRows,
 }: {
     day: UnifiedForecastDayModel;
     chartContext: ForecastChartBuildContext;
     batteryMinSoc: number | null;
     batteryMaxSoc: number | null;
+    includeHouseBreakdownRows: boolean;
 }): UnifiedForecastDetailModel {
     const axis = buildSharedForecastAxis({
         dayKey: day.dayKey,
@@ -134,7 +139,7 @@ export function buildUnifiedForecastDetailModel({
             })
             : null,
         house: day.house !== null && day.houseDay !== null
-            ? _buildHouseDetailModel(day.houseDay, axis, chartContext)
+            ? _buildHouseDetailModel(day.houseDay, axis, chartContext, includeHouseBreakdownRows)
             : null,
     };
 }
@@ -322,8 +327,10 @@ function _buildHouseDetailModel(
     day: HouseForecastDay,
     axis: SharedForecastAxis,
     chartContext: ForecastChartBuildContext,
+    includeHouseBreakdownRows: boolean,
 ): UnifiedHouseDetailModel {
     const alignedDay = _alignHouseDayToAxis(day, axis, chartContext.timeZone);
+    const hasBreakdown = alignedDay.consumerDaySums.length > 0;
 
     return {
         columns: buildHouseDetailColumns(
@@ -335,7 +342,11 @@ function _buildHouseDetailModel(
             },
             chartContext,
         ),
-        breakdownRows: buildHouseDeferrableBreakdownRows(alignedDay, chartContext),
+        hasBreakdown,
+        breakdownSummaryItems: alignedDay.consumerDaySums,
+        breakdownRows: includeHouseBreakdownRows && hasBreakdown
+            ? buildHouseDeferrableBreakdownRows(alignedDay, chartContext)
+            : [],
     };
 }
 

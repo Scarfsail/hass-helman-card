@@ -555,6 +555,13 @@ export const nodeDetailSharedStyles = css`
         white-space: nowrap;
     }
 
+    .forecast-detail-row-label.multiline {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: pre-line;
+        line-height: 1.15;
+    }
+
     .forecast-detail-summary-value {
         font-size: 0.85rem;
         font-weight: 600;
@@ -580,6 +587,35 @@ export const nodeDetailSharedStyles = css`
         display: flex;
         flex-direction: column;
         gap: 10px;
+    }
+
+    .forecast-detail-disclosure {
+        display: flex;
+        align-items: center;
+    }
+
+    .forecast-detail-disclosure-button {
+        appearance: none;
+        border: none;
+        padding: 0;
+        background: none;
+        color: var(--secondary-text-color);
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 0.14em;
+    }
+
+    .forecast-detail-disclosure-button:hover {
+        color: var(--primary-color);
+    }
+
+    .forecast-detail-disclosure-button:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 3px;
     }
 
     .forecast-detail-row,
