@@ -157,6 +157,7 @@ export function buildUnifiedForecastModel({
         series: forecast.battery_capacity.series,
         currentSoc: forecast.battery_capacity.currentSoc,
         startedAt: forecast.battery_capacity.startedAt,
+        nominalCapacityKwh: forecast.battery_capacity.nominalCapacityKwh,
         timeZone: chartContext.timeZone,
         now,
     });

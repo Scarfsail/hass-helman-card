@@ -1,4 +1,5 @@
 import type { ForecastPointDTO } from "../helman-api";
+import { buildEmptyBatterySlotFlow } from "../helman-simple/node-detail/battery-capacity-flow";
 import type {
     BatteryCapacityForecastDay,
     BatteryCapacityForecastSlot,
@@ -299,6 +300,7 @@ function _buildGapBatterySlot(
     nextTimestamp: string | null,
 ): BatteryCapacityForecastSlot {
     return {
+        ...buildEmptyBatterySlotFlow(),
         source: "gap",
         timestamp,
         endsAt: nextTimestamp ?? _addHour(timestamp),

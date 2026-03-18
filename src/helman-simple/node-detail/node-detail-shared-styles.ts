@@ -663,7 +663,8 @@ export const nodeDetailSharedStyles = css`
 
     .forecast-detail-column.past .forecast-detail-battery-change,
     .forecast-detail-column.past .forecast-detail-battery-step,
-    .forecast-detail-column.past .forecast-detail-battery-dot {
+    .forecast-detail-column.past .forecast-detail-battery-dot,
+    .forecast-detail-column.past .forecast-detail-battery-flow {
         opacity: 0.38;
     }
 
@@ -817,6 +818,10 @@ export const nodeDetailSharedStyles = css`
         background: color-mix(in srgb, var(--forecast-battery-soc-soft) 26%, var(--divider-color));
     }
 
+    .forecast-detail-track.battery-combined {
+        overflow: hidden;
+    }
+
     .forecast-detail-bar.house-consumption {
         color: var(--primary-color);
     }
@@ -854,7 +859,7 @@ export const nodeDetailSharedStyles = css`
         position: absolute;
         left: 0;
         right: 0;
-        bottom: var(--forecast-reference-offset, 0%);
+        bottom: min(var(--forecast-reference-offset, 0%), calc(100% - 1px));
         z-index: 0;
         border-top: 1px dashed currentColor;
         opacity: 0.55;
@@ -871,10 +876,16 @@ export const nodeDetailSharedStyles = css`
 
     .forecast-detail-battery-change,
     .forecast-detail-battery-step,
-    .forecast-detail-battery-dot {
+    .forecast-detail-battery-dot,
+    .forecast-detail-battery-flow {
         position: absolute;
-        color: var(--forecast-battery-soc-soft);
         pointer-events: none;
+    }
+
+    .forecast-detail-battery-change,
+    .forecast-detail-battery-step,
+    .forecast-detail-battery-dot {
+        color: var(--forecast-battery-soc-soft);
     }
 
     .forecast-detail-battery-change {
@@ -892,12 +903,34 @@ export const nodeDetailSharedStyles = css`
     .forecast-detail-battery-step {
         left: 0;
         right: 0;
-        z-index: 1;
-        bottom: var(--forecast-step-offset, 0%);
+        z-index: 3;
+        bottom: min(var(--forecast-step-offset, 0%), calc(100% - 2px));
         height: 2px;
         border-radius: 999px;
         background: currentColor;
         opacity: 0.82;
+    }
+
+    .forecast-detail-battery-flow {
+        left: 50%;
+        z-index: 2;
+        bottom: var(--forecast-flow-offset, 0%);
+        width: calc(100% - 6px);
+        max-width: 10px;
+        min-width: 4px;
+        height: var(--forecast-flow-height, 0%);
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.92;
+    }
+
+    .forecast-detail-battery-flow.charge {
+        color: var(--success-color, #2e7d32);
+    }
+
+    .forecast-detail-battery-flow.discharge {
+        color: var(--error-color, #c62828);
     }
 
     .forecast-detail-battery-dot {

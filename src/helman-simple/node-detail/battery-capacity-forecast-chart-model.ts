@@ -2,6 +2,10 @@ import type {
     BatteryCapacityForecastDay,
     BatterySlotSource,
 } from "./battery-capacity-forecast-detail-model";
+import type {
+    BatteryFlowDirection,
+    BatteryFlowSource,
+} from "./battery-capacity-flow";
 import {
     buildSparseHourLabelMap,
     clampForecastPercent,
@@ -24,11 +28,16 @@ export interface BatteryDetailColumnModel {
     endSocPct: number | null;
     socChangeOffsetPercent: number;
     socChangeHeightPercent: number;
-    socStepOffsetPercent: number;
-    movementValueKwh: number;
-    movementHeightPercent: number;
-    movementOffsetPercent: number;
-    movementToneClass: "charge" | "discharge" | "idle";
+    dashOffsetPercent: number;
+    flowDirection: BatteryFlowDirection;
+    flowSource: BatteryFlowSource;
+    flowMagnitudeKwh: number | null;
+    chargeHeightPercent: number;
+    chargeOffsetPercent: number;
+    dischargeHeightPercent: number;
+    dischargeOffsetPercent: number;
+    hasRenderableChargeBar: boolean;
+    hasRenderableDischargeBar: boolean;
     chargedKwh: number;
     dischargedKwh: number;
     importedFromGridKwh: number;
@@ -37,14 +46,12 @@ export interface BatteryDetailColumnModel {
     hitMaxSoc: boolean;
     limitedByChargePower: boolean;
     limitedByDischargePower: boolean;
-    hasMovementData: boolean;
 }
 
 export interface BatteryDetailChartModel {
     columns: BatteryDetailColumnModel[];
     minSocOffsetPercent: number | null;
     maxSocOffsetPercent: number | null;
-    hasBidirectionalMovement: boolean;
 }
 
 interface BuildBatteryDetailChartModelParams {
@@ -54,8 +61,7 @@ interface BuildBatteryDetailChartModelParams {
     context: BatteryChartBuildContext;
 }
 
-const DETAIL_MAX_BAR_HEIGHT = 78;
-const DETAIL_SIGNED_BAR_HEIGHT = 34;
+const DETAIL_MAX_FLOW_HEIGHT = 34;
 
 export function buildBatteryDetailChartModel({
     day,
@@ -65,32 +71,38 @@ export function buildBatteryDetailChartModel({
 }: BuildBatteryDetailChartModelParams): BatteryDetailChartModel {
     const timestamps = day.slots.map((slot) => slot.timestamp);
     const sparseHourLabels = buildSparseHourLabelMap(timestamps, context);
-    const movementMaxKwh = Math.max(
-        ...day.slots.map((slot) => slot.source === "forecast"
-            ? Math.max(slot.chargedKwh, slot.dischargedKwh, 0)
-            : 0),
+    const minSocThreshold = clampForecastPercent(minSoc) ?? 0;
+    const maxSocThreshold = clampForecastPercent(maxSoc) ?? 100;
+    const flowMaxKwh = Math.max(
+        ...day.slots.flatMap((slot) => [Math.max(slot.chargedKwh, 0), Math.max(slot.dischargedKwh, 0)]),
         0,
     );
-    const hasBidirectionalMovement = day.slots.some((slot) => slot.source === "forecast" && slot.chargedKwh > 0)
-        && day.slots.some((slot) => slot.source === "forecast" && slot.dischargedKwh > 0);
 
     return {
         columns: day.slots.map((slot, index) => {
             const normalizedStartSoc = clampForecastPercent(slot.startSocPct);
             const normalizedEndSoc = clampForecastPercent(slot.socPct);
-            const hasMovementData = slot.source === "forecast";
-            const movementValueKwh = !hasMovementData
-                ? 0
-                : slot.chargedKwh > 0
-                    ? slot.chargedKwh
-                    : slot.dischargedKwh > 0
-                        ? -slot.dischargedKwh
-                        : 0;
-            const movementHeightPercent = normalizeForecastBarHeight(
-                Math.abs(movementValueKwh),
-                movementMaxKwh,
-                hasBidirectionalMovement ? DETAIL_SIGNED_BAR_HEIGHT : DETAIL_MAX_BAR_HEIGHT,
+            const dashOffsetPercent = normalizedEndSoc ?? normalizedStartSoc ?? 0;
+            const isAtMinSoc = normalizedEndSoc !== null && normalizedEndSoc <= minSocThreshold;
+            const isAtMaxSoc = normalizedEndSoc !== null && normalizedEndSoc >= maxSocThreshold;
+            const rawChargeHeightPercent = normalizeForecastBarHeight(
+                Math.max(slot.chargedKwh, 0),
+                flowMaxKwh,
+                DETAIL_MAX_FLOW_HEIGHT,
             );
+            const rawDischargeHeightPercent = normalizeForecastBarHeight(
+                Math.max(slot.dischargedKwh, 0),
+                flowMaxKwh,
+                DETAIL_MAX_FLOW_HEIGHT,
+            );
+            const hasRenderableChargeBar = slot.chargedKwh > 0;
+            const hasRenderableDischargeBar = slot.dischargedKwh > 0;
+            const chargeHeightPercent = hasRenderableChargeBar
+                ? Math.min(rawChargeHeightPercent, dashOffsetPercent)
+                : 0;
+            const dischargeHeightPercent = hasRenderableDischargeBar
+                ? Math.min(rawDischargeHeightPercent, 100 - dashOffsetPercent)
+                : 0;
 
             return {
                 source: slot.source,
@@ -108,32 +120,27 @@ export function buildBatteryDetailChartModel({
                 socChangeHeightPercent: normalizedStartSoc !== null && normalizedEndSoc !== null
                     ? Math.abs(normalizedEndSoc - normalizedStartSoc)
                     : 0,
-                socStepOffsetPercent: normalizedEndSoc ?? normalizedStartSoc ?? 0,
-                movementValueKwh,
-                movementHeightPercent,
-                movementOffsetPercent: movementValueKwh === 0 || !hasBidirectionalMovement
-                    ? 0
-                    : movementValueKwh < 0
-                        ? Math.max(0, 50 - movementHeightPercent)
-                        : 50,
-                movementToneClass: movementValueKwh > 0
-                    ? "charge"
-                    : movementValueKwh < 0
-                        ? "discharge"
-                        : "idle",
+                dashOffsetPercent,
+                flowDirection: slot.flowDirection,
+                flowSource: slot.flowSource,
+                flowMagnitudeKwh: slot.flowMagnitudeKwh,
+                chargeHeightPercent,
+                chargeOffsetPercent: Math.max(0, dashOffsetPercent - chargeHeightPercent),
+                dischargeHeightPercent,
+                dischargeOffsetPercent: dashOffsetPercent,
+                hasRenderableChargeBar,
+                hasRenderableDischargeBar,
                 chargedKwh: slot.chargedKwh,
                 dischargedKwh: slot.dischargedKwh,
                 importedFromGridKwh: slot.importedFromGridKwh,
                 exportedToGridKwh: slot.exportedToGridKwh,
-                hitMinSoc: slot.hitMinSoc,
-                hitMaxSoc: slot.hitMaxSoc,
+                hitMinSoc: slot.hitMinSoc || isAtMinSoc,
+                hitMaxSoc: slot.hitMaxSoc || isAtMaxSoc,
                 limitedByChargePower: slot.limitedByChargePower,
                 limitedByDischargePower: slot.limitedByDischargePower,
-                hasMovementData,
             };
         }),
         minSocOffsetPercent: clampForecastPercent(minSoc),
         maxSocOffsetPercent: clampForecastPercent(maxSoc),
-        hasBidirectionalMovement,
     };
 }

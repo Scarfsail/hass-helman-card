@@ -111,6 +111,7 @@
       "daily_summary": "Denní souhrn",
       "hourly_detail": "Hodinový detail",
       "energy": "Energie",
+      "soc_flow": "Nabití / tok",
       "charge_discharge": "Tok",
       "charged": "Nabito",
       "discharged": "Vybito",

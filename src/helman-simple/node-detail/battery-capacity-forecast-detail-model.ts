@@ -2,6 +2,12 @@ import type {
     BatteryCapacityActualHourDTO,
     BatteryCapacityForecastHourDTO,
 } from "../../helman-api";
+import type { BatterySlotFlow } from "./battery-capacity-flow";
+import {
+    buildActualSocBatterySlotFlow,
+    buildEmptyBatterySlotFlow,
+    buildForecastBatterySlotFlow,
+} from "./battery-capacity-flow";
 import {
     buildLocalDayHourAxis,
     getLocalHourKey,
@@ -11,7 +17,7 @@ import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export type BatterySlotSource = "actual" | "forecast" | "gap";
 
-export interface BatteryCapacityForecastSlot {
+export interface BatteryCapacityForecastSlot extends BatterySlotFlow {
     source: BatterySlotSource;
     timestamp: string;
     endsAt: string;
@@ -48,6 +54,7 @@ interface BuildBatteryCapacityForecastModelParams {
     series: BatteryCapacityForecastHourDTO[];
     currentSoc: number | null;
     startedAt: string | null;
+    nominalCapacityKwh: number | null;
     timeZone: string;
     now?: Date;
 }
@@ -57,6 +64,7 @@ export function buildBatteryCapacityForecastModel({
     series,
     currentSoc,
     startedAt,
+    nominalCapacityKwh,
     timeZone,
     now = new Date(),
 }: BuildBatteryCapacityForecastModelParams): BatteryCapacityForecastDay[] {
@@ -75,6 +83,7 @@ export function buildBatteryCapacityForecastModel({
         forecastSlots: forecastDayMap.get(todayKey) ?? [],
         currentHourKey,
         dayKey: todayKey,
+        nominalCapacityKwh,
         timeZone,
     });
 
@@ -86,14 +95,18 @@ export function buildBatteryCapacityForecastModel({
     return Array.from(dayKeys)
         .sort()
         .map((dayKey) => {
-            const slots = [...(dayKey === todayKey ? todaySlots : forecastDayMap.get(dayKey) ?? [])]
+            const forecastDaySlots = forecastDayMap.get(dayKey) ?? [];
+            const slots = [...(dayKey === todayKey ? todaySlots : forecastDaySlots)]
                 .sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
             if (slots.length === 0) {
                 return null;
             }
 
-            const lastSlot = slots[slots.length - 1];
-            const coverageEndLocalParts = getCachedLocalDateTimeParts(lastSlot.endsAt, timeZone);
+            const coverageSlots = dayKey === todayKey && forecastDaySlots.length > 0
+                ? forecastDaySlots
+                : slots;
+            const lastCoverageSlot = coverageSlots[coverageSlots.length - 1];
+            const coverageEndLocalParts = getCachedLocalDateTimeParts(lastCoverageSlot.endsAt, timeZone);
             const dayStartSoc = _readDayStartSoc(slots, currentSoc);
             const dayEndSoc = _readDayEndSoc(slots, dayStartSoc);
             const daySocExtrema = _buildDaySocExtrema(slots, dayStartSoc, startedAt);
@@ -108,7 +121,7 @@ export function buildBatteryCapacityForecastModel({
                 minSocAt: daySocExtrema.minSocAt,
                 maxSocPct: daySocExtrema.maxSocPct,
                 maxSocAt: daySocExtrema.maxSocAt,
-                coverageEndsAt: lastSlot.endsAt,
+                coverageEndsAt: lastCoverageSlot.endsAt,
                 coversDayEnd: coverageEndLocalParts !== null && coverageEndLocalParts.dayKey > dayKey,
                 slots,
             };
@@ -121,15 +134,18 @@ function _buildTodaySlots({
     forecastSlots,
     currentHourKey,
     dayKey,
+    nominalCapacityKwh,
     timeZone,
 }: {
     actualHistory: BatteryCapacityActualHourDTO[];
     forecastSlots: BatteryCapacityForecastSlot[];
     currentHourKey: string;
     dayKey: string;
+    nominalCapacityKwh: number | null;
     timeZone: string;
 }): BatteryCapacityForecastSlot[] {
     const actualByHour = indexEntriesByLocalHour(actualHistory, timeZone, dayKey);
+    const forecastByHour = indexEntriesByLocalHour(forecastSlots, timeZone, dayKey);
     const referenceTimestamps = [
         ...actualHistory.map((entry) => entry.timestamp),
         ...forecastSlots.map((slot) => slot.timestamp),
@@ -143,22 +159,30 @@ function _buildTodaySlots({
         return forecastSlots;
     }
 
-    const pastSlots: BatteryCapacityForecastSlot[] = [];
-    for (const axisPoint of buildLocalDayHourAxis(dayKey, timeZone, referenceTimestamps)) {
-        const axisPointMs = _parseTimestampMs(axisPoint.timestamp);
-        if (axisPointMs === null || axisPointMs >= currentHourStartMs) {
-            continue;
+    const lastForecastStartMs = forecastSlots.reduce<number | null>((latest, slot) => {
+        const slotStartMs = _parseTimestampMs(slot.timestamp);
+        if (slotStartMs === null) {
+            return latest;
         }
 
-        const actualSlot = actualByHour.get(axisPoint.hourKey);
-        pastSlots.push(
-            actualSlot !== undefined
-                ? _buildActualSlot(actualSlot)
-                : _buildGapSlot(axisPoint.timestamp)
-        );
-    }
+        return latest === null ? slotStartMs : Math.max(latest, slotStartMs);
+    }, null);
 
-    return [...pastSlots, ...forecastSlots];
+    return buildLocalDayHourAxis(dayKey, timeZone, referenceTimestamps).flatMap((axisPoint) => {
+        const axisPointMs = _parseTimestampMs(axisPoint.timestamp);
+        if (axisPointMs !== null && axisPointMs < currentHourStartMs) {
+            const actualSlot = actualByHour.get(axisPoint.hourKey);
+            return [actualSlot !== undefined
+                ? _buildActualSlot(actualSlot, nominalCapacityKwh)
+                : _buildGapSlot(axisPoint.timestamp)];
+        }
+
+        if (lastForecastStartMs === null || axisPointMs === null || axisPointMs > lastForecastStartMs) {
+            return [];
+        }
+
+        return [forecastByHour.get(axisPoint.hourKey) ?? _buildGapSlot(axisPoint.timestamp)];
+    });
 }
 
 function _buildForecastSlots(
@@ -168,7 +192,12 @@ function _buildForecastSlots(
     let previousEndSoc = currentSoc;
 
     return series.map((slot) => {
+        const flow = buildForecastBatterySlotFlow({
+            chargedKwh: slot.chargedKwh,
+            dischargedKwh: slot.dischargedKwh,
+        });
         const mappedSlot: BatteryCapacityForecastSlot = {
+            ...flow,
             source: "forecast",
             timestamp: slot.timestamp,
             endsAt: _computeSlotEnd(slot.timestamp, slot.durationHours),
@@ -209,16 +238,32 @@ function _groupForecastSlotsByDay(
     return dayMap;
 }
 
-function _buildActualSlot(actual: BatteryCapacityActualHourDTO): BatteryCapacityForecastSlot {
+function _buildActualSlot(
+    actual: BatteryCapacityActualHourDTO,
+    nominalCapacityKwh: number | null,
+): BatteryCapacityForecastSlot {
+    const flow = buildActualSocBatterySlotFlow({
+        startSocPct: actual.startSocPct,
+        endSocPct: actual.socPct,
+        nominalCapacityKwh,
+    });
+    const chargedKwh = flow.flowDirection === "charge" && flow.flowMagnitudeKwh !== null
+        ? flow.flowMagnitudeKwh
+        : 0;
+    const dischargedKwh = flow.flowDirection === "discharge" && flow.flowMagnitudeKwh !== null
+        ? flow.flowMagnitudeKwh
+        : 0;
+
     return {
+        ...flow,
         source: "actual",
         timestamp: actual.timestamp,
         endsAt: _computeSlotEnd(actual.timestamp, 1),
         durationHours: 1,
         startSocPct: actual.startSocPct,
         socPct: actual.socPct,
-        chargedKwh: 0,
-        dischargedKwh: 0,
+        chargedKwh,
+        dischargedKwh,
         importedFromGridKwh: 0,
         exportedToGridKwh: 0,
         hitMinSoc: false,
@@ -230,6 +275,7 @@ function _buildActualSlot(actual: BatteryCapacityActualHourDTO): BatteryCapacity
 
 function _buildGapSlot(timestamp: string): BatteryCapacityForecastSlot {
     return {
+        ...buildEmptyBatterySlotFlow(),
         source: "gap",
         timestamp,
         endsAt: _computeSlotEnd(timestamp, 1),
