@@ -88,6 +88,61 @@ export const nodeDetailSharedStyles = css`
         gap: 8px;
     }
 
+    .forecast-switch-header {
+        display: flex;
+        width: 100%;
+    }
+
+    .forecast-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 2px;
+        width: 100%;
+        padding: 2px;
+        border: 1px solid var(--divider-color);
+        border-radius: 999px;
+        background: var(--secondary-background-color);
+    }
+
+    .forecast-switch-button {
+        appearance: none;
+        min-width: 0;
+        min-height: 2.5rem;
+        padding: 6px 10px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--secondary-text-color);
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-align: center;
+        white-space: normal;
+        cursor: pointer;
+        transition:
+            background 0.15s ease,
+            border-color 0.15s ease,
+            color 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .forecast-switch-button:hover {
+        color: var(--primary-text-color);
+    }
+
+    .forecast-switch-button:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    .forecast-switch-button.active {
+        border-color: var(--primary-color);
+        background: var(--primary-color);
+        color: var(--text-primary-color, #fff);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+
     .forecast-list {
         display: flex;
         flex-direction: column;

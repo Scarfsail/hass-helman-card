@@ -95,8 +95,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             }
 
             .unified-day-section + .unified-day-section {
-                padding-top: 6px;
-                border-top: 1px solid color-mix(in srgb, var(--divider-color) 72%, transparent);
+                padding-top: 4px;
             }
 
             .forecast-day-gauge.house {
@@ -152,7 +151,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 }
 
                 .unified-forecast-root.density-compact .unified-day-section + .unified-day-section {
-                    padding-top: 4px;
+                    padding-top: 3px;
                 }
 
                 .unified-forecast-root.density-compact .forecast-day-gauge {
@@ -188,6 +187,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     @property({ attribute: false }) public forecast: ForecastPayload | null = null;
     @property({ attribute: false }) public sectionVisibility: HelmanForecastSectionVisibility = EMPTY_SECTION_VISIBILITY;
     @property({ attribute: false }) public mobileDensity: HelmanForecastMobileDensity = "comfortable";
+    @property({ type: Boolean }) public showSectionTitle = true;
 
     @state() private _selectedDayKey: string | null = null;
 
@@ -243,7 +243,9 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         return html`
             <div class=${["unified-forecast-root", `density-${this.mobileDensity}`].join(" ")}>
                 <div class="forecast-section">
-                    <div class="section-title">${this.localize("node_detail.forecast_detail.title")}</div>
+                    ${this.showSectionTitle ? html`
+                        <div class="section-title">${this.localize("node_detail.forecast_detail.title")}</div>
+                    ` : nothing}
                     ${statusNote !== null ? html`
                         <div class="forecast-status-note">${statusNote}</div>
                     ` : nothing}
@@ -329,12 +331,14 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _renderBatteryOverviewSection(battery: UnifiedBatteryOverviewModel) {
+        const title = `${this.localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this.localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
+
         return html`
             <div class="unified-day-section">
                 <div class="forecast-day-chart-row" aria-hidden="true">
                     <div
                         class="forecast-day-chart-track ${battery.miniChartBars.length === 0 ? "empty" : ""}"
-                        title=${`${this.localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this.localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`}
+                        title=${title}
                     >
                         ${battery.miniChartBars.map((bar) => html`
                             <span
@@ -343,6 +347,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                             ></span>
                         `)}
                     </div>
+                </div>
+                <div class="forecast-day-range-line" title=${title}>
+                    <span class="forecast-day-range-value">${this._formatSocWithUnit(battery.endSocPct)}</span>
+                    <span class="forecast-day-price-separator" aria-hidden="true">/</span>
+                    <span>${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}</span>
                 </div>
             </div>
         `;

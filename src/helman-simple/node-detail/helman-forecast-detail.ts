@@ -116,14 +116,15 @@ export class HelmanForecastDetail extends LitElement {
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
+    @property({ attribute: false }) public forecast: ForecastPayload | null | undefined = undefined;
+    @property({ type: Boolean }) public showSectionTitle = true;
 
     @state() private _forecast: ForecastPayload | null = null;
     @state() private _selectedDayKey: string | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
-        void this._loadInitialForecast();
-        this._startForecastRefreshTimer();
+        this._syncForecastLifecycle();
     }
 
     disconnectedCallback(): void {
@@ -154,6 +155,23 @@ export class HelmanForecastDetail extends LitElement {
         this._forecastModelInputs = nextForecastModelInputs;
     }
 
+    updated(changedProperties: Map<string, unknown>): void {
+        super.updated(changedProperties);
+
+        if (!changedProperties.has("hass") && !changedProperties.has("forecast")) {
+            return;
+        }
+
+        if (changedProperties.has("hass") && this.forecast === undefined) {
+            const previousHass = changedProperties.get("hass") as HomeAssistant | undefined;
+            if (previousHass?.connection !== this.hass?.connection) {
+                this._forecast = null;
+            }
+        }
+
+        this._syncForecastLifecycle();
+    }
+
     render() {
         if (!this._hasConfiguredForecast(this._solarForecast) && !this._hasConfiguredForecast(this._gridForecast)) {
             return nothing;
@@ -168,7 +186,9 @@ export class HelmanForecastDetail extends LitElement {
 
         return html`
             <div class="forecast-section">
-                <div class="section-title">${this.localize("node_detail.forecast_detail.title")}</div>
+                ${this.showSectionTitle ? html`
+                    <div class="section-title">${this.localize("node_detail.forecast_detail.title")}</div>
+                ` : nothing}
                 ${statusNote !== null ? html`
                     <div class="forecast-status-note">${statusNote}</div>
                 ` : nothing}
@@ -1111,20 +1131,40 @@ export class HelmanForecastDetail extends LitElement {
         });
     }
 
+    private get _activeForecast(): ForecastPayload | null {
+        return this.forecast !== undefined ? this.forecast : this._forecast;
+    }
+
     private _hasConfiguredForecast(forecast: SolarForecastDTO | GridForecastDTO | null): boolean {
         return forecast !== null && forecast.status !== "not_configured";
     }
 
     private get _solarForecast(): SolarForecastDTO | null {
-        return this._forecast?.solar ?? null;
+        return this._activeForecast?.solar ?? null;
     }
 
     private get _gridForecast(): GridForecastDTO | null {
-        return this._forecast?.grid ?? null;
+        return this._activeForecast?.grid ?? null;
+    }
+
+    private _syncForecastLifecycle(): void {
+        if (!this.isConnected || !this.hass) {
+            return;
+        }
+
+        if (this.forecast !== undefined) {
+            this._clearForecastRefreshTimer();
+            return;
+        }
+
+        if (this._forecast === null) {
+            void this._loadInitialForecast();
+        }
+        this._startForecastRefreshTimer();
     }
 
     private async _handleLocalHourBoundary(): Promise<void> {
-        if (!this.hass) {
+        if (!this.hass || this.forecast !== undefined) {
             return;
         }
 
@@ -1132,11 +1172,19 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private async _loadInitialForecast(): Promise<void> {
-        if (!this.hass) return;
+        const hass = this.hass;
+        if (!hass || this.forecast !== undefined) return;
+
+        const connection = hass.connection;
         try {
-            this._forecast = await loadForecast(this.hass);
+            const forecast = await loadForecast(hass);
+            if (this.hass?.connection === connection) {
+                this._forecast = forecast;
+            }
         } catch (err) {
-            console.error("helman-forecast-detail: failed to load forecast", err);
+            if (this.hass?.connection === connection) {
+                console.error("helman-forecast-detail: failed to load forecast", err);
+            }
         }
     }
 
@@ -1156,6 +1204,19 @@ export class HelmanForecastDetail extends LitElement {
     }
 
     private async _refreshForecast(): Promise<void> {
-        this._forecast = await refreshForecast(this.hass, this._forecast);
+        if (this.forecast !== undefined) {
+            return;
+        }
+
+        const hass = this.hass;
+        if (!hass) {
+            return;
+        }
+
+        const connection = hass.connection;
+        const forecast = await refreshForecast(hass, this._forecast);
+        if (this.hass?.connection === connection) {
+            this._forecast = forecast;
+        }
     }
 }

@@ -97,14 +97,15 @@ export class HelmanHouseForecastDetail extends LitElement {
 
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
+    @property({ attribute: false }) public forecast: ForecastPayload | null | undefined = undefined;
+    @property({ type: Boolean }) public showSectionTitle = true;
 
     @state() private _forecast: ForecastPayload | null = null;
     @state() private _selectedDayKey: string | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
-        void this._loadInitialForecast();
-        this._startForecastRefreshTimer();
+        this._syncForecastLifecycle();
     }
 
     disconnectedCallback(): void {
@@ -138,6 +139,23 @@ export class HelmanHouseForecastDetail extends LitElement {
         this._modelInputs = next;
     }
 
+    updated(changedProperties: Map<string, unknown>): void {
+        super.updated(changedProperties);
+
+        if (!changedProperties.has("hass") && !changedProperties.has("forecast")) {
+            return;
+        }
+
+        if (changedProperties.has("hass") && this.forecast === undefined) {
+            const previousHass = changedProperties.get("hass") as HomeAssistant | undefined;
+            if (previousHass?.connection !== this.hass?.connection) {
+                this._forecast = null;
+            }
+        }
+
+        this._syncForecastLifecycle();
+    }
+
     render() {
         if (!this.localize) return nothing;
         const houseConsumption = this._houseConsumption;
@@ -150,7 +168,7 @@ export class HelmanHouseForecastDetail extends LitElement {
                 .replace("%d", String(houseConsumption.requiredHistoryDays ?? 14));
             return html`
                 <div class="forecast-section">
-                    <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                    ${this._renderSectionTitle()}
                     <div class="muted">${message}</div>
                 </div>
             `;
@@ -159,7 +177,7 @@ export class HelmanHouseForecastDetail extends LitElement {
         if (houseConsumption.status === "unavailable") {
             return html`
                 <div class="forecast-section">
-                    <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                    ${this._renderSectionTitle()}
                     <div class="muted">${this.localize("node_detail.house_forecast.unavailable")}</div>
                 </div>
             `;
@@ -171,7 +189,7 @@ export class HelmanHouseForecastDetail extends LitElement {
         ) {
             return html`
                 <div class="forecast-section">
-                    <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                    ${this._renderSectionTitle()}
                     <div class="muted">${this.localize("node_detail.house_forecast.no_data")}</div>
                 </div>
             `;
@@ -181,7 +199,7 @@ export class HelmanHouseForecastDetail extends LitElement {
         if (days.length === 0) {
             return html`
                 <div class="forecast-section">
-                    <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                    ${this._renderSectionTitle()}
                     <div class="muted">${this.localize("node_detail.house_forecast.no_data")}</div>
                 </div>
             `;
@@ -191,13 +209,23 @@ export class HelmanHouseForecastDetail extends LitElement {
 
         return html`
             <div class="forecast-section">
-                <div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>
+                ${this._renderSectionTitle()}
                 <div class="forecast-detail-days">
                     ${days.map((day) => this._renderDayCard(day))}
                 </div>
                 ${selectedDay !== null ? this._renderDetailPanel(selectedDay) : nothing}
             </div>
         `;
+    }
+
+    private get _activeForecast(): ForecastPayload | null {
+        return this.forecast !== undefined ? this.forecast : this._forecast;
+    }
+
+    private _renderSectionTitle() {
+        return this.showSectionTitle
+            ? html`<div class="section-title">${this.localize("node_detail.house_forecast.title")}</div>`
+            : nothing;
     }
 
     private _renderDayCard(day: HouseForecastDay) {
@@ -450,7 +478,7 @@ export class HelmanHouseForecastDetail extends LitElement {
     }
 
     private get _houseConsumption(): HouseConsumptionForecastDTO | null {
-        return this._forecast?.house_consumption ?? null;
+        return this._activeForecast?.house_consumption ?? null;
     }
 
     private _buildModelInputs(now: Date): HouseModelInputs {
@@ -579,8 +607,24 @@ export class HelmanHouseForecastDetail extends LitElement {
         });
     }
 
+    private _syncForecastLifecycle(): void {
+        if (!this.isConnected || !this.hass) {
+            return;
+        }
+
+        if (this.forecast !== undefined) {
+            this._clearForecastRefreshTimer();
+            return;
+        }
+
+        if (this._forecast === null) {
+            void this._loadInitialForecast();
+        }
+        this._startForecastRefreshTimer();
+    }
+
     private async _handleLocalHourBoundary(): Promise<void> {
-        if (!this.hass) {
+        if (!this.hass || this.forecast !== undefined) {
             return;
         }
 
@@ -588,11 +632,19 @@ export class HelmanHouseForecastDetail extends LitElement {
     }
 
     private async _loadInitialForecast(): Promise<void> {
-        if (!this.hass) return;
+        const hass = this.hass;
+        if (!hass || this.forecast !== undefined) return;
+
+        const connection = hass.connection;
         try {
-            this._forecast = await loadForecast(this.hass);
+            const forecast = await loadForecast(hass);
+            if (this.hass?.connection === connection) {
+                this._forecast = forecast;
+            }
         } catch (err) {
-            console.error("helman-house-forecast-detail: failed to load forecast", err);
+            if (this.hass?.connection === connection) {
+                console.error("helman-house-forecast-detail: failed to load forecast", err);
+            }
         }
     }
 
@@ -612,6 +664,19 @@ export class HelmanHouseForecastDetail extends LitElement {
     }
 
     private async _refreshForecast(): Promise<void> {
-        this._forecast = await refreshForecast(this.hass, this._forecast);
+        if (this.forecast !== undefined) {
+            return;
+        }
+
+        const hass = this.hass;
+        if (!hass) {
+            return;
+        }
+
+        const connection = hass.connection;
+        const forecast = await refreshForecast(hass, this._forecast);
+        if (this.hass?.connection === connection) {
+            this._forecast = forecast;
+        }
     }
 }

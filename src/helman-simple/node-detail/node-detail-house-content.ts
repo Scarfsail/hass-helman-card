@@ -7,7 +7,7 @@ import type { HouseDetailParams } from "./node-detail-types";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 import "../../helman/power-device";
 import "../../helman/power-house-devices-section";
-import "./helman-house-forecast-detail";
+import "./node-detail-forecast-section";
 
 @customElement("node-detail-house-content")
 export class NodeDetailHouseContent extends LitElement {
@@ -49,10 +49,11 @@ export class NodeDetailHouseContent extends LitElement {
                         .uiConfig=${p.uiConfig}
                     ></power-house-devices-section>
                 ` : nothing}
-                <helman-house-forecast-detail
+                <node-detail-forecast-section
                     .hass=${this.hass}
                     .localize=${this.localize}
-                ></helman-house-forecast-detail>
+                    .nodeType=${p.nodeType}
+                ></node-detail-forecast-section>
             </div>
         `;
     }

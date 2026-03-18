@@ -8,7 +8,7 @@ import type { BatteryDetailParams } from "./node-detail-types";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 import { readKWh } from "./node-detail-utils";
 import "../../helman/power-device";
-import "./helman-battery-forecast-detail";
+import "./node-detail-forecast-section";
 
 const batteryDetailStyles = css`
     .battery-summary {
@@ -141,10 +141,11 @@ export class NodeDetailBatteryContent extends LitElement {
                         </div>
                     </div>
                 </div>
-                <helman-battery-forecast-detail
+                <node-detail-forecast-section
                     .hass=${this.hass}
                     .localize=${this.localize}
-                ></helman-battery-forecast-detail>
+                    .nodeType=${p.nodeType}
+                ></node-detail-forecast-section>
             </div>
         `;
     }
