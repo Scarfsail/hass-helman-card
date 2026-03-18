@@ -348,11 +348,6 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                         `)}
                     </div>
                 </div>
-                <div class="forecast-day-range-line" title=${title}>
-                    <span class="forecast-day-range-value">${this._formatSocWithUnit(battery.endSocPct)}</span>
-                    <span class="forecast-day-price-separator" aria-hidden="true">/</span>
-                    <span>${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}</span>
-                </div>
             </div>
         `;
     }
