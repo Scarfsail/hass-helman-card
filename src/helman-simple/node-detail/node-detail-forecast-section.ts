@@ -3,14 +3,17 @@ import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { HomeAssistant } from "../../../hass-frontend/src/types";
 import type { ForecastPayload } from "../../helman-api";
-import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../../helman/forecast-loader";
 import {
     getUnifiedForecastOverviewConfig,
     type UnifiedForecastOverviewConfig,
     type UnifiedForecastOverviewPreset,
 } from "../../helman-forecast/unified-forecast-visibility";
+import {
+    getSharedForecastOwner,
+    type SharedForecastOwner,
+    type SharedForecastSnapshot,
+} from "../../helman-forecast/shared-forecast-owner";
 import type { LocalizeFunction } from "../../localize/localize";
-import { LocalHourBoundaryController } from "./local-hour-boundary-controller";
 import { nodeDetailSharedStyles } from "./node-detail-shared-styles";
 import type { NodeType } from "./node-detail-types";
 import "../../helman-forecast/helman-unified-forecast-detail";
@@ -26,49 +29,45 @@ const OVERVIEW_PRESET_BY_NODE_TYPE: Record<NodeType, UnifiedForecastOverviewPres
 export class NodeDetailForecastSection extends LitElement {
     static styles = [nodeDetailSharedStyles];
 
-    private _forecastRefreshTimer: number | null = null;
-    private readonly _localHourBoundaryController = new LocalHourBoundaryController(
-        this,
-        () => this.hass?.config.time_zone ?? null,
-        () => this._handleLocalHourBoundary(),
-    );
+    private _forecastOwner?: SharedForecastOwner;
+    private _unsubscribeForecastOwner?: () => void;
 
-    @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: String }) public nodeType!: NodeType;
 
+    @state() private _hass?: HomeAssistant;
     @state() private _forecast: ForecastPayload | null = null;
     @state() private _isForecastLoading = false;
     @state() private _forecastLoadFailed = false;
 
+    public get hass(): HomeAssistant | undefined {
+        return this._hass;
+    }
+
+    public set hass(value: HomeAssistant | undefined) {
+        const shouldReloadForecast = this._hass?.connection !== value?.connection;
+        this._hass = value;
+        if (shouldReloadForecast) {
+            this._detachForecastOwner();
+            this._resetForecastState();
+        }
+        if (this.isConnected) {
+            this._syncForecastOwner();
+        }
+    }
+
     connectedCallback(): void {
         super.connectedCallback();
-        this._ensureForecastLifecycle();
+        this._syncForecastOwner();
     }
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
-        this._clearForecastRefreshTimer();
-    }
-
-    updated(changedProperties: Map<string, unknown>): void {
-        super.updated(changedProperties);
-
-        if (!changedProperties.has("hass")) {
-            return;
-        }
-
-        const previousHass = changedProperties.get("hass") as HomeAssistant | undefined;
-        if (previousHass?.connection !== this.hass?.connection) {
-            this._forecast = null;
-            this._isForecastLoading = false;
-            this._forecastLoadFailed = false;
-        }
-        this._ensureForecastLifecycle();
+        this._detachForecastOwner();
     }
 
     render() {
-        if (!this.hass || !this.localize || !this.nodeType) {
+        if (!this._hass || !this.localize || !this.nodeType) {
             return nothing;
         }
 
@@ -77,7 +76,7 @@ export class NodeDetailForecastSection extends LitElement {
         return html`
             <div class="forecast-section">
                 <helman-unified-forecast-detail
-                    .hass=${this.hass}
+                    .hass=${this._hass}
                     .localize=${this.localize}
                     .forecast=${this._forecast}
                     .loading=${this._isForecastLoading}
@@ -94,82 +93,41 @@ export class NodeDetailForecastSection extends LitElement {
         return getUnifiedForecastOverviewConfig(OVERVIEW_PRESET_BY_NODE_TYPE[this.nodeType]);
     }
 
-    private _ensureForecastLifecycle(): void {
-        if (!this.hass) {
-            return;
-        }
-
-        if (this._forecast === null && !this._isForecastLoading) {
-            void this._loadInitialForecast();
-        }
-        this._startForecastRefreshTimer();
-    }
-
-    private async _handleLocalHourBoundary(): Promise<void> {
-        if (!this.hass) {
-            return;
-        }
-
-        await this._refreshForecast();
-    }
-
-    private async _loadInitialForecast(): Promise<void> {
-        const hass = this.hass;
-        if (!hass) {
-            return;
-        }
-
-        const connection = hass.connection;
-        this._isForecastLoading = true;
+    private _resetForecastState(): void {
+        this._forecast = null;
+        this._isForecastLoading = false;
         this._forecastLoadFailed = false;
-        try {
-            const forecast = await loadForecast(hass);
-            if (this.hass?.connection === connection) {
-                this._forecast = forecast;
-                this._forecastLoadFailed = false;
-            }
-        } catch (err) {
-            if (this.hass?.connection === connection) {
-                this._forecastLoadFailed = true;
-                console.error("node-detail-forecast-section: failed to load forecast", err);
-            }
-        } finally {
-            if (this.hass?.connection === connection) {
-                this._isForecastLoading = false;
-            }
-        }
     }
 
-    private _startForecastRefreshTimer(): void {
-        if (this._forecastRefreshTimer !== null) {
+    private _syncForecastOwner(): void {
+        const hass = this._hass;
+        if (!this.isConnected || !hass) {
             return;
         }
 
-        this._forecastRefreshTimer = window.setInterval(() => {
-            if (!this.hass) {
-                return;
-            }
-            void this._refreshForecast();
-        }, FORECAST_REFRESH_MS);
-    }
-
-    private _clearForecastRefreshTimer(): void {
-        if (this._forecastRefreshTimer !== null) {
-            window.clearInterval(this._forecastRefreshTimer);
-            this._forecastRefreshTimer = null;
-        }
-    }
-
-    private async _refreshForecast(): Promise<void> {
-        const hass = this.hass;
-        if (!hass) {
+        const owner = getSharedForecastOwner(hass);
+        if (this._forecastOwner === owner) {
+            this._applyForecastSnapshot(owner.getSnapshot());
             return;
         }
 
-        const connection = hass.connection;
-        const forecast = await refreshForecast(hass, this._forecast);
-        if (this.hass?.connection === connection) {
-            this._forecast = forecast;
-        }
+        this._detachForecastOwner();
+        this._forecastOwner = owner;
+        this._applyForecastSnapshot(owner.getSnapshot());
+        this._unsubscribeForecastOwner = owner.subscribe((snapshot) => {
+            this._applyForecastSnapshot(snapshot);
+        });
+    }
+
+    private _detachForecastOwner(): void {
+        this._unsubscribeForecastOwner?.();
+        this._unsubscribeForecastOwner = undefined;
+        this._forecastOwner = undefined;
+    }
+
+    private _applyForecastSnapshot(snapshot: SharedForecastSnapshot): void {
+        this._forecast = snapshot.forecast;
+        this._isForecastLoading = snapshot.loading;
+        this._forecastLoadFailed = snapshot.loadFailed;
     }
 }

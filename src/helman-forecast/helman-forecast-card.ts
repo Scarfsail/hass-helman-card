@@ -3,12 +3,15 @@ import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import type { ForecastPayload } from "../helman-api";
-import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../helman/forecast-loader";
 import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize";
-import { LocalHourBoundaryController } from "../helman-simple/node-detail/local-hour-boundary-controller";
 import {
     type HelmanForecastCardConfig,
 } from "./HelmanForecastCardConfig";
+import {
+    getSharedForecastOwner,
+    type SharedForecastOwner,
+    type SharedForecastSnapshot,
+} from "./shared-forecast-owner";
 import {
     getUnifiedForecastOverviewConfig,
     normalizeUnifiedForecastOverviewConfig,
@@ -88,12 +91,8 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     // 3. Private properties
     private _config!: HelmanForecastCardConfig;
     private _localize?: LocalizeFunction;
-    private _forecastRefreshTimer: number | null = null;
-    private readonly _localHourBoundaryController = new LocalHourBoundaryController(
-        this,
-        () => this._hass?.config.time_zone ?? null,
-        () => this._handleLocalHourBoundary(),
-    );
+    private _forecastOwner?: SharedForecastOwner;
+    private _unsubscribeForecastOwner?: () => void;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
@@ -109,12 +108,11 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
             this._localize = getLocalizeFunction(value);
         }
         if (shouldReloadForecast) {
-            this._forecast = null;
-            this._isForecastLoading = false;
-            this._forecastLoadFailed = false;
+            this._detachForecastOwner();
+            this._resetForecastState();
         }
         if (this.isConnected) {
-            this._ensureForecastLifecycle();
+            this._syncForecastOwner();
         }
     }
 
@@ -140,12 +138,12 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     // 9. Lifecycle methods
     connectedCallback(): void {
         super.connectedCallback();
-        this._ensureForecastLifecycle();
+        this._syncForecastOwner();
     }
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
-        this._clearForecastRefreshTimer();
+        this._detachForecastOwner();
     }
 
     // 10. Render method
@@ -174,17 +172,6 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     }
 
     // Private helper methods
-    private _ensureForecastLifecycle(): void {
-        if (!this._hass) {
-            return;
-        }
-
-        if (this._forecast === null && !this._isForecastLoading) {
-            void this._loadInitialForecast();
-        }
-        this._startForecastRefreshTimer();
-    }
-
     private _getOverviewConfig(): UnifiedForecastOverviewConfig {
         return normalizeUnifiedForecastOverviewConfig({
             solarGauge: this._config.show_solar_gauge !== false,
@@ -197,72 +184,42 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
         });
     }
 
-    private async _handleLocalHourBoundary(): Promise<void> {
-        if (!this._hass) {
-            return;
-        }
-
-        await this._refreshForecast();
-    }
-
-    private async _loadInitialForecast(): Promise<void> {
-        const hass = this._hass;
-        if (!hass) {
-            return;
-        }
-
-        const connection = hass.connection;
-        this._isForecastLoading = true;
+    private _resetForecastState(): void {
+        this._forecast = null;
+        this._isForecastLoading = false;
         this._forecastLoadFailed = false;
-        try {
-            const forecast = await loadForecast(hass);
-            if (this._hass?.connection === connection) {
-                this._forecast = forecast;
-                this._forecastLoadFailed = false;
-            }
-        } catch (err) {
-            if (this._hass?.connection === connection) {
-                this._forecastLoadFailed = true;
-                console.error("helman-forecast-card: failed to load forecast", err);
-            }
-        } finally {
-            if (this._hass?.connection === connection) {
-                this._isForecastLoading = false;
-            }
-        }
     }
 
-    private _startForecastRefreshTimer(): void {
-        if (this._forecastRefreshTimer !== null) {
-            return;
-        }
-
-        this._forecastRefreshTimer = window.setInterval(() => {
-            if (!this._hass) {
-                return;
-            }
-            void this._refreshForecast();
-        }, FORECAST_REFRESH_MS);
-    }
-
-    private _clearForecastRefreshTimer(): void {
-        if (this._forecastRefreshTimer !== null) {
-            window.clearInterval(this._forecastRefreshTimer);
-            this._forecastRefreshTimer = null;
-        }
-    }
-
-    private async _refreshForecast(): Promise<void> {
+    private _syncForecastOwner(): void {
         const hass = this._hass;
-        if (!hass) {
+        if (!this.isConnected || !hass) {
             return;
         }
 
-        const connection = hass.connection;
-        const forecast = await refreshForecast(hass, this._forecast);
-        if (this._hass?.connection === connection) {
-            this._forecast = forecast;
+        const owner = getSharedForecastOwner(hass);
+        if (this._forecastOwner === owner) {
+            this._applyForecastSnapshot(owner.getSnapshot());
+            return;
         }
+
+        this._detachForecastOwner();
+        this._forecastOwner = owner;
+        this._applyForecastSnapshot(owner.getSnapshot());
+        this._unsubscribeForecastOwner = owner.subscribe((snapshot) => {
+            this._applyForecastSnapshot(snapshot);
+        });
+    }
+
+    private _detachForecastOwner(): void {
+        this._unsubscribeForecastOwner?.();
+        this._unsubscribeForecastOwner = undefined;
+        this._forecastOwner = undefined;
+    }
+
+    private _applyForecastSnapshot(snapshot: SharedForecastSnapshot): void {
+        this._forecast = snapshot.forecast;
+        this._isForecastLoading = snapshot.loading;
+        this._forecastLoadFailed = snapshot.loadFailed;
     }
 }
 
