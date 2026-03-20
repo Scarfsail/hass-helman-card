@@ -2,16 +2,9 @@ import { LitElement, css, html } from "lit-element";
 import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
-import type { ForecastPayload } from "../helman-api";
-import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize";
 import {
     type HelmanForecastCardConfig,
 } from "./HelmanForecastCardConfig";
-import {
-    getSharedForecastOwner,
-    type SharedForecastOwner,
-    type SharedForecastSnapshot,
-} from "./shared-forecast-owner";
 import {
     getUnifiedForecastOverviewConfig,
     normalizeUnifiedForecastOverviewConfig,
@@ -90,30 +83,13 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
 
     // 3. Private properties
     private _config!: HelmanForecastCardConfig;
-    private _localize?: LocalizeFunction;
-    private _forecastOwner?: SharedForecastOwner;
-    private _unsubscribeForecastOwner?: () => void;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
-    @state() private _forecast: ForecastPayload | null = null;
-    @state() private _isForecastLoading = false;
-    @state() private _forecastLoadFailed = false;
 
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
-        const shouldReloadForecast = this._hass?.connection !== value.connection;
         this._hass = value;
-        if (!this._localize) {
-            this._localize = getLocalizeFunction(value);
-        }
-        if (shouldReloadForecast) {
-            this._detachForecastOwner();
-            this._resetForecastState();
-        }
-        if (this.isConnected) {
-            this._syncForecastOwner();
-        }
     }
 
     // 8. HA-specific methods
@@ -135,20 +111,9 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
         };
     }
 
-    // 9. Lifecycle methods
-    connectedCallback(): void {
-        super.connectedCallback();
-        this._syncForecastOwner();
-    }
-
-    disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this._detachForecastOwner();
-    }
-
     // 10. Render method
     render() {
-        if (!this._hass || !this._localize) {
+        if (!this._hass) {
             return html`
                 <ha-card class=${this._config?.transparent_background ? "transparent" : ""}></ha-card>
             `;
@@ -159,10 +124,6 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
                 <div class="card-content">
                     <helman-unified-forecast-detail
                         .hass=${this._hass}
-                        .localize=${this._localize}
-                        .forecast=${this._forecast}
-                        .loading=${this._isForecastLoading}
-                        .loadFailed=${this._forecastLoadFailed}
                         .overviewConfig=${this._getOverviewConfig()}
                         .mobileDensity=${this._config.mobile_density ?? "comfortable"}
                     ></helman-unified-forecast-detail>
@@ -182,44 +143,6 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
             consumptionChart: this._config.show_consumption_chart === true,
             priceChart: this._config.show_price_chart !== false,
         });
-    }
-
-    private _resetForecastState(): void {
-        this._forecast = null;
-        this._isForecastLoading = false;
-        this._forecastLoadFailed = false;
-    }
-
-    private _syncForecastOwner(): void {
-        const hass = this._hass;
-        if (!this.isConnected || !hass) {
-            return;
-        }
-
-        const owner = getSharedForecastOwner(hass);
-        if (this._forecastOwner === owner) {
-            this._applyForecastSnapshot(owner.getSnapshot());
-            return;
-        }
-
-        this._detachForecastOwner();
-        this._forecastOwner = owner;
-        this._applyForecastSnapshot(owner.getSnapshot());
-        this._unsubscribeForecastOwner = owner.subscribe((snapshot) => {
-            this._applyForecastSnapshot(snapshot);
-        });
-    }
-
-    private _detachForecastOwner(): void {
-        this._unsubscribeForecastOwner?.();
-        this._unsubscribeForecastOwner = undefined;
-        this._forecastOwner = undefined;
-    }
-
-    private _applyForecastSnapshot(snapshot: SharedForecastSnapshot): void {
-        this._forecast = snapshot.forecast;
-        this._isForecastLoading = snapshot.loading;
-        this._forecastLoadFailed = snapshot.loadFailed;
     }
 }
 

@@ -4,7 +4,12 @@ import { nothing } from "lit-html";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { ForecastPayload } from "../helman-api";
 import { convertToKWh, getDisplayEnergyUnit } from "../helman/energy-unit-converter";
-import type { LocalizeFunction } from "../localize/localize";
+import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize";
+import {
+    getSharedForecastOwner,
+    type SharedForecastOwner,
+    type SharedForecastSnapshot,
+} from "./shared-forecast-owner";
 import { renderBatteryDetailRow } from "./shared/battery-detail-chart-renderer";
 import {
     formatForecastDayLabel,
@@ -273,11 +278,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             statusOrder: 1,
             getStatus: (forecast) => forecast.solar.status,
             buildDayCardAriaText: (host, day) => day.solar !== null
-                ? `${host.localize("node_detail.forecast_detail.solar_label")} ${host._formatEnergy(day.solar.summaryKwh)}`
+                ? `${host._localize("node_detail.forecast_detail.solar_label")} ${host._formatEnergy(day.solar.summaryKwh)}`
                 : null,
             renderDetailSummary: (host, day) => day.solar !== null
                 ? host._renderSummaryItem(
-                    host.localize("node_detail.forecast_detail.solar_label"),
+                    host._localize("node_detail.forecast_detail.solar_label"),
                     host._formatEnergy(day.solar.summaryKwh),
                 )
                 : nothing,
@@ -293,11 +298,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             statusOrder: 3,
             getStatus: (forecast) => forecast.battery_capacity.status,
             buildDayCardAriaText: (host, day) => day.battery !== null
-                ? `${host.localize("node_detail.battery_forecast.soc_range")} ${host._formatSocRange(day.battery.minSocPct, day.battery.maxSocPct)}`
+                ? `${host._localize("node_detail.battery_forecast.soc_range")} ${host._formatSocRange(day.battery.minSocPct, day.battery.maxSocPct)}`
                 : null,
             renderDetailSummary: (host, day) => day.battery !== null
                 ? host._renderSummaryItem(
-                    host.localize("node_detail.battery_forecast.soc_range"),
+                    host._localize("node_detail.battery_forecast.soc_range"),
                     host._formatSocRange(day.battery.minSocPct, day.battery.maxSocPct),
                 )
                 : nothing,
@@ -305,8 +310,8 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 <div aria-hidden="true">
                     ${renderBatteryDetailRow({
                         detail: context.detail.battery,
-                        rowLabel: host.localize("node_detail.battery_forecast.soc_flow"),
-                        localize: host.localize,
+                        rowLabel: host._localize("node_detail.battery_forecast.soc_flow"),
+                        localize: host._localize,
                         formatHourRange: (start, end) => formatForecastHourRange(
                             start,
                             end,
@@ -328,18 +333,18 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             statusOrder: 4,
             getStatus: (forecast) => forecast.house_consumption.status,
             buildDayCardAriaText: (host, day) => day.house !== null
-                ? `${host.localize("node_detail.house_forecast.title")} ${host._formatEnergy(day.house.baselineDayKwh)}`
+                ? `${host._localize("node_detail.house_forecast.title")} ${host._formatEnergy(day.house.baselineDayKwh)}`
                 : null,
             renderDetailSummary: (host, day) => day.house !== null
                 ? host._renderSummaryItem(
-                    host.localize("node_detail.house_forecast.title"),
+                    host._localize("node_detail.house_forecast.title"),
                     host._formatEnergy(day.house.baselineDayKwh),
                 )
                 : nothing,
             renderDetailRow: (host, context) => context.detail.house !== null ? html`
                 <div aria-hidden="true">
                     ${renderHouseDetailRow({
-                        label: host.localize("node_detail.house_forecast.baseline_detail"),
+                        label: host._localize("node_detail.house_forecast.baseline_detail"),
                         columns: context.detail.house.columns,
                         isPrimary: true,
                         multilineLabel: true,
@@ -362,7 +367,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 : null,
             renderDetailSummary: (host, day) => day.price !== null ? html`
                 <div class="forecast-detail-summary-item">
-                    <span class="forecast-detail-summary-label">${host.localize("node_detail.forecast_detail.price_label")}</span>
+                    <span class="forecast-detail-summary-label">${host._localize("node_detail.forecast_detail.price_label")}</span>
                     <span class="forecast-detail-summary-value">
                         ${host._renderPriceChipLine(day.price.chips, host._getPriceSummaryTitle(day.price), "detail")}
                     </span>
@@ -374,22 +379,56 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         },
     ];
 
+    private _hass?: HomeAssistant;
+    private _localizeFn?: LocalizeFunction;
+    private _forecastOwner?: SharedForecastOwner;
+    private _unsubscribeForecastOwner?: () => void;
     private _currentLocalParts: LocalDateTimeParts | null = null;
     private _forecastModel: UnifiedForecastModel = EMPTY_FORECAST_MODEL;
     private _detailModel: UnifiedForecastDetailModel | null = null;
     private _modelInputs?: UnifiedForecastModelInputs;
 
-    @property({ attribute: false }) public hass!: HomeAssistant;
-    @property({ attribute: false }) public localize!: LocalizeFunction;
-    @property({ attribute: false }) public forecast: ForecastPayload | null = null;
+    public get hass(): HomeAssistant {
+        return this._hass!;
+    }
+
+    public set hass(value: HomeAssistant | undefined) {
+        const previous = this._hass;
+        const shouldReloadForecast = previous?.connection !== value?.connection;
+        this._hass = value;
+        this._localizeFn = value ? getLocalizeFunction(value) : undefined;
+
+        if (shouldReloadForecast) {
+            this._detachForecastOwner();
+            this._resetForecastState();
+        }
+
+        if (this.isConnected) {
+            this._syncForecastOwner();
+        }
+
+        this.requestUpdate("hass", previous);
+    }
+
     @property({ attribute: false }) public overviewConfig: UnifiedForecastOverviewConfig = DEFAULT_OVERVIEW_CONFIG;
     @property({ attribute: false }) public mobileDensity: HelmanForecastMobileDensity = "comfortable";
     @property({ type: Boolean }) public showSectionTitle = true;
-    @property({ type: Boolean }) public loading = false;
-    @property({ type: Boolean }) public loadFailed = false;
 
+    @state() private _forecast: ForecastPayload | null = null;
+    @state() private _isForecastLoading = false;
+    @state() private _forecastLoadFailed = false;
     @state() private _selectedDayKey: string | null = null;
     @state() private _isHouseBreakdownExpanded = false;
+
+    connectedCallback(): void {
+        super.connectedCallback();
+        this._syncForecastOwner();
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        this._detachForecastOwner();
+    }
 
     willUpdate(changedProperties: Map<string, unknown>): void {
         super.willUpdate(changedProperties);
@@ -405,7 +444,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
         const chartContext = this._buildChartContext(now);
         this._forecastModel = buildUnifiedForecastModel({
-            forecast: this.forecast,
+            forecast: this._forecast,
             chartContext,
             sectionVisibility: nextInputs.sectionVisibility,
             chartSectionVisibility: nextInputs.chartSectionVisibility,
@@ -445,14 +484,14 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     render() {
-        if (!this.hass || !this.localize) {
+        if (!this.hass) {
             return nothing;
         }
 
-        if (this.forecast === null) {
-            const message = this.loadFailed && !this.loading
-                ? this.localize("node_detail.forecast_detail.forecast_unavailable")
-                : this.localize("card.loading");
+        if (this._forecast === null) {
+            const message = this._forecastLoadFailed && !this._isForecastLoading
+                ? this._localize("node_detail.forecast_detail.forecast_unavailable")
+                : this._localize("card.loading");
             return this._renderForecastSection(html`
                 <div class="muted">${message}</div>
             `);
@@ -485,7 +524,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             <div class=${["unified-forecast-root", `density-${this.mobileDensity}`].join(" ")}>
                 <div class="forecast-section">
                     ${this.showSectionTitle ? html`
-                        <div class="section-title">${this.localize("node_detail.forecast_detail.title")}</div>
+                        <div class="section-title">${this._localize("node_detail.forecast_detail.title")}</div>
                     ` : nothing}
                     ${statusNote !== null ? html`
                         <div class="forecast-status-note">${statusNote}</div>
@@ -503,7 +542,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         const canExpand = this._canExpandDay(day, overviewConfig);
         const isExpanded = canExpand && this._selectedDayKey === day.dayKey;
         const dayLabel = this._formatDayLabel(day);
-        const detailLabel = this.localize("node_detail.forecast_detail.hourly_detail");
+        const detailLabel = this._localize("node_detail.forecast_detail.hourly_detail");
         const summaryContent = html`
             <div class="forecast-day-header">
                 <div class="forecast-day-label">${dayLabel}</div>
@@ -588,7 +627,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _renderBatteryGauge(battery: UnifiedBatteryOverviewModel) {
-        const title = `${this.localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this.localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
+        const title = `${this._localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this._localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
 
         return html`
             <div class="unified-day-section">
@@ -608,7 +647,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _renderBatteryChart(battery: UnifiedBatteryOverviewModel) {
-        const title = `${this.localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this.localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
+        const title = `${this._localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this._localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
 
         return html`
             <div class="unified-day-section">
@@ -630,7 +669,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _renderConsumptionGauge(house: UnifiedHouseOverviewModel) {
-        const title = `${this.localize("node_detail.house_forecast.baseline")}: ${this._formatEnergy(house.baselineDayKwh)}`;
+        const title = `${this._localize("node_detail.house_forecast.baseline")}: ${this._formatEnergy(house.baselineDayKwh)}`;
 
         return html`
             <div class="unified-day-section">
@@ -732,7 +771,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             : null;
         const formatEnergy = this._formatEnergy.bind(this);
         const formatHouseHour = (timestamp: string) => formatForecastHour(timestamp, this._locale, this.hass.config.time_zone);
-        const noDataLabel = this.localize("node_detail.house_forecast.no_data");
+        const noDataLabel = this._localize("node_detail.house_forecast.no_data");
         const hasBreakdown = detailVisibility.house && (detail.house?.hasBreakdown ?? false);
         const breakdownRows = detail.house?.breakdownRows ?? [];
         const showBreakdown = hasBreakdown && this._isHouseBreakdownExpanded;
@@ -751,12 +790,12 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                 id=${UNIFIED_FORECAST_DETAIL_PANEL_ID}
                 class="forecast-detail-panel"
                 role="region"
-                aria-label=${`${dayLabel}. ${this.localize("node_detail.forecast_detail.hourly_detail")}`}
+                aria-label=${`${dayLabel}. ${this._localize("node_detail.forecast_detail.hourly_detail")}`}
             >
                 <div class="forecast-detail-panel-header">
                     <div class="forecast-detail-panel-heading">
                         <div class="forecast-detail-panel-title">${dayLabel}</div>
-                        <div class="forecast-detail-panel-subtitle">${this.localize("node_detail.forecast_detail.hourly_detail")}</div>
+                        <div class="forecast-detail-panel-subtitle">${this._localize("node_detail.forecast_detail.hourly_detail")}</div>
                     </div>
                     <div class="forecast-detail-summary">
                         ${detailSummarySections.map((definition) => definition.renderDetailSummary(this, day))}
@@ -771,13 +810,13 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                         expanded: showBreakdown,
                         controlsId: `${UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID} ${UNIFIED_HOUSE_BREAKDOWN_ROWS_ID}`,
                         onToggle: this._toggleHouseBreakdown.bind(this),
-                        showLabel: this.localize("node_detail.house_forecast.show_deferrables"),
-                        hideLabel: this.localize("node_detail.house_forecast.hide_deferrables"),
+                        showLabel: this._localize("node_detail.house_forecast.show_deferrables"),
+                        hideLabel: this._localize("node_detail.house_forecast.hide_deferrables"),
                     }) : nothing}
                     <div id=${UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID} ?hidden=${!showBreakdown}>
                         ${showBreakdown && detail.house !== null ? html`
                             <div class="unified-breakdown-summary">
-                                <div class="unified-breakdown-title">${this.localize("node_detail.house_forecast.deferrables")}</div>
+                                <div class="unified-breakdown-title">${this._localize("node_detail.house_forecast.deferrables")}</div>
                                 ${renderHouseBreakdownSummary({
                                     items: detail.house.breakdownSummaryItems,
                                     formatEnergy,
@@ -821,7 +860,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
         return html`
             <div class="forecast-detail-row">
-                <div class="forecast-detail-row-label">${this.localize("node_detail.forecast_detail.solar_label")}</div>
+                <div class="forecast-detail-row-label">${this._localize("node_detail.forecast_detail.solar_label")}</div>
                 <div class=${trackClass}>
                     ${detail.columns.map((column) => this._renderSolarDetailColumn(column))}
                 </div>
@@ -832,12 +871,12 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     private _renderSolarDetailColumn(column: UnifiedSolarDetailColumnModel) {
         const valueLabel = column.value !== null
             ? this._formatEnergy(column.value / 1000)
-            : this.localize("node_detail.forecast_detail.solar_unavailable");
+            : this._localize("node_detail.forecast_detail.solar_unavailable");
 
         return html`
             <div
                 class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""} ${column.source}"
-                title=${`${formatForecastHour(column.timestamp, this._locale, this.hass.config.time_zone)} · ${this.localize("node_detail.forecast_detail.solar_label")} ${valueLabel}`}
+                title=${`${formatForecastHour(column.timestamp, this._locale, this.hass.config.time_zone)} · ${this._localize("node_detail.forecast_detail.solar_label")} ${valueLabel}`}
             >
                 ${column.isMax && column.value !== null ? html`
                     <span class="forecast-detail-highlight top solar">
@@ -865,7 +904,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
         return html`
             <div class="forecast-detail-row">
-                <div class="forecast-detail-row-label">${this.localize("node_detail.forecast_detail.price_label")}</div>
+                <div class="forecast-detail-row-label">${this._localize("node_detail.forecast_detail.price_label")}</div>
                 <div class=${trackClass}>
                     ${detail.columns.map((column) => this._renderPriceDetailColumn(column, detail))}
                 </div>
@@ -879,13 +918,13 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     ) {
         const valueLabel = column.value !== null
             ? this._formatPrice(column.value)
-            : this.localize("node_detail.forecast_detail.price_unavailable");
+            : this._localize("node_detail.forecast_detail.price_unavailable");
         const isSharedHighlight = column.isMin && column.isMax && detail.minColumnIndex === detail.maxColumnIndex;
 
         return html`
             <div
                 class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""}"
-                title=${`${formatForecastHour(column.timestamp, this._locale, this.hass.config.time_zone)} · ${this.localize("node_detail.forecast_detail.price_label")} ${valueLabel}`}
+                title=${`${formatForecastHour(column.timestamp, this._locale, this.hass.config.time_zone)} · ${this._localize("node_detail.forecast_detail.price_label")} ${valueLabel}`}
             >
                 ${column.value !== null && (column.isMax || isSharedHighlight) ? html`
                     <span class="forecast-detail-highlight top ${column.toneClass}">
@@ -923,7 +962,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _buildDayCardAriaLabel(day: UnifiedForecastDayModel, dayLabel: string): string {
-        const parts = [`${this.localize("node_detail.forecast_detail.title")}: ${dayLabel}`];
+        const parts = [`${this._localize("node_detail.forecast_detail.title")}: ${dayLabel}`];
         const sectionVisibility = this._getSectionVisibility();
 
         for (const definition of this._getVisibleSectionDefinitions(sectionVisibility, "ariaOrder")) {
@@ -939,11 +978,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     private _getStatusNote(): string | null {
         const statuses = this._getVisibleStatuses();
         if (statuses.includes("partial")) {
-            return this.localize("node_detail.forecast_detail.partial_note");
+            return this._localize("node_detail.forecast_detail.partial_note");
         }
 
         if (statuses.includes("unavailable") || statuses.includes("insufficient_history")) {
-            return this.localize("node_detail.forecast_detail.unavailable_note");
+            return this._localize("node_detail.forecast_detail.unavailable_note");
         }
 
         return null;
@@ -951,19 +990,19 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
     private _getEmptyMessage(): string {
         if (!this._hasAnyEnabledSection()) {
-            return this.localize("node_detail.forecast_detail.no_sections_enabled");
+            return this._localize("node_detail.forecast_detail.no_sections_enabled");
         }
 
         const statuses = this._getVisibleStatuses();
         if (statuses.includes("available") || statuses.includes("partial")) {
-            return this.localize("node_detail.forecast_detail.no_future_data");
+            return this._localize("node_detail.forecast_detail.no_future_data");
         }
 
-        return this.localize("node_detail.forecast_detail.forecast_unavailable");
+        return this._localize("node_detail.forecast_detail.forecast_unavailable");
     }
 
     private _getVisibleStatuses(): string[] {
-        const forecast = this.forecast;
+        const forecast = this._forecast;
         if (forecast === null) {
             return [];
         }
@@ -985,7 +1024,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             this._getNormalizedOverviewConfig(),
         );
         return {
-            forecast: this.forecast,
+            forecast: this._forecast,
             timeZone,
             locale: this._locale,
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
@@ -995,8 +1034,8 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             chartSectionVisibility,
             selectedDayKey: this._selectedDayKey,
             houseBreakdownExpanded: this._isHouseBreakdownExpanded,
-            batteryMinSoc: this.forecast?.battery_capacity.minSoc ?? null,
-            batteryMaxSoc: this.forecast?.battery_capacity.maxSoc ?? null,
+            batteryMinSoc: this._forecast?.battery_capacity.minSoc ?? null,
+            batteryMaxSoc: this._forecast?.battery_capacity.maxSoc ?? null,
         };
     }
 
@@ -1022,7 +1061,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _buildChartContext(now: Date) {
-        const timeZone = this.hass.config.time_zone;
+        const timeZone = this.hass?.config.time_zone ?? "UTC";
         return {
             currentDayKey: this._currentLocalParts?.dayKey ?? null,
             currentHourKey: getLocalHourKey(now, timeZone),
@@ -1077,7 +1116,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _readRemainingTodayKwh(): number | null | undefined {
-        const entityId = this.forecast?.solar.remainingTodayEnergyEntityId ?? null;
+        const entityId = this._forecast?.solar.remainingTodayEnergyEntityId ?? null;
         if (!entityId) {
             return undefined;
         }
@@ -1115,22 +1154,22 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _getBatteryCoverageNote(battery: UnifiedBatteryOverviewModel): string {
-        const partialReason = this.forecast?.battery_capacity.partialReason ?? null;
-        const reason = this.forecast?.battery_capacity.status === "partial"
+        const partialReason = this._forecast?.battery_capacity.partialReason ?? null;
+        const reason = this._forecast?.battery_capacity.status === "partial"
             ? this._getBatteryPartialNote(partialReason)
             : null;
-        const coverage = `${this.localize("node_detail.battery_forecast.coverage_until")}: ${this._formatTimestamp(battery.coverageEndsAt)}`;
+        const coverage = `${this._localize("node_detail.battery_forecast.coverage_until")}: ${this._formatTimestamp(battery.coverageEndsAt)}`;
         return reason ? `${reason} ${coverage}` : coverage;
     }
 
     private _getBatteryPartialNote(partialReason: string | null): string {
         switch (partialReason) {
             case "missing_current_hour_solar":
-                return this.localize("node_detail.battery_forecast.partial_reason_missing_current_hour_solar");
+                return this._localize("node_detail.battery_forecast.partial_reason_missing_current_hour_solar");
             case "solar_forecast_ended":
-                return this.localize("node_detail.battery_forecast.partial_reason_solar_forecast_ended");
+                return this._localize("node_detail.battery_forecast.partial_reason_solar_forecast_ended");
             default:
-                return this.localize("node_detail.battery_forecast.partial_note");
+                return this._localize("node_detail.battery_forecast.partial_note");
         }
     }
 
@@ -1140,8 +1179,8 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             isToday: day.isToday,
             isTomorrow: day.isTomorrow,
             locale: this._locale,
-            todayLabel: this.localize("node_detail.forecast_detail.today"),
-            tomorrowLabel: this.localize("node_detail.forecast_detail.tomorrow"),
+            todayLabel: this._localize("node_detail.forecast_detail.today"),
+            tomorrowLabel: this._localize("node_detail.forecast_detail.tomorrow"),
         });
     }
 
@@ -1220,21 +1259,21 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _getDisplayPriceUnit(): string | null {
-        return this.forecast?.grid.unit
-            ? this.forecast.grid.unit.replace(/\s*\/\s*/g, " / ")
+        return this._forecast?.grid.unit
+            ? this._forecast.grid.unit.replace(/\s*\/\s*/g, " / ")
             : null;
     }
 
     private _getPriceSummaryTitle(price: UnifiedPriceOverviewModel): string | null {
         const entries: string[] = [];
         if (price.currentPrice !== null) {
-            entries.push(`${this.localize("node_detail.forecast_detail.current_label")} ${this._formatPrice(price.currentPrice)}`);
+            entries.push(`${this._localize("node_detail.forecast_detail.current_label")} ${this._formatPrice(price.currentPrice)}`);
         }
         if (price.priceMin !== null) {
-            entries.push(`${this.localize("node_detail.forecast_detail.price_min")} ${this._formatPrice(price.priceMin)}`);
+            entries.push(`${this._localize("node_detail.forecast_detail.price_min")} ${this._formatPrice(price.priceMin)}`);
         }
         if (price.priceMax !== null) {
-            entries.push(`${this.localize("node_detail.forecast_detail.price_max")} ${this._formatPrice(price.priceMax)}`);
+            entries.push(`${this._localize("node_detail.forecast_detail.price_max")} ${this._formatPrice(price.priceMax)}`);
         }
         return entries.length > 0 ? entries.join(", ") : null;
     }
@@ -1262,7 +1301,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             month: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
-            timeZone: this.hass.config.time_zone ?? "UTC",
+            timeZone: this.hass?.config.time_zone ?? "UTC",
         }).format(date);
     }
 
@@ -1271,7 +1310,49 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         return `${value.toFixed(fractionDigits)} h`;
     }
 
+    private get _localize(): LocalizeFunction {
+        return this._localizeFn ?? getLocalizeFunction(this.hass);
+    }
+
     private get _locale(): string {
-        return this.hass.locale?.language || navigator.language;
+        return this.hass?.locale?.language || navigator.language;
+    }
+
+    private _resetForecastState(): void {
+        this._forecast = null;
+        this._isForecastLoading = false;
+        this._forecastLoadFailed = false;
+    }
+
+    private _syncForecastOwner(): void {
+        const hass = this._hass;
+        if (!this.isConnected || !hass) {
+            return;
+        }
+
+        const owner = getSharedForecastOwner(hass);
+        if (this._forecastOwner === owner) {
+            this._applyForecastSnapshot(owner.getSnapshot());
+            return;
+        }
+
+        this._detachForecastOwner();
+        this._forecastOwner = owner;
+        this._applyForecastSnapshot(owner.getSnapshot());
+        this._unsubscribeForecastOwner = owner.subscribe((snapshot) => {
+            this._applyForecastSnapshot(snapshot);
+        });
+    }
+
+    private _detachForecastOwner(): void {
+        this._unsubscribeForecastOwner?.();
+        this._unsubscribeForecastOwner = undefined;
+        this._forecastOwner = undefined;
+    }
+
+    private _applyForecastSnapshot(snapshot: SharedForecastSnapshot): void {
+        this._forecast = snapshot.forecast;
+        this._isForecastLoading = snapshot.loading;
+        this._forecastLoadFailed = snapshot.loadFailed;
     }
 }
