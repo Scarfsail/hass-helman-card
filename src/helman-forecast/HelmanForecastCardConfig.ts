@@ -14,12 +14,18 @@ export interface HelmanForecastCardConfig extends LovelaceCardConfig {
     transparent_background?: boolean;
     /** Layout density used on narrow screens. Default: "comfortable". */
     mobile_density?: HelmanForecastMobileDensity;
-    /** Show the solar section in each unified day card. Default: true. */
-    show_solar?: boolean;
-    /** Show the battery section in each unified day card. Default: true. */
-    show_battery?: boolean;
-    /** Show the house section in each unified day card. Default: true. */
-    show_house?: boolean;
-    /** Show the price section in each unified day card. Default: true. */
-    show_price?: boolean;
+    /** Show the solar gauge in each unified day card. Default: true. */
+    show_solar_gauge?: boolean;
+    /** Show the solar chart in each unified day card. Default: true. */
+    show_solar_chart?: boolean;
+    /** Show the battery gauge in each unified day card. Default: false. */
+    show_battery_gauge?: boolean;
+    /** Show the battery chart in each unified day card. Default: true. */
+    show_battery_chart?: boolean;
+    /** Show the consumption gauge in each unified day card. Default: false. */
+    show_consumption_gauge?: boolean;
+    /** Show the consumption chart in each unified day card. Default: false. */
+    show_consumption_chart?: boolean;
+    /** Show the price chart in each unified day card. Default: true. */
+    show_price_chart?: boolean;
 }

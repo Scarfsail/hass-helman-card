@@ -147,7 +147,9 @@ Usage notes:
 
 ## House consumption forecast
 
-The current house forecast UI is rendered in the house detail of `custom:helman-simple-card`.
+House forecast data is rendered through the shared unified forecast UI.
+
+In `custom:helman-simple-card`, each node dialog now uses its own preset overview composition without a forecast mode switch.
 
 It is driven by the shared Helman config under `power_devices.house.forecast`; it is not a dedicated Lovelace YAML option of `custom:helman-simple-card`.
 
@@ -190,26 +192,45 @@ It loads the shared `helman/get_forecast` payload once, then renders a unified f
 - house consumption
 - grid price
 
-Each day card can show the available sections in a single expandable card. Missing sections are hidden entirely, and the expanded detail uses one shared hourly axis for all visible rows.
+By default, the standalone card uses the same overview composition as the solar and grid node dialogs:
+
+- solar gauge
+- solar chart
+- battery chart
+- price chart
+
+The same unified renderer is also used in `custom:helman-simple-card` node dialogs, where each node type has its own preset overview:
+
+- solar and grid: solar gauge, solar chart, battery chart, price chart
+- house: solar gauge, solar chart, battery chart, consumption gauge, consumption chart
+- battery: solar gauge, solar chart, battery gauge, battery chart
+
+Expanded day detail follows the same received config, so only the corresponding forecast rows are shown.
 
 ```yaml
 type: custom:helman-forecast-card
 transparent_background: false
 mobile_density: compact
-show_solar: true
-show_battery: true
-show_house: true
-show_price: true
+show_solar_gauge: true
+show_solar_chart: true
+show_battery_gauge: false
+show_battery_chart: true
+show_consumption_gauge: false
+show_consumption_chart: false
+show_price_chart: true
 ```
 
 Options:
 
 - `transparent_background`: removes card background and shadow.
 - `mobile_density`: `comfortable` (default) or `compact` for tighter narrow-screen spacing.
-- `show_solar`: hide/show the solar section.
-- `show_battery`: hide/show the battery section.
-- `show_house`: hide/show the house section.
-- `show_price`: hide/show the price section.
+- `show_solar_gauge`: hide/show the solar gauge.
+- `show_solar_chart`: hide/show the solar chart.
+- `show_battery_gauge`: hide/show the end-of-day battery SoC gauge.
+- `show_battery_chart`: hide/show the battery chart.
+- `show_consumption_gauge`: hide/show the consumption gauge.
+- `show_consumption_chart`: hide/show the consumption chart.
+- `show_price_chart`: hide/show the price chart.
 
 The standalone forecast card uses the same backend forecast configuration described above for solar, house, battery, and price data. These YAML options only control presentation of the unified Lovelace card.
 

@@ -8,14 +8,6 @@
   },
   "node_detail": {
     "close": "Zavřít",
-    "forecast_switch": {
-      "label": "Zobrazení předpovědi",
-      "overall": "Celková předpověď",
-      "battery": "Předpověď baterie",
-      "house": "Předpověď domu",
-      "solar": "Předpověď soláru",
-      "grid": "Předpověď sítě"
-    },
     "title": {
       "solar":   "Solární panely",
       "battery": "Baterie",

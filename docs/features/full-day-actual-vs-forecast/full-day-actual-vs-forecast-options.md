@@ -26,9 +26,9 @@ That means the UI should be able to show **actual past hours + forecast future h
 - Battery has **no today-padding logic**, so if the backend series starts at the current time, the chart only shows the remaining hours.
 - House detail pads today to 24 hours, but the missing past hours are synthetic zero placeholders, not real actuals.
   - `src/helman-simple/node-detail/house-forecast-detail-model.ts`
-- Solar detail looks like a full day only because the backend already returns forecast points for earlier hours of today.
+- Solar detail looks like a full day only because the backend already returns forecast points for earlier hours of today, and the unified forecast UI reuses that merged day model.
   - `src/helman-simple/node-detail/forecast-detail-model.ts`
-  - `src/helman-simple/node-detail/helman-forecast-detail.ts`
+  - `src/helman-forecast/helman-unified-forecast-detail.ts`
 - The existing actual-history pipeline is **not** suitable for actual-vs-forecast detail charts:
   - `helman/get_history` returns `Record<string, number[]>`
   - frontend stores that as `DeviceNode.powerHistory`
@@ -510,9 +510,9 @@ It solves the battery requirement cleanly and gives us a clear path for house an
 - `src/helman-simple/node-detail/house-forecast-detail-model.ts`
 - `src/helman-simple/node-detail/house-forecast-chart-model.ts`
 - `src/helman-simple/node-detail/forecast-detail-model.ts`
-- `src/helman-simple/node-detail/helman-battery-forecast-detail.ts`
-- `src/helman-simple/node-detail/helman-house-forecast-detail.ts`
-- `src/helman-simple/node-detail/helman-forecast-detail.ts`
+- `src/helman-forecast/unified-forecast-model.ts`
+- `src/helman-forecast/unified-forecast-detail-model.ts`
+- `src/helman-forecast/helman-unified-forecast-detail.ts`
 
 ### Backend
 

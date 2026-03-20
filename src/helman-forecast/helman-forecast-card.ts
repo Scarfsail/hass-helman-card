@@ -8,8 +8,12 @@ import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize
 import { LocalHourBoundaryController } from "../helman-simple/node-detail/local-hour-boundary-controller";
 import {
     type HelmanForecastCardConfig,
-    type HelmanForecastSectionVisibility,
 } from "./HelmanForecastCardConfig";
+import {
+    getUnifiedForecastOverviewConfig,
+    normalizeUnifiedForecastOverviewConfig,
+    type UnifiedForecastOverviewConfig,
+} from "./unified-forecast-visibility";
 import "./helman-unified-forecast-detail";
 
 @customElement("helman-forecast-card")
@@ -36,19 +40,31 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
                     },
                 },
                 {
-                    name: "show_solar",
+                    name: "show_solar_gauge",
                     selector: { boolean: {} },
                 },
                 {
-                    name: "show_battery",
+                    name: "show_solar_chart",
                     selector: { boolean: {} },
                 },
                 {
-                    name: "show_house",
+                    name: "show_battery_gauge",
                     selector: { boolean: {} },
                 },
                 {
-                    name: "show_price",
+                    name: "show_battery_chart",
+                    selector: { boolean: {} },
+                },
+                {
+                    name: "show_consumption_gauge",
+                    selector: { boolean: {} },
+                },
+                {
+                    name: "show_consumption_chart",
+                    selector: { boolean: {} },
+                },
+                {
+                    name: "show_price_chart",
                     selector: { boolean: {} },
                 },
             ],
@@ -82,6 +98,8 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     // 5. State properties
     @state() private _hass?: HomeAssistant;
     @state() private _forecast: ForecastPayload | null = null;
+    @state() private _isForecastLoading = false;
+    @state() private _forecastLoadFailed = false;
 
     // 7. HA-specific property setter
     public set hass(value: HomeAssistant) {
@@ -92,6 +110,8 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
         }
         if (shouldReloadForecast) {
             this._forecast = null;
+            this._isForecastLoading = false;
+            this._forecastLoadFailed = false;
         }
         if (this.isConnected) {
             this._ensureForecastLifecycle();
@@ -102,13 +122,17 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     getCardSize() { return 4; }
 
     setConfig(config: HelmanForecastCardConfig) {
+        const defaultOverviewConfig = getUnifiedForecastOverviewConfig("solar");
         this._config = {
             transparent_background: false,
             mobile_density: "comfortable",
-            show_solar: true,
-            show_battery: true,
-            show_house: true,
-            show_price: true,
+            show_solar_gauge: defaultOverviewConfig.solarGauge,
+            show_solar_chart: defaultOverviewConfig.solarChart,
+            show_battery_gauge: defaultOverviewConfig.batteryGauge,
+            show_battery_chart: defaultOverviewConfig.batteryChart,
+            show_consumption_gauge: defaultOverviewConfig.consumptionGauge,
+            show_consumption_chart: defaultOverviewConfig.consumptionChart,
+            show_price_chart: defaultOverviewConfig.priceChart,
             ...config,
         };
     }
@@ -139,7 +163,9 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
                         .hass=${this._hass}
                         .localize=${this._localize}
                         .forecast=${this._forecast}
-                        .sectionVisibility=${this._getSectionVisibility()}
+                        .loading=${this._isForecastLoading}
+                        .loadFailed=${this._forecastLoadFailed}
+                        .overviewConfig=${this._getOverviewConfig()}
                         .mobileDensity=${this._config.mobile_density ?? "comfortable"}
                     ></helman-unified-forecast-detail>
                 </div>
@@ -153,19 +179,22 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
             return;
         }
 
-        if (this._forecast === null) {
+        if (this._forecast === null && !this._isForecastLoading) {
             void this._loadInitialForecast();
         }
         this._startForecastRefreshTimer();
     }
 
-    private _getSectionVisibility(): HelmanForecastSectionVisibility {
-        return {
-            solar: this._config.show_solar !== false,
-            battery: this._config.show_battery !== false,
-            house: this._config.show_house !== false,
-            price: this._config.show_price !== false,
-        };
+    private _getOverviewConfig(): UnifiedForecastOverviewConfig {
+        return normalizeUnifiedForecastOverviewConfig({
+            solarGauge: this._config.show_solar_gauge !== false,
+            solarChart: this._config.show_solar_chart !== false,
+            batteryGauge: this._config.show_battery_gauge === true,
+            batteryChart: this._config.show_battery_chart !== false,
+            consumptionGauge: this._config.show_consumption_gauge === true,
+            consumptionChart: this._config.show_consumption_chart === true,
+            priceChart: this._config.show_price_chart !== false,
+        });
     }
 
     private async _handleLocalHourBoundary(): Promise<void> {
@@ -183,14 +212,22 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
         }
 
         const connection = hass.connection;
+        this._isForecastLoading = true;
+        this._forecastLoadFailed = false;
         try {
             const forecast = await loadForecast(hass);
             if (this._hass?.connection === connection) {
                 this._forecast = forecast;
+                this._forecastLoadFailed = false;
             }
         } catch (err) {
             if (this._hass?.connection === connection) {
+                this._forecastLoadFailed = true;
                 console.error("helman-forecast-card: failed to load forecast", err);
+            }
+        } finally {
+            if (this._hass?.connection === connection) {
+                this._isForecastLoading = false;
             }
         }
     }
