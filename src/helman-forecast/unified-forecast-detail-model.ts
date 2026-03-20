@@ -1,42 +1,42 @@
 import type { ForecastPointDTO } from "../helman-api";
-import { buildEmptyBatterySlotFlow } from "../helman-simple/node-detail/battery-capacity-flow";
+import { buildEmptyBatterySlotFlow } from "./shared/battery-capacity-flow";
 import type {
     BatteryCapacityForecastDay,
     BatteryCapacityForecastSlot,
-} from "../helman-simple/node-detail/battery-capacity-forecast-detail-model";
+} from "./shared/battery-capacity-forecast-detail-model";
 import {
     buildBatteryDetailChartModel,
     type BatteryDetailChartModel,
-} from "../helman-simple/node-detail/battery-capacity-forecast-chart-model";
+} from "./shared/battery-capacity-forecast-chart-model";
 import type {
     ForecastDetailDayModel,
     ForecastSolarHourPoint,
-} from "../helman-simple/node-detail/forecast-detail-model";
+} from "./shared/forecast-detail-model";
 import {
     type ForecastChartBuildContext,
     normalizeForecastBarHeight,
-} from "../helman-simple/node-detail/forecast-chart-shared";
+} from "./shared/forecast-chart-shared";
 import type {
     HouseForecastDay,
     HouseForecastHour,
     type ConsumerDayTotal,
-} from "../helman-simple/node-detail/house-forecast-detail-model";
+} from "./shared/house-forecast-detail-model";
 import {
     buildHouseDeferrableBreakdownRows,
     buildHouseDetailColumns,
     type HouseBreakdownRowModel,
     type HouseDetailColumnModel,
-} from "../helman-simple/node-detail/house-forecast-chart-model";
+} from "./shared/house-forecast-chart-model";
 import {
     getForecastPriceToneClass,
     type ForecastPriceToneClass,
-} from "../helman-simple/node-detail/forecast-render-helpers";
+} from "./shared/forecast-render-helpers";
 import {
     alignPointsToSharedAxis,
     buildSharedForecastAxis,
     projectIntervalsToSharedAxis,
     type SharedForecastAxis,
-} from "../helman-simple/node-detail/shared-forecast-axis";
+} from "./shared/shared-forecast-axis";
 import type { UnifiedForecastDayModel } from "./unified-forecast-model";
 
 interface UnifiedSolarPointProjection {

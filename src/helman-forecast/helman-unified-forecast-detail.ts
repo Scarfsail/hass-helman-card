@@ -5,24 +5,24 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { ForecastPayload } from "../helman-api";
 import { convertToKWh, getDisplayEnergyUnit } from "../helman/energy-unit-converter";
 import type { LocalizeFunction } from "../localize/localize";
-import { renderBatteryDetailRow } from "../helman-simple/node-detail/battery-detail-chart-renderer";
+import { renderBatteryDetailRow } from "./shared/battery-detail-chart-renderer";
 import {
     formatForecastDayLabel,
     formatForecastHour,
     formatForecastHourRange,
     getForecastConsumerColorMix,
-} from "../helman-simple/node-detail/forecast-render-helpers";
+} from "./shared/forecast-render-helpers";
 import {
     renderHouseBreakdownDisclosureRow,
     renderHouseBreakdownSummary,
     renderHouseDetailRow,
-} from "../helman-simple/node-detail/house-detail-chart-renderer";
+} from "./shared/house-detail-chart-renderer";
 import {
     getCachedLocalDateTimeParts,
     type LocalDateTimeParts,
-} from "../helman-simple/node-detail/local-date-time-parts-cache";
-import { getLocalHourKey } from "../helman-simple/node-detail/local-day-hour-axis";
-import { nodeDetailSharedStyles } from "../helman-simple/node-detail/node-detail-shared-styles";
+} from "./shared/local-date-time-parts-cache";
+import { getLocalHourKey } from "./shared/local-day-hour-axis";
+import { forecastSharedStyles } from "./shared/forecast-shared-styles";
 import type {
     HelmanForecastMobileDensity,
     HelmanForecastSectionVisibility,
@@ -83,7 +83,7 @@ const EMPTY_FORECAST_MODEL: UnifiedForecastModel = {
 @customElement("helman-unified-forecast-detail")
 export class HelmanUnifiedForecastDetail extends LitElement {
     static styles = [
-        nodeDetailSharedStyles,
+        forecastSharedStyles,
         css`
             .unified-forecast-root {
                 display: flex;
@@ -175,9 +175,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                     height: 14px;
                 }
 
-                .unified-forecast-root.density-compact .forecast-day-price-line,
-                .unified-forecast-root.density-compact .forecast-day-range-line,
-                .unified-forecast-root.density-compact .forecast-day-secondary-metric {
+                .unified-forecast-root.density-compact .forecast-day-price-line {
                     --forecast-day-price-font-size: 0.68rem;
                     font-size: 0.68rem;
                 }

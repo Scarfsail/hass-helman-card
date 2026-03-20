@@ -1,7 +1,7 @@
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { ForecastPayload } from "../helman-api";
 import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../helman/forecast-loader";
-import { getLocalHourKey } from "../helman-simple/node-detail/local-day-hour-axis";
+import { getLocalHourKey } from "./shared/local-day-hour-axis";
 
 const HOUR_MS = 3600000;
 const BOUNDARY_BUFFER_MS = 50;

@@ -6,12 +6,8 @@ export type NodeType = "solar" | "battery" | "grid" | "house";
 export interface BatteryDetailParams {
     nodeType: "battery";
     power: number; // watts, signed (positive = charging)
-    powerEntityId: string | null;
     soc: number; // %
     socEntityId: string | null;
-    minSoc: number; // %
-    minSocEntityId: string | null;
-    maxSocEntityId: string | null;
     remainingEnergyEntityId: string | null;
     batteryProducerNode: DeviceNode | null;
     batteryConsumerNode: DeviceNode | null;
@@ -23,9 +19,6 @@ export interface BatteryDetailParams {
 
 export interface SolarDetailParams {
     nodeType: "solar";
-    power: number; // watts
-    powerEntityId: string | null;
-    todayEnergyEntityId: string | null;
     solarNode: DeviceNode | null;
     productionNode?: DeviceNode | null;
     historyBuckets: number;
@@ -34,10 +27,6 @@ export interface SolarDetailParams {
 
 export interface GridDetailParams {
     nodeType: "grid";
-    power: number; // watts, signed (positive = importing)
-    powerEntityId: string | null;
-    todayImportEntityId: string | null;
-    todayExportEntityId: string | null;
     gridProducerNode: DeviceNode | null;
     gridConsumerNode: DeviceNode | null;
     productionNode?: DeviceNode | null;
@@ -49,7 +38,6 @@ export interface GridDetailParams {
 export interface HouseDetailParams {
     nodeType: "house";
     power: number; // watts
-    powerEntityId: string | null;
     devices: DeviceNode[];
     parentPowerHistory?: number[];
     consumptionNode?: DeviceNode | null;

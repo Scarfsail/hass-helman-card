@@ -5,34 +5,34 @@ import type {
 import {
     buildBatteryOverviewCardModel,
     type BatteryOverviewChartBarModel,
-} from "../helman-simple/node-detail/battery-capacity-forecast-overview-model";
+} from "./shared/battery-capacity-forecast-overview-model";
 import {
     buildBatteryCapacityForecastModel,
     type BatteryCapacityForecastDay,
-} from "../helman-simple/node-detail/battery-capacity-forecast-detail-model";
+} from "./shared/battery-capacity-forecast-detail-model";
 import {
     buildForecastDetailModel,
     type ForecastDetailDayModel,
-} from "../helman-simple/node-detail/forecast-detail-model";
+} from "./shared/forecast-detail-model";
 import {
     buildHouseForecastModel,
     type HouseForecastDay,
-} from "../helman-simple/node-detail/house-forecast-detail-model";
+} from "./shared/house-forecast-detail-model";
 import {
     buildHouseMiniChartBars,
     computeHouseMetricMax,
     type HouseMetricAccessors,
     type HouseMiniChartBarModel,
-} from "../helman-simple/node-detail/house-forecast-chart-model";
+} from "./shared/house-forecast-chart-model";
 import {
     getForecastPriceToneClass,
     type ForecastPriceToneClass,
-} from "../helman-simple/node-detail/forecast-render-helpers";
+} from "./shared/forecast-render-helpers";
 import {
     isPastForecastTimestamp,
     normalizeForecastBarHeight,
     type ForecastChartBuildContext,
-} from "../helman-simple/node-detail/forecast-chart-shared";
+} from "./shared/forecast-chart-shared";
 
 interface SolarPriceMiniChartScaleModel {
     maxSolarHourValue: number;

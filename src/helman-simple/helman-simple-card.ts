@@ -474,12 +474,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 return {
                     nodeType: 'battery',
                     power: e.batteryPower,
-                    powerEntityId: em.batteryPowerEntityId,
                     soc: e.batterySoc,
                     socEntityId: em.batterySocEntityId,
-                    minSoc: e.batteryMinSoc,
-                    minSocEntityId: em.batteryMinSocEntityId,
-                    maxSocEntityId: cfg.max_soc ?? null,
                     remainingEnergyEntityId: cfg.remaining_energy ?? null,
                     batteryProducerNode: this._batteryProducerNode,
                     batteryConsumerNode: this._batteryConsumerNode,
@@ -490,12 +486,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 };
             }
             case 'solar': {
-                const cfg = (this._solarDTO?.sourceConfig?.entities ?? {}) as SolarDeviceConfig['entities'];
                 return {
                     nodeType: 'solar',
-                    power: e.solarPower,
-                    powerEntityId: em.solarPowerEntityId,
-                    todayEnergyEntityId: cfg.today_energy ?? null,
                     solarNode: this._solarNode,
                     productionNode: this._productionNode,
                     historyBuckets,
@@ -503,13 +495,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 };
             }
             case 'grid': {
-                const cfg = (this._gridDTO?.sourceConfig?.entities ?? {}) as GridDeviceConfig['entities'];
                 return {
                     nodeType: 'grid',
-                    power: e.gridPower,
-                    powerEntityId: em.gridPowerEntityId,
-                    todayImportEntityId: cfg.today_import ?? null,
-                    todayExportEntityId: cfg.today_export ?? null,
                     gridProducerNode: this._gridProducerNode,
                     gridConsumerNode: this._gridConsumerNode,
                     productionNode: this._productionNode,
@@ -522,7 +509,6 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 return {
                     nodeType: 'house',
                     power: e.housePower,
-                    powerEntityId: em.housePowerEntityId,
                     devices: this._houseDevices,
                     parentPowerHistory: this._houseNode?.powerHistory,
                     consumptionNode: this._consumptionNode,
