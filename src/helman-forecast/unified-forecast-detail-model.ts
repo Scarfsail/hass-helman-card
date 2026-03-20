@@ -37,6 +37,7 @@ import {
     projectIntervalsToSharedAxis,
     type SharedForecastAxis,
 } from "./shared/shared-forecast-axis";
+import type { HelmanForecastSectionVisibility } from "./HelmanForecastCardConfig";
 import type { UnifiedForecastDayModel } from "./unified-forecast-model";
 
 interface UnifiedSolarPointProjection {
@@ -106,12 +107,14 @@ export interface UnifiedForecastDetailModel {
 export function buildUnifiedForecastDetailModel({
     day,
     chartContext,
+    sectionVisibility,
     batteryMinSoc,
     batteryMaxSoc,
     includeHouseBreakdownRows,
 }: {
     day: UnifiedForecastDayModel;
     chartContext: ForecastChartBuildContext;
+    sectionVisibility: HelmanForecastSectionVisibility;
     batteryMinSoc: number | null;
     batteryMaxSoc: number | null;
     includeHouseBreakdownRows: boolean;
@@ -119,18 +122,18 @@ export function buildUnifiedForecastDetailModel({
     const axis = buildSharedForecastAxis({
         dayKey: day.dayKey,
         chartContext,
-        referenceTimestamps: _collectReferenceTimestamps(day),
+        referenceTimestamps: _collectReferenceTimestamps(day, sectionVisibility),
     });
 
     return {
         axis,
-        solar: day.solar !== null && day.solarPriceDay !== null
+        solar: sectionVisibility.solar && day.solar !== null && day.solarPriceDay !== null
             ? _buildSolarDetailRow(day.solarPriceDay, axis, chartContext.timeZone, day.dayKey)
             : null,
-        price: day.price !== null && day.solarPriceDay !== null
+        price: sectionVisibility.price && day.price !== null && day.solarPriceDay !== null
             ? _buildPriceDetailRow(day.solarPriceDay, axis, chartContext.timeZone, day.dayKey)
             : null,
-        battery: day.battery !== null && day.batteryDay !== null
+        battery: sectionVisibility.battery && day.battery !== null && day.batteryDay !== null
             ? buildBatteryDetailChartModel({
                 day: _alignBatteryDayToAxis(day.batteryDay, axis, chartContext.timeZone),
                 minSoc: batteryMinSoc,
@@ -138,28 +141,31 @@ export function buildUnifiedForecastDetailModel({
                 context: chartContext,
             })
             : null,
-        house: day.house !== null && day.houseDay !== null
+        house: sectionVisibility.house && day.house !== null && day.houseDay !== null
             ? _buildHouseDetailModel(day.houseDay, axis, chartContext, includeHouseBreakdownRows)
             : null,
     };
 }
 
-function _collectReferenceTimestamps(day: UnifiedForecastDayModel): string[] {
+function _collectReferenceTimestamps(
+    day: UnifiedForecastDayModel,
+    sectionVisibility: HelmanForecastSectionVisibility,
+): string[] {
     const timestamps: string[] = [];
 
-    if (day.solar !== null && day.solarPriceDay !== null) {
+    if (sectionVisibility.solar && day.solar !== null && day.solarPriceDay !== null) {
         timestamps.push(...day.solarPriceDay.solarHours.map((point) => point.timestamp));
     }
 
-    if (day.price !== null && day.solarPriceDay !== null) {
+    if (sectionVisibility.price && day.price !== null && day.solarPriceDay !== null) {
         timestamps.push(...day.solarPriceDay.priceHours.map((point) => point.timestamp));
     }
 
-    if (day.battery !== null && day.batteryDay !== null) {
+    if (sectionVisibility.battery && day.battery !== null && day.batteryDay !== null) {
         timestamps.push(...day.batteryDay.slots.map((slot) => slot.timestamp));
     }
 
-    if (day.house !== null && day.houseDay !== null) {
+    if (sectionVisibility.house && day.house !== null && day.houseDay !== null) {
         timestamps.push(...day.houseDay.hours.map((hour) => hour.timestamp));
     }
 

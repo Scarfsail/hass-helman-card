@@ -39,6 +39,7 @@ import {
 } from "./unified-forecast-model";
 import {
     getUnifiedForecastOverviewConfig,
+    getUnifiedForecastChartVisibility,
     getUnifiedForecastSectionVisibility,
     normalizeUnifiedForecastOverviewConfig,
     type UnifiedForecastOverviewConfig,
@@ -60,6 +61,7 @@ interface UnifiedForecastModelInputs {
     currentHourKey: string | null;
     remainingTodayKwh: number | null | undefined;
     sectionVisibility: HelmanForecastSectionVisibility;
+    chartSectionVisibility: HelmanForecastSectionVisibility;
     selectedDayKey: string | null;
     houseBreakdownExpanded: boolean;
     batteryMinSoc: number | null;
@@ -406,6 +408,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             forecast: this.forecast,
             chartContext,
             sectionVisibility: nextInputs.sectionVisibility,
+            chartSectionVisibility: nextInputs.chartSectionVisibility,
             remainingTodayKwhOverride: nextInputs.remainingTodayKwh,
             now,
         });
@@ -421,11 +424,18 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             this._isHouseBreakdownExpanded = false;
         }
 
-        const selectedDay = this._forecastModel.days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
+        let selectedDay = this._forecastModel.days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
+        if (selectedDay !== null && !this._canExpandDay(selectedDay, overviewConfig)) {
+            this._selectedDayKey = null;
+            this._isHouseBreakdownExpanded = false;
+            selectedDay = null;
+        }
+
         this._detailModel = selectedDay !== null
             ? buildUnifiedForecastDetailModel({
                 day: selectedDay,
                 chartContext,
+                sectionVisibility: nextInputs.chartSectionVisibility,
                 batteryMinSoc: nextInputs.batteryMinSoc,
                 batteryMaxSoc: nextInputs.batteryMaxSoc,
                 includeHouseBreakdownRows: nextInputs.houseBreakdownExpanded,
@@ -451,7 +461,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         const selectedDay = this._forecastModel.days.find((day) => day.dayKey === this._selectedDayKey) ?? null;
         const statusNote = this._getStatusNote();
         const overviewConfig = this._getNormalizedOverviewConfig();
-        const hasAnyDetailSection = this._hasAnyEnabledDetailSection(overviewConfig);
+        const canShowSelectedDayDetail = selectedDay !== null && this._canExpandDay(selectedDay, overviewConfig);
 
         return this._renderForecastSection(
             this._forecastModel.days.length > 0
@@ -459,7 +469,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                     <div class="forecast-detail-days">
                         ${this._forecastModel.days.map((day) => this._renderDayCard(day, overviewConfig))}
                     </div>
-                    ${selectedDay !== null && this._detailModel !== null && hasAnyDetailSection
+                    ${selectedDay !== null && this._detailModel !== null && canShowSelectedDayDetail
                         ? this._renderDetailPanel(selectedDay, this._detailModel)
                         : nothing}
                 `
@@ -490,7 +500,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         day: UnifiedForecastDayModel,
         overviewConfig: UnifiedForecastOverviewConfig,
     ) {
-        const canExpand = this._hasAnyEnabledDetailSection(overviewConfig);
+        const canExpand = this._canExpandDay(day, overviewConfig);
         const isExpanded = canExpand && this._selectedDayKey === day.dayKey;
         const dayLabel = this._formatDayLabel(day);
         const detailLabel = this.localize("node_detail.forecast_detail.hourly_detail");
@@ -664,7 +674,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                     <div class="forecast-day-chart-track price ${price.hasNegativeValues ? "has-negative" : ""} ${price.miniChartBars.length === 0 ? "empty" : ""}">
                         ${price.miniChartBars.map((bar) => html`
                             <span
-                                class="forecast-day-chart-bar ${bar.toneClass} ${bar.isPast ? "past" : ""}"
+                                class="forecast-day-chart-bar ${bar.toneClass} ${bar.isPast ? "past" : ""} ${bar.isGap ? "gap" : ""}"
                                 style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:${bar.offsetPercent}%;`}
                             ></span>
                         `)}
@@ -971,6 +981,9 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     private _buildModelInputs(now: Date): UnifiedForecastModelInputs {
         const timeZone = this.hass?.config.time_zone ?? "UTC";
         const sectionVisibility = this._getSectionVisibility();
+        const chartSectionVisibility = getUnifiedForecastChartVisibility(
+            this._getNormalizedOverviewConfig(),
+        );
         return {
             forecast: this.forecast,
             timeZone,
@@ -979,6 +992,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             currentHourKey: getLocalHourKey(now, timeZone),
             remainingTodayKwh: this._readRemainingTodayKwh(),
             sectionVisibility,
+            chartSectionVisibility,
             selectedDayKey: this._selectedDayKey,
             houseBreakdownExpanded: this._isHouseBreakdownExpanded,
             batteryMinSoc: this.forecast?.battery_capacity.minSoc ?? null,
@@ -1000,7 +1014,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             || this._modelInputs?.sectionVisibility.solar !== nextInputs.sectionVisibility.solar
             || this._modelInputs?.sectionVisibility.battery !== nextInputs.sectionVisibility.battery
             || this._modelInputs?.sectionVisibility.house !== nextInputs.sectionVisibility.house
-            || this._modelInputs?.sectionVisibility.price !== nextInputs.sectionVisibility.price;
+            || this._modelInputs?.sectionVisibility.price !== nextInputs.sectionVisibility.price
+            || this._modelInputs?.chartSectionVisibility.solar !== nextInputs.chartSectionVisibility.solar
+            || this._modelInputs?.chartSectionVisibility.battery !== nextInputs.chartSectionVisibility.battery
+            || this._modelInputs?.chartSectionVisibility.house !== nextInputs.chartSectionVisibility.house
+            || this._modelInputs?.chartSectionVisibility.price !== nextInputs.chartSectionVisibility.price;
     }
 
     private _buildChartContext(now: Date) {
@@ -1024,26 +1042,22 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _getDetailSectionVisibility(overviewConfig: UnifiedForecastOverviewConfig): HelmanForecastSectionVisibility {
-        const detailVisibility: HelmanForecastSectionVisibility = {
-            solar: false,
-            battery: false,
-            house: false,
-            price: false,
-        };
-
-        for (const definition of HelmanUnifiedForecastDetail._overviewElementDefinitions) {
-            if (!definition.supportsDetail || !overviewConfig[definition.key]) {
-                continue;
-            }
-
-            detailVisibility[definition.section] = true;
-        }
-
-        return detailVisibility;
+        return getUnifiedForecastChartVisibility(overviewConfig);
     }
 
     private _hasAnyEnabledDetailSection(overviewConfig: UnifiedForecastOverviewConfig): boolean {
         return this._hasAnyVisibleSection(this._getDetailSectionVisibility(overviewConfig));
+    }
+
+    private _canExpandDay(
+        day: UnifiedForecastDayModel,
+        overviewConfig: UnifiedForecastOverviewConfig,
+    ): boolean {
+        const detailVisibility = this._getDetailSectionVisibility(overviewConfig);
+        return detailVisibility.solar && day.solar !== null && day.solarPriceDay !== null
+            || detailVisibility.price && day.price !== null && day.solarPriceDay !== null
+            || detailVisibility.battery && day.battery !== null && day.batteryDay !== null
+            || detailVisibility.house && day.house !== null && day.houseDay !== null;
     }
 
     private _hasAnyVisibleSection(sectionVisibility: HelmanForecastSectionVisibility): boolean {

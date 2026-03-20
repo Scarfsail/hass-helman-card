@@ -95,3 +95,14 @@ export function getUnifiedForecastSectionVisibility(
         price: config.priceChart,
     };
 }
+
+export function getUnifiedForecastChartVisibility(
+    config: UnifiedForecastOverviewConfig,
+): HelmanForecastSectionVisibility {
+    return {
+        solar: config.solarChart,
+        battery: config.batteryChart,
+        house: config.consumptionChart,
+        price: config.priceChart,
+    };
+}

@@ -418,6 +418,7 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-detail-chart {
+        --forecast-detail-label-column-width: clamp(64px, 20vw, 96px);
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -455,7 +456,9 @@ export const forecastSharedStyles = css`
     .forecast-detail-row,
     .forecast-detail-axis {
         display: grid;
-        grid-template-columns: minmax(52px, auto) 1fr;
+        grid-template-columns:
+            minmax(0, var(--forecast-detail-label-column-width))
+            minmax(0, 1fr);
         gap: 8px;
         align-items: center;
     }
