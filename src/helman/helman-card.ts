@@ -3,12 +3,20 @@ import { customElement, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
 import { DeviceNode } from "./DeviceNode";
+import type { BatteryDeviceConfig } from "./DeviceConfig";
 import "./power-device";
 import "./power-devices-container";
 import { HelmanCardConfig, HelmanUiConfig } from "./HelmanCardConfig";
 import { DeviceNodeDTO, TreePayload, HistoryPayload } from "../helman-api";
 import { hydrateNode } from "./device-node-hydrator";
 import { HistoryEngine } from "./history-engine";
+import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize";
+import {
+    buildNodeDetailParams,
+    type NodeDetailContext,
+} from "../node-detail/node-detail-params-builder";
+import type { NodeType } from "../node-detail/node-detail-types";
+import "../helman-simple/node-detail-dialog";
 import "./power-flow-arrows"
 import "./power-device-info"
 import "./power-house-devices-section"
@@ -37,11 +45,13 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     // 3. Private properties
     private config!: HelmanCardConfig;
     private _historyEngine?: HistoryEngine;
+    private _localize?: LocalizeFunction;
     private _sourceNodes: DeviceNode[] = [];
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
     @state() private _deviceTree: DeviceNode[] = [];
+    @state() private _dialogNodeType: NodeType | null = null;
     @state() private _uiConfig?: HelmanUiConfig;
     @state() private _computedNodes?: {
         sourcesNode: DeviceNode | undefined;
@@ -55,6 +65,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     // 7. HA-specific setters
     public set hass(hass: HomeAssistant) {
         this._hass = hass;
+        if (!this._localize) this._localize = getLocalizeFunction(hass);
     }
 
     // 8. HA-specific methods
@@ -100,9 +111,12 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         const { sourcesNode, sourcesChildren, consumerNode, consumersChildren, houseNode, houseDevices } = this._computedNodes;
         const historyBuckets = this._uiConfig.history_buckets;
         const historyBucketDuration = this._uiConfig.history_bucket_duration;
+        const dialogParams = this._dialogNodeType !== null
+            ? this._buildDialogParams(this._dialogNodeType)
+            : null;
 
         return html`
-            <ha-card>
+            <ha-card @show-node-detail=${this._handleShowNodeDetail}>
                 <div class="card-content">
                     <power-devices-container
                         .hass=${this._hass!}
@@ -111,6 +125,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .historyBucketDuration=${historyBucketDuration}
                         .currentParentPower=${sourcesNode!.powerValue}
                         .parentPowerHistory=${sourcesNode!.powerHistory}
+                        .openNodeDetailOnIcon=${true}
                     ></power-devices-container>
                     <power-flow-arrows .devices=${[...sourcesChildren]} .maxPower=${this.config?.max_power}></power-flow-arrows>
 
@@ -130,6 +145,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                         .historyBucketDuration=${historyBucketDuration}
                         .currentParentPower=${consumerNode!.powerValue}
                         .parentPowerHistory=${consumerNode!.powerHistory}
+                        .openNodeDetailOnIcon=${true}
                     ></power-devices-container>
                     <power-flow-arrows .devices=${[houseNode, undefined, undefined]} .maxPower=${this.config?.max_power}></power-flow-arrows>
                     <power-house-devices-section
@@ -146,10 +162,65 @@ export class HelmanCard extends LitElement implements LovelaceCard {
                     ></power-house-devices-section>
                 </div>
             </ha-card>
+            ${dialogParams ? html`
+                <node-detail-dialog
+                    .hass=${this._hass}
+                    .localize=${this._localize!}
+                    .open=${true}
+                    .params=${dialogParams}
+                    @closed=${this._closeNodeDetail}
+                ></node-detail-dialog>
+            ` : ""}
         `;
     }
 
     // 12. Private helper methods
+    private _handleShowNodeDetail(event: CustomEvent<{ nodeType: NodeType }>): void {
+        event.stopPropagation();
+        this._dialogNodeType = event.detail.nodeType;
+    }
+
+    private _closeNodeDetail(): void {
+        this._dialogNodeType = null;
+    }
+
+    private _buildDialogParams(nodeType: NodeType) {
+        return buildNodeDetailParams(this._buildNodeDetailContext(), nodeType);
+    }
+
+    private _buildNodeDetailContext(): NodeDetailContext {
+        const { sourcesNode, sourcesChildren, consumerNode, consumersChildren, houseNode, houseDevices } = this._computedNodes!;
+        const solarNode = sourcesChildren.find((device) => device.sourceType === "solar") ?? null;
+        const gridProducerNode = sourcesChildren.find((device) => device.sourceType === "grid") ?? null;
+        const gridConsumerNode = consumersChildren.find((device) => device.sourceType === "grid") ?? null;
+        const batteryProducerNode = sourcesChildren.find((device) => device.sourceType === "battery") ?? null;
+        const batteryConsumerNode = consumersChildren.find((device) => device.sourceType === "battery") ?? null;
+        const batteryConfig = (batteryProducerNode?.deviceConfig ?? batteryConsumerNode?.deviceConfig) as BatteryDeviceConfig | undefined;
+        const batterySocEntityId = batteryConfig?.entities.capacity ?? null;
+        const batterySocState = batterySocEntityId ? this._hass?.states[batterySocEntityId] : null;
+        const rawBatterySoc = batterySocState ? parseFloat(batterySocState.state) : NaN;
+
+        return {
+            batteryPower: (batteryConsumerNode?.powerValue ?? 0) - (batteryProducerNode?.powerValue ?? 0),
+            batterySoc: Number.isFinite(rawBatterySoc) ? Math.max(0, Math.min(100, rawBatterySoc)) : 0,
+            batterySocEntityId,
+            batteryRemainingEnergyEntityId: batteryConfig?.entities.remaining_energy ?? null,
+            batteryProducerNode,
+            batteryConsumerNode,
+            solarNode,
+            gridProducerNode,
+            gridConsumerNode,
+            productionNode: sourcesNode ?? null,
+            consumptionNode: consumerNode ?? null,
+            housePower: houseNode?.powerValue ?? 0,
+            houseDevices: [...houseDevices],
+            houseNode: houseNode ?? null,
+            historyBuckets: this._uiConfig?.history_buckets ?? 60,
+            historyBucketDuration: this._uiConfig?.history_bucket_duration ?? 60,
+            uiConfig: this._uiConfig,
+        };
+    }
+
     private async _loadBackendData(): Promise<void> {
         this._historyEngine?.stop();
         try {

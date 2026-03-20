@@ -19,6 +19,7 @@ export class PowerDevice extends LitElement {
     @property({ type: Number }) public historyBuckets!: number;
     @property({ type: Number }) public historyBucketDuration!: number;
     @property({ attribute: false }) public parentPowerHistory?: number[];
+    @property({ type: Boolean }) public openNodeDetailOnIcon = false;
 
     @state() private _childrenCollapsed = true;
 
@@ -187,9 +188,10 @@ export class PowerDevice extends LitElement {
                     </power-device-history-bars>
                     <div class="deviceInfo" style="display: flex; flex-direction: column;flex-basis: 100%;">
                         <div style="display: flex; flex-direction: row;flex-basis: 100%;align-items: center; ">
-                                <power-device-icon 
+                            <power-device-icon 
                                 .hass=${this.hass} 
                                 .device=${this.device}
+                                .openNodeDetailOnClick=${this.openNodeDetailOnIcon}
                                 @toggle-children=${this._toggleChildren}
                                 @show-more-info=${(e: CustomEvent) => this._showMoreInfo(e.detail.entityId)}
                             ></power-device-icon>

@@ -5,6 +5,7 @@ import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
 import { sharedStyles } from "./shared-styles";
 import { computeDominantSourceColor } from "../color-utils";
+import type { NodeType } from "../node-detail/node-detail-types";
 import "../helman-simple/simple-card-solar";
 import "../helman-simple/simple-card-battery";
 import "../helman-simple/simple-card-grid";
@@ -48,6 +49,7 @@ export class PowerDeviceIcon extends LitElement {
     // Public properties
     @property({ attribute: false }) public hass!: HomeAssistant;
     @property({ attribute: false }) public device!: DeviceNode;
+    @property({ type: Boolean }) public openNodeDetailOnClick = false;
 
     // Render method
     render(): TemplateResult | typeof nothing {
@@ -86,13 +88,24 @@ export class PowerDeviceIcon extends LitElement {
         }));
     }
 
+    private _fireShowNodeDetail(nodeType: NodeType) {
+        this.dispatchEvent(new CustomEvent("show-node-detail", {
+            bubbles: true,
+            composed: true,
+            detail: { nodeType },
+        }));
+    }
+
     private _renderAnimatedNode(): TemplateResult | typeof nothing {
         const device = this.device;
         const power = device.powerValue ?? 0;
 
         if (device.sourceType === 'solar') {
+            const clickHandler = this.openNodeDetailOnClick
+                ? () => this._fireShowNodeDetail("solar")
+                : this._fireToggleChildren;
             return html`
-                <div class="node-icon" @click=${this._fireToggleChildren}>
+                <div class="node-icon" @click=${clickHandler}>
                     <simple-card-solar
                         .power=${power}
                         ?compact=${true}
@@ -105,8 +118,11 @@ export class PowerDeviceIcon extends LitElement {
             // isSource=true → importing (positive); isSource=false → exporting (negative)
             const signedPower = device.isSource ? power : -power;
             const sourceColor = device.isSource ? undefined : computeDominantSourceColor(this.device);
+            const clickHandler = this.openNodeDetailOnClick
+                ? () => this._fireShowNodeDetail("grid")
+                : this._fireToggleChildren;
             return html`
-                <div class="node-icon" @click=${this._fireToggleChildren}>
+                <div class="node-icon" @click=${clickHandler}>
                     <simple-card-grid
                         .power=${signedPower}
                         .sourceColor=${sourceColor}
@@ -127,7 +143,9 @@ export class PowerDeviceIcon extends LitElement {
             const minSoc = battConfig?.entities?.min_soc
                 ? parseFloat(this.hass.states[battConfig.entities.min_soc]?.state ?? '10') || 10
                 : 10;
-            const clickHandler = battConfig?.entities?.capacity
+            const clickHandler = this.openNodeDetailOnClick
+                ? () => this._fireShowNodeDetail("battery")
+                : battConfig?.entities?.capacity
                 ? () => this._fireShowMoreInfo(battConfig.entities.capacity!)
                 : this._fireToggleChildren;
             return html`
@@ -145,8 +163,11 @@ export class PowerDeviceIcon extends LitElement {
 
         if (device.sourceType === 'house') {
             const sourceColor = computeDominantSourceColor(this.device);
+            const clickHandler = this.openNodeDetailOnClick
+                ? () => this._fireShowNodeDetail("house")
+                : this._fireToggleChildren;
             return html`
-                <div class="node-icon" @click=${this._fireToggleChildren}>
+                <div class="node-icon" @click=${clickHandler}>
                     <simple-card-house
                         .power=${power}
                         .sourceColor=${sourceColor}

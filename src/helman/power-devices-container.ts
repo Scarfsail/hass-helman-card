@@ -28,6 +28,7 @@ export class PowerDevicesContainer extends LitElement {
     @property({ type: Boolean }) public devices_full_width?: boolean;
     @property({ type: Boolean }) public sortChildrenByPower?: boolean;
     @property({ type: Number }) public show_only_top_children?: number;
+    @property({ type: Boolean }) public openNodeDetailOnIcon = false;
 
     willUpdate(changedProperties: Map<string, unknown>): void {
         super.willUpdate(changedProperties);
@@ -99,6 +100,7 @@ export class PowerDevicesContainer extends LitElement {
                         .parentPowerHistory=${this.parentPowerHistory}
                         .historyBuckets=${this.historyBuckets}
                         .historyBucketDuration=${this.historyBucketDuration}
+                        .openNodeDetailOnIcon=${this.openNodeDetailOnIcon}
                     ></power-device>
                 `)}
             </div>

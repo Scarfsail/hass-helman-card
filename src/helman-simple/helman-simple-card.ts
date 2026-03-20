@@ -8,8 +8,12 @@ import { ValueType, DeviceNodeDTO, TreePayload, HistoryPayload, HelmanUiConfig, 
 import { HistoryEngine } from "../helman/history-engine";
 import { DeviceNode } from "../helman/DeviceNode";
 import { hydrateNode } from "../helman/device-node-hydrator";
-import { BatteryDeviceConfig, SolarDeviceConfig, GridDeviceConfig } from "../helman/DeviceConfig";
+import type { BatteryDeviceConfig } from "../helman/DeviceConfig";
 import type { NodeType, NodeDetailParams } from "./node-detail/node-detail-types";
+import {
+    buildNodeDetailParams,
+    type NodeDetailContext,
+} from "./node-detail/node-detail-params-builder";
 import "./node-detail-dialog";
 import "./simple-card-solar";
 import "./simple-card-battery";
@@ -463,61 +467,34 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         return undefined;
     }
 
-    private _buildDialogParams(nodeType: NodeType): NodeDetailParams {
-        const e = this._energy;
-        const em = this._entityMap!;
+    private _buildNodeDetailContext(): NodeDetailContext {
         const historyBuckets = this._uiConfig?.history_buckets ?? 60;
         const historyBucketDuration = this._uiConfig?.history_bucket_duration ?? 60;
-        switch (nodeType) {
-            case 'battery': {
-                const cfg = (this._batteryDTO?.sourceConfig?.entities ?? {}) as BatteryDeviceConfig['entities'];
-                return {
-                    nodeType: 'battery',
-                    power: e.batteryPower,
-                    soc: e.batterySoc,
-                    socEntityId: em.batterySocEntityId,
-                    remainingEnergyEntityId: cfg.remaining_energy ?? null,
-                    batteryProducerNode: this._batteryProducerNode,
-                    batteryConsumerNode: this._batteryConsumerNode,
-                    productionNode: this._productionNode,
-                    consumptionNode: this._consumptionNode,
-                    historyBuckets,
-                    historyBucketDuration,
-                };
-            }
-            case 'solar': {
-                return {
-                    nodeType: 'solar',
-                    solarNode: this._solarNode,
-                    productionNode: this._productionNode,
-                    historyBuckets,
-                    historyBucketDuration,
-                };
-            }
-            case 'grid': {
-                return {
-                    nodeType: 'grid',
-                    gridProducerNode: this._gridProducerNode,
-                    gridConsumerNode: this._gridConsumerNode,
-                    productionNode: this._productionNode,
-                    consumptionNode: this._consumptionNode,
-                    historyBuckets,
-                    historyBucketDuration,
-                };
-            }
-            case 'house':
-                return {
-                    nodeType: 'house',
-                    power: e.housePower,
-                    devices: this._houseDevices,
-                    parentPowerHistory: this._houseNode?.powerHistory,
-                    consumptionNode: this._consumptionNode,
-                    historyBuckets,
-                    historyBucketDuration,
-                    uiConfig: this._uiConfig,
-                    houseNode: this._houseNode,
-                };
-        }
+        const batteryConfig = (this._batteryProducerNode?.deviceConfig ?? this._batteryConsumerNode?.deviceConfig) as BatteryDeviceConfig | undefined;
+
+        return {
+            batteryPower: this._energy.batteryPower,
+            batterySoc: this._energy.batterySoc,
+            batterySocEntityId: this._entityMap?.batterySocEntityId ?? null,
+            batteryRemainingEnergyEntityId: batteryConfig?.entities.remaining_energy ?? null,
+            batteryProducerNode: this._batteryProducerNode,
+            batteryConsumerNode: this._batteryConsumerNode,
+            solarNode: this._solarNode,
+            gridProducerNode: this._gridProducerNode,
+            gridConsumerNode: this._gridConsumerNode,
+            productionNode: this._productionNode,
+            consumptionNode: this._consumptionNode,
+            housePower: this._energy.housePower,
+            houseDevices: this._houseDevices,
+            houseNode: this._houseNode,
+            historyBuckets,
+            historyBucketDuration,
+            uiConfig: this._uiConfig,
+        };
+    }
+
+    private _buildDialogParams(nodeType: NodeType): NodeDetailParams {
+        return buildNodeDetailParams(this._buildNodeDetailContext(), nodeType);
     }
 
     private _readEnergyValues(hass: HomeAssistant, map: EnergyEntityMap): EnergyValues {
