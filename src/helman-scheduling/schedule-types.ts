@@ -57,28 +57,30 @@ export interface ScheduleDaySectionModel {
     rows: ScheduleIntervalRowModel[];
 }
 
-export type ScheduleDialogMode =
-    | "edit-interval"
-    | "edit-range"
-    | "edit-slot"
-    | "reset-interval"
-    | "reset-range";
+export interface ScheduleSlotSelectionDetail {
+    intervalId: string;
+    slotId: string;
+    selected: boolean;
+}
+
+export interface ScheduleIntervalSelectionDetail {
+    intervalId: string;
+    slotIds: string[];
+    selected: boolean;
+}
+
+export interface ScheduleOpenDialogDetail {
+    intervalId: string;
+}
 
 export interface ScheduleDialogState {
-    mode: ScheduleDialogMode;
     intervalId: string;
     intervalLabel: string;
-    slots: ScheduleSlot[];
-    initialStartSlotId: string;
-    initialEndSlotId: string;
+    selectedSlots: ScheduleSlot[];
     initialAction: ScheduleAction;
 }
 
 export interface ScheduleDialogResult {
-    mode: ScheduleDialogMode;
-    intervalId: string;
-    startSlotId: string;
-    endSlotId: string;
     action: ScheduleAction;
 }
 

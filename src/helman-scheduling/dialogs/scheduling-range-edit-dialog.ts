@@ -8,10 +8,8 @@ import {
 } from "../model/schedule-labels";
 import type {
     ScheduleAction,
-    ScheduleDialogMode,
     ScheduleDialogResult,
     ScheduleDialogState,
-    ScheduleSlot,
 } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
@@ -139,8 +137,6 @@ export class SchedulingRangeEditDialog extends LitElement {
     @property({ attribute: false }) public dialogState: ScheduleDialogState | null = null;
     @property({ type: Boolean }) public open = false;
 
-    @state() private _startSlotId = "";
-    @state() private _endSlotId = "";
     @state() private _actionKind: ScheduleAction["kind"] = "normal";
     @state() private _targetSocInput = "";
 
@@ -197,57 +193,24 @@ export class SchedulingRangeEditDialog extends LitElement {
                             <div class="dialog-summary-value">${this.dialogState.intervalLabel}</div>
                         </div>
                         <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.range")}</div>
-                            <div class="dialog-summary-value">${this._selectedRangeLabel()}</div>
+                            <div class="field-label">${this.localize("scheduling.dialog.selection")}</div>
+                            <div class="dialog-summary-value">${this._selectedSlotSummaryLabel()}</div>
                         </div>
                     </div>
 
-                    ${this._allowsRangeSelection() ? html`
-                        <div class="dialog-summary">
-                            <div class="field">
-                                <label class="field-label" for="schedule-range-start">${this.localize("scheduling.dialog.from_slot")}</label>
-                                <select
-                                    id="schedule-range-start"
-                                    class="select-input"
-                                    .value=${this._startSlotId}
-                                    @change=${this._handleStartSlotChange}
-                                >
-                                    ${this.dialogState.slots.map((slot) => html`
-                                        <option value=${slot.id}>${slot.rangeLabel}</option>
-                                    `)}
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label class="field-label" for="schedule-range-end">${this.localize("scheduling.dialog.to_slot")}</label>
-                                <select
-                                    id="schedule-range-end"
-                                    class="select-input"
-                                    .value=${this._endSlotId}
-                                    @change=${this._handleEndSlotChange}
-                                >
-                                    ${this.dialogState.slots.map((slot) => html`
-                                        <option value=${slot.id}>${slot.rangeLabel}</option>
-                                    `)}
-                                </select>
-                            </div>
+                    <div class="field">
+                        <div class="field-label">${this.localize("scheduling.dialog.action")}</div>
+                        <div class="action-options">
+                            ${this._renderActionOption("normal")}
+                            ${this._renderActionOption("charge_to_target_soc")}
+                            ${this._renderActionOption("discharge_to_target_soc")}
+                            ${this._renderActionOption("stop_charging")}
+                            ${this._renderActionOption("stop_discharging")}
                         </div>
-                    ` : nothing}
-
-                    ${this._showsActionEditor() ? html`
-                        <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.action")}</div>
-                            <div class="action-options">
-                                ${this._renderActionOption("normal")}
-                                ${this._renderActionOption("charge_to_target_soc")}
-                                ${this._renderActionOption("discharge_to_target_soc")}
-                                ${this._renderActionOption("stop_charging")}
-                                ${this._renderActionOption("stop_discharging")}
-                            </div>
-                        </div>
-                    ` : nothing}
+                    </div>
 
                     <div class="field-help">
-                        ${this.localize("scheduling.dialog.affects_prefix")} ${formatScheduleSlotCount(this._selectedSlots().length, this.localize)}
+                        ${this.localize("scheduling.dialog.affects_prefix")} ${formatScheduleSlotCount(this._selectedSlotCount(), this.localize)}
                     </div>
                 </div>
 
@@ -264,74 +227,55 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _applyDialogState(dialogState: ScheduleDialogState): void {
-        this._startSlotId = dialogState.initialStartSlotId;
-        this._endSlotId = dialogState.initialEndSlotId;
         this._actionKind = dialogState.initialAction.kind;
         this._targetSocInput = dialogState.initialAction.targetSoc?.toString() ?? "";
     }
 
     private _title(): string {
-        if (this.dialogState === null) {
-            return this.localize("scheduling.dialog.title.edit_range");
-        }
-
-        switch (this.dialogState.mode) {
-            case "edit-interval":
-                return this.localize("scheduling.dialog.title.edit_interval");
-            case "edit-range":
-                return this.localize("scheduling.dialog.title.edit_range");
-            case "edit-slot":
-                return this.localize("scheduling.dialog.title.edit_slot");
-            case "reset-interval":
-                return this.localize("scheduling.dialog.title.reset_interval");
-            case "reset-range":
-                return this.localize("scheduling.dialog.title.reset_range");
-        }
+        return this.localize("scheduling.dialog.title.edit_selection");
     }
 
     private _submitLabel(): string {
-        return this.dialogState?.mode === "reset-interval" || this.dialogState?.mode === "reset-range"
-            ? this.localize("scheduling.dialog.apply_reset")
-            : this.localize("scheduling.dialog.apply");
+        return this.localize("scheduling.dialog.apply");
     }
 
-    private _allowsRangeSelection(): boolean {
-        return this.dialogState?.mode === "edit-range" || this.dialogState?.mode === "reset-range";
+    private _selectedSlotCount(): number {
+        return this.dialogState?.selectedSlots.length ?? 0;
     }
 
-    private _showsActionEditor(): boolean {
-        return this.dialogState?.mode === "edit-interval"
-            || this.dialogState?.mode === "edit-range"
-            || this.dialogState?.mode === "edit-slot";
-    }
-
-    private _selectedSlots(): ScheduleSlot[] {
-        if (this.dialogState === null) {
-            return [];
-        }
-
-        const startIndex = this.dialogState.slots.findIndex((slot) => slot.id === this._startSlotId);
-        const endIndex = this.dialogState.slots.findIndex((slot) => slot.id === this._endSlotId);
-        if (startIndex === -1 || endIndex === -1) {
-            return [];
-        }
-
-        const safeStartIndex = Math.min(startIndex, endIndex);
-        const safeEndIndex = Math.max(startIndex, endIndex);
-        return this.dialogState.slots.slice(safeStartIndex, safeEndIndex + 1);
-    }
-
-    private _selectedRangeLabel(): string {
-        const selectedSlots = this._selectedSlots();
+    private _selectedSlotSummaryLabel(): string {
+        const selectedSlots = this.dialogState?.selectedSlots ?? [];
         if (selectedSlots.length === 0) {
-            return this.dialogState?.intervalLabel ?? "";
+            return "";
         }
 
-        const firstSlot = selectedSlots[0];
-        const lastSlot = selectedSlots[selectedSlots.length - 1];
-        return selectedSlots.length === 1
-            ? firstSlot.rangeLabel
-            : `${firstSlot.timeLabel}–${lastSlot.endLabel}`;
+        const labels: string[] = [];
+        let rangeStart = selectedSlots[0];
+        let previousSlot = selectedSlots[0];
+        const pushRangeLabel = (): void => {
+            labels.push(
+                rangeStart.id === previousSlot.id
+                    ? rangeStart.rangeLabel
+                    : `${rangeStart.timeLabel}–${previousSlot.endLabel}`,
+            );
+        };
+
+        for (const slot of selectedSlots.slice(1)) {
+            if (slot.index === previousSlot.index + 1) {
+                previousSlot = slot;
+                continue;
+            }
+
+            pushRangeLabel();
+            rangeStart = slot;
+            previousSlot = slot;
+        }
+
+        pushRangeLabel();
+        const visibleLabels = labels.slice(0, 3);
+        return labels.length <= 3
+            ? visibleLabels.join(", ")
+            : `${visibleLabels.join(", ")}, ...`;
     }
 
     private _renderActionOption(actionKind: ScheduleAction["kind"]) {
@@ -341,10 +285,8 @@ export class SchedulingRangeEditDialog extends LitElement {
             <div
                 class=${`action-option${checked ? " selected" : ""}`}
                 @click=${() => this._setActionKind(actionKind)}
-                role="radio"
-                aria-checked=${String(checked)}
             >
-                <div class="action-option-header">
+                <label class="action-option-header">
                     <input
                         class="action-option-radio"
                         type="radio"
@@ -356,7 +298,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                     <div class="action-option-copy">
                         <div class="action-option-title">${getScheduleActionKindLabel(actionKind, this.localize)}</div>
                     </div>
-                </div>
+                </label>
                 ${checked && isTargetAction ? html`
                     <div class="action-option-target" @click=${this._stopPropagation}>
                         <ha-textfield
@@ -379,12 +321,8 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _canSubmit(): boolean {
-        if (this._selectedSlots().length === 0) {
+        if (this._selectedSlotCount() === 0) {
             return false;
-        }
-
-        if (!this._showsActionEditor()) {
-            return true;
         }
 
         if (this._actionKind !== "charge_to_target_soc" && this._actionKind !== "discharge_to_target_soc") {
@@ -407,26 +345,6 @@ export class SchedulingRangeEditDialog extends LitElement {
 
         if (actionKind === "discharge_to_target_soc") {
             this._targetSocInput = String(DEFAULT_DISCHARGE_TARGET_SOC);
-        }
-    }
-
-    private _handleStartSlotChange(event: Event): void {
-        const nextStartSlotId = (event.currentTarget as HTMLSelectElement).value;
-        this._startSlotId = nextStartSlotId;
-
-        const slotIds = this.dialogState?.slots.map((slot) => slot.id) ?? [];
-        if (slotIds.indexOf(this._startSlotId) > slotIds.indexOf(this._endSlotId)) {
-            this._endSlotId = nextStartSlotId;
-        }
-    }
-
-    private _handleEndSlotChange(event: Event): void {
-        const nextEndSlotId = (event.currentTarget as HTMLSelectElement).value;
-        this._endSlotId = nextEndSlotId;
-
-        const slotIds = this.dialogState?.slots.map((slot) => slot.id) ?? [];
-        if (slotIds.indexOf(this._endSlotId) < slotIds.indexOf(this._startSlotId)) {
-            this._startSlotId = nextEndSlotId;
         }
     }
 
@@ -456,29 +374,16 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _buildResult(): ScheduleDialogResult | null {
-        if (this.dialogState === null) {
+        if (this.dialogState === null || this.dialogState.selectedSlots.length === 0) {
             return null;
         }
 
-        const selectedSlots = this._selectedSlots();
-        if (selectedSlots.length === 0) {
-            return null;
-        }
-
-        const action = this._showsActionEditor()
-            ? this._buildEditedAction()
-            : { kind: "normal" } satisfies ScheduleAction;
+        const action = this._buildEditedAction();
         if (action === null) {
             return null;
         }
 
-        return {
-            mode: this.dialogState.mode,
-            intervalId: this.dialogState.intervalId,
-            startSlotId: selectedSlots[0].id,
-            endSlotId: selectedSlots[selectedSlots.length - 1].id,
-            action,
-        };
+        return { action };
     }
 
     private _buildEditedAction(): ScheduleAction | null {

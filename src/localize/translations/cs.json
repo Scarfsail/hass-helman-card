@@ -158,11 +158,9 @@
     },
     "actions": {
       "refresh": "Obnovit",
-      "edit_interval": "Upravit interval",
-      "edit_range": "Upravit podrozsah",
-      "edit_slot": "Upravit",
-      "reset_interval": "Resetovat interval",
-      "reset_range": "Resetovat podrozsah"
+      "select_interval": "Vybrat celý interval",
+      "select_slot": "Vybrat slot",
+      "edit_selected": "Upravit vybrané"
     },
     "now": {
       "title": "Teď",
@@ -175,22 +173,15 @@
     },
     "dialog": {
       "title": {
-        "edit_interval": "Upravit interval",
-        "edit_range": "Upravit rozvrh",
-        "edit_slot": "Upravit slot",
-        "reset_interval": "Resetovat interval",
-        "reset_range": "Resetovat podrozsah"
+        "edit_selection": "Upravit vybrané sloty"
       },
       "interval": "Interval",
-      "range": "Rozsah",
-      "from_slot": "Od slotu",
-      "to_slot": "Do slotu",
+      "selection": "Výběr",
       "action": "Akce",
       "target_soc": "Cílové SoC",
       "affects_prefix": "Ovlivní",
       "cancel": "Zrušit",
-      "apply": "Použít změny",
-      "apply_reset": "Resetovat na normální"
+      "apply": "Použít změny"
     },
     "copy": {
       "slot_one": "slot",

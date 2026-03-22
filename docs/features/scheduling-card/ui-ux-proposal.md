@@ -2,7 +2,7 @@
 
 **Scope:** first proposal for a dedicated scheduling card backed by the new manual scheduling API
 
-**Goal:** design a separate card that is clean at first glance, clearly shows where actions change, and still makes it easy to inspect or edit one slot or a contiguous range of slots.
+**Goal:** design a separate card that is clean at first glance, clearly shows where actions change, and still makes it easy to inspect or edit one or more explicitly selected slots inside an expanded interval.
 
 ---
 
@@ -20,7 +20,7 @@ The first iteration should optimize for four things:
 
 3. **Easy editing**
    - expanding an interval should reveal the raw slots when needed
-   - editing should work for a single slot or a contiguous range
+   - editing should work by selecting the exact slots to change inside an expanded interval
    - the primary edit flow should use a dialog, not a spreadsheet-like inline editor
 
 4. **Room to grow**
@@ -62,7 +62,7 @@ Use a **clean data architecture** with a **restrained row-based UI**:
 - derive day sections and collapsible interval rows from that canonical slot grid
 - show the current slot in a dedicated **Now** surface instead of letting runtime semantics leak into every interval row
 - use expandable interval rows for inspection
-- use a dialog for single-slot or contiguous-range editing
+- use checkboxes in expanded interval rows and a dialog for exact selected-slot editing
 
 ### Why this is the right fit
 
@@ -92,13 +92,13 @@ To keep the UI honest, the proposal uses these terms:
 
 - **slot** = one canonical `15` minute backend unit
 - **interval** = a contiguous visual grouping of slots with the same scheduled action
-- **edited range** = a user-applied change to one slot or a contiguous slot range
+- **edited selection** = a user-applied change to one or more explicitly selected slots inside one expanded interval
 - **runtime divergence** = when the current slot is scheduled for one action but the executor applied another one
 
 Important wording choice:
 
 - in the UI, avoid using **override** as a general storage concept
-- use **edited range** or **edited slot** for schedule changes
+- use **edited selection** or **selected slots** for schedule changes
 - use **runtime divergence** for the current-slot execution mismatch
 
 That keeps the wording aligned with the backend we actually have today.
@@ -196,18 +196,17 @@ The expanded detail should contain:
 
 - compact summary of the interval
 - actions:
-  - `Edit interval`
-  - `Edit sub-range`
-  - `Reset range to normal`
-- a raw slot list for that interval
+  - interval select-all checkbox
+  - `Edit selected`
+- a raw slot list for that interval with one checkbox per slot
 
 Each slot row should show:
 
+- selection checkbox
 - slot time
 - scheduled action
 - current marker if applicable
 - runtime detail if this is the current slot
-- quick action to edit just this slot
 
 The key point is that slot detail exists **inside** the interval, not as the default presentation.
 
@@ -298,24 +297,24 @@ That is the main scanning use case.
 
 The card should prefer **single-row expansion** by default to keep the page readable.
 
-### 7.3 Edit a single slot
+### 7.3 Edit selected slots
 
 1. User expands an interval
-2. User clicks edit on one slot
-3. Dialog opens with start and end prefilled to the same slot
-4. User chooses action and optional target SoC
-5. Card writes only the affected slot
-6. Card reloads the schedule
+2. User checks one or more slot checkboxes
+3. User can use the interval checkbox to quickly select or unselect the whole interval
+4. The `Edit selected` button becomes enabled once at least one slot is selected
+5. Dialog opens scoped to the exact checked slots
+6. User chooses action and optional target SoC
+7. Card writes only the checked slots
+8. Card reloads the schedule
 
-### 7.4 Edit a contiguous range
+### 7.4 Select a whole interval quickly
 
 1. User expands an interval
-2. User clicks `Edit sub-range`
-3. Dialog opens scoped to that interval
-4. User chooses start slot and end slot
-5. User chooses action and optional target SoC
-6. Card builds slot patches for the selected range only
-7. Card reloads the schedule
+2. User toggles the interval checkbox in the action row
+3. All slot checkboxes in that interval become checked or unchecked together
+4. The interval checkbox becomes indeterminate when only some slots are selected
+5. `Edit selected` always applies only to the currently checked slots in that interval
 
 This covers both “one slot” and “multiple slots” without turning the UI into a dense grid editor.
 
@@ -358,26 +357,25 @@ If enabling or disabling fails, the card should show the websocket error clearly
 +----------------------------------------------------------------------------------+
 | 20:30–23:00   [Charge to 70%]                 10 slots   [Now]               v   |
 |----------------------------------------------------------------------------------|
-| Interval actions: [Edit interval] [Edit sub-range] [Reset to normal]             |
+| [ ] Select whole interval                                      [Edit selected]   |
 |                                                                                  |
-| 20:30   [Charge to 70%]                                                [Edit]    |
-| 20:45   [Charge to 70%]                                                [Edit]    |
-| 21:00   [Charge to 70%]   current • running [Stop discharging]        [Edit]    |
-| 21:15   [Charge to 70%]                                                [Edit]    |
-| 21:30   [Charge to 70%]                                                [Edit]    |
+| [ ] 20:30   [Charge to 70%]                                                      |
+| [ ] 20:45   [Charge to 70%]                                                      |
+| [x] 21:00   [Charge to 70%]   current • running [Stop discharging]               |
+| [x] 21:15   [Charge to 70%]                                                      |
+| [ ] 21:30   [Charge to 70%]                                                      |
 | ...                                                                              |
 +----------------------------------------------------------------------------------+
 ```
 
-### 8.3 Range edit dialog
+### 8.3 Selected-slot edit dialog
 
 ```text
 +--------------------------------------------------------------+
-| Edit schedule range                                          |
+| Edit selected slots                                          |
 |--------------------------------------------------------------|
 | Interval: 20:30–23:00                                        |
-| From slot: [20:45 ▼]                                         |
-| To slot:   [21:30 ▼]                                         |
+| Selection: 2 slots                                           |
 |                                                              |
 | Action:                                                      |
 |   ( ) Normal                                                 |
@@ -588,7 +586,7 @@ src/
 
 #### `schedule-patch-builder.ts`
 
-- builds slot patch payloads for a single slot or contiguous range
+- builds slot patch payloads for the exact selected slots
 - keeps dialog logic out of render components
 
 #### `scheduling-card-header.ts`
@@ -613,7 +611,7 @@ src/
 
 - collapsed row summary
 - expanded interval container
-- action buttons for editing
+- interval selection controls and selected-slot edit action
 
 #### `scheduling-slot-list.ts`
 

@@ -17,11 +17,14 @@ import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-own
 import type {
     NormalizedScheduleModel,
     ScheduleDaySectionModel,
-    ScheduleDialogMode,
     ScheduleDialogResult,
     ScheduleDialogState,
+    ScheduleIntervalSelectionDetail,
+    ScheduleOpenDialogDetail,
     ScheduleOwnerSnapshot,
+    ScheduleSlotSelectionDetail,
 } from "./schedule-types";
+import { areScheduleActionsEqual } from "./schedule-types";
 import { schedulingSharedStyles } from "./styles/scheduling-shared-styles";
 
 const EMPTY_SCHEDULE_OWNER_SNAPSHOT: ScheduleOwnerSnapshot = {
@@ -90,6 +93,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _hass?: HomeAssistant;
     @state() private _ownerSnapshot: ScheduleOwnerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
     @state() private _expandedIntervalIds: string[] = [];
+    @state() private _selectedSlotIdsByInterval: Record<string, string[]> = {};
     @state() private _dialogState: ScheduleDialogState | null = null;
     @state() private _dialogOpen = false;
 
@@ -159,6 +163,17 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             if (nextExpandedIntervalIds.length !== this._expandedIntervalIds.length) {
                 this._expandedIntervalIds = nextExpandedIntervalIds;
             }
+
+            const nextSelectedSlotIdsByInterval = this._pruneSelectedSlotIdsByInterval();
+            if (!this._areIntervalSelectionsEqual(this._selectedSlotIdsByInterval, nextSelectedSlotIdsByInterval)) {
+                this._selectedSlotIdsByInterval = nextSelectedSlotIdsByInterval;
+            }
+
+            if (this._dialogState && !this._isDialogStateCurrent(nextSelectedSlotIdsByInterval)) {
+                this._selectedSlotIdsByInterval = this._withIntervalSelection(this._dialogState.intervalId, []);
+                this._dialogState = null;
+                this._dialogOpen = false;
+            }
         }
     }
 
@@ -173,6 +188,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 @refresh-schedule=${this._handleRefresh}
                 @toggle-schedule-execution=${this._handleToggleExecution}
                 @toggle-schedule-interval=${this._handleToggleInterval}
+                @toggle-schedule-slot-selection=${this._handleToggleSlotSelection}
+                @toggle-schedule-interval-selection=${this._handleToggleIntervalSelection}
                 @open-schedule-dialog=${this._handleOpenDialog}
             >
                 <div class="card-content">
@@ -204,6 +221,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                                         .dayLabel=${section.dayLabel}
                                         .rows=${section.rows}
                                         .expandedIntervalIds=${this._expandedIntervalIds}
+                                        .selectedSlotIdsByInterval=${this._selectedSlotIdsByInterval}
                                         .localize=${this._localize}
                                         .busy=${this._ownerSnapshot.writing || this._ownerSnapshot.togglingExecution}
                                         .executionEnabled=${this._ownerSnapshot.schedule?.executionEnabled ?? false}
@@ -278,14 +296,46 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private _handleToggleInterval(event: CustomEvent<{ intervalId: string }>): void {
         event.stopPropagation();
-        this._expandedIntervalIds = this._expandedIntervalIds.includes(event.detail.intervalId)
-            ? this._expandedIntervalIds.filter((intervalId) => intervalId !== event.detail.intervalId)
-            : [...this._expandedIntervalIds, event.detail.intervalId];
+        if (this._expandedIntervalIds.includes(event.detail.intervalId)) {
+            this._expandedIntervalIds = this._expandedIntervalIds.filter((intervalId) => intervalId !== event.detail.intervalId);
+            this._selectedSlotIdsByInterval = this._withIntervalSelection(event.detail.intervalId, []);
+            return;
+        }
+
+        this._expandedIntervalIds = [...this._expandedIntervalIds, event.detail.intervalId];
     }
 
-    private _handleOpenDialog(
-        event: CustomEvent<{ mode: ScheduleDialogMode; intervalId: string; slotId?: string }>,
-    ): void {
+    private _handleToggleSlotSelection(event: CustomEvent<ScheduleSlotSelectionDetail>): void {
+        event.stopPropagation();
+
+        const interval = this._findInterval(event.detail.intervalId);
+        if (!interval) {
+            console.error("helman-scheduling: interval not found for slot selection", event.detail.intervalId);
+            return;
+        }
+
+        const nextSelectedSlotIds = new Set(this._selectedSlotIdsByInterval[event.detail.intervalId] ?? []);
+        if (event.detail.selected) {
+            nextSelectedSlotIds.add(event.detail.slotId);
+        } else {
+            nextSelectedSlotIds.delete(event.detail.slotId);
+        }
+
+        this._selectedSlotIdsByInterval = this._withIntervalSelection(
+            event.detail.intervalId,
+            interval.slotIds.filter((slotId) => nextSelectedSlotIds.has(slotId)),
+        );
+    }
+
+    private _handleToggleIntervalSelection(event: CustomEvent<ScheduleIntervalSelectionDetail>): void {
+        event.stopPropagation();
+        this._selectedSlotIdsByInterval = this._withIntervalSelection(
+            event.detail.intervalId,
+            event.detail.selected ? [...event.detail.slotIds] : [],
+        );
+    }
+
+    private _handleOpenDialog(event: CustomEvent<ScheduleOpenDialogDetail>): void {
         event.stopPropagation();
 
         const interval = this._findInterval(event.detail.intervalId);
@@ -294,53 +344,25 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             return;
         }
 
-        switch (event.detail.mode) {
-            case "edit-slot": {
-                const slot = interval.slots.find((entry) => entry.id === event.detail.slotId);
-                if (!slot) {
-                    console.error("helman-scheduling: slot not found", event.detail.slotId);
-                    return;
-                }
-
-                this._dialogState = {
-                    mode: "edit-slot",
-                    intervalId: interval.id,
-                    intervalLabel: slot.rangeLabel,
-                    slots: [slot],
-                    initialStartSlotId: slot.id,
-                    initialEndSlotId: slot.id,
-                    initialAction: slot.action,
-                };
-                this._dialogOpen = true;
-                break;
-            }
-            case "edit-interval":
-            case "edit-range":
-                this._dialogState = {
-                    mode: event.detail.mode,
-                    intervalId: interval.id,
-                    intervalLabel: interval.timeRangeLabel,
-                    slots: interval.slots,
-                    initialStartSlotId: interval.startSlotId,
-                    initialEndSlotId: interval.endSlotId,
-                    initialAction: interval.action,
-                };
-                this._dialogOpen = true;
-                break;
-            case "reset-interval":
-            case "reset-range":
-                this._dialogState = {
-                    mode: event.detail.mode,
-                    intervalId: interval.id,
-                    intervalLabel: interval.timeRangeLabel,
-                    slots: interval.slots,
-                    initialStartSlotId: interval.startSlotId,
-                    initialEndSlotId: interval.endSlotId,
-                    initialAction: { kind: "normal" },
-                };
-                this._dialogOpen = true;
-                break;
+        const selectedSlotIds = this._selectedSlotIdsByInterval[interval.id] ?? [];
+        if (selectedSlotIds.length === 0) {
+            return;
         }
+
+        const selectedSlotIdSet = new Set(selectedSlotIds);
+        const selectedSlots = interval.slots.filter((slot) => selectedSlotIdSet.has(slot.id));
+        if (selectedSlots.length === 0) {
+            this._selectedSlotIdsByInterval = this._withIntervalSelection(interval.id, []);
+            return;
+        }
+
+        this._dialogState = {
+            intervalId: interval.id,
+            intervalLabel: interval.timeRangeLabel,
+            selectedSlots,
+            initialAction: interval.action,
+        };
+        this._dialogOpen = true;
     }
 
     private _handleDialogClosed(event: Event): void {
@@ -358,15 +380,17 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         let patches;
         try {
             patches = buildScheduleSlotPatches({
-                slots: this._dialogState.slots,
-                result: event.detail,
+                selectedSlots: this._dialogState.selectedSlots,
+                action: event.detail.action,
             });
         } catch (error) {
             console.error("helman-scheduling: failed to build schedule patches", error);
             return;
         }
 
+        const intervalId = this._dialogState.intervalId;
         this._dialogOpen = false;
+        this._selectedSlotIdsByInterval = this._withIntervalSelection(intervalId, []);
         if (patches.length === 0) {
             return;
         }
@@ -390,6 +414,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
         this._daySections = [];
         this._expandedIntervalIds = [];
+        this._selectedSlotIdsByInterval = {};
+        this._dialogState = null;
         this._dialogOpen = false;
     }
 
@@ -421,6 +447,87 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private _applyOwnerSnapshot(snapshot: ScheduleOwnerSnapshot): void {
         this._ownerSnapshot = snapshot;
+    }
+
+    private _withIntervalSelection(intervalId: string, selectedSlotIds: string[]): Record<string, string[]> {
+        if (selectedSlotIds.length === 0) {
+            const nextSelections = { ...this._selectedSlotIdsByInterval };
+            delete nextSelections[intervalId];
+            return nextSelections;
+        }
+
+        return {
+            ...this._selectedSlotIdsByInterval,
+            [intervalId]: selectedSlotIds,
+        };
+    }
+
+    private _pruneSelectedSlotIdsByInterval(): Record<string, string[]> {
+        const nextSelectedSlotIdsByInterval: Record<string, string[]> = {};
+        const validSlotIdsByInterval = new Map(
+            this._daySections.flatMap((section) => section.rows.map((row) => [row.id, new Set(row.slotIds)] as const)),
+        );
+
+        for (const [intervalId, selectedSlotIds] of Object.entries(this._selectedSlotIdsByInterval)) {
+            const validSlotIds = validSlotIdsByInterval.get(intervalId);
+            if (!validSlotIds) {
+                continue;
+            }
+
+            const prunedSelection = selectedSlotIds.filter((slotId) => validSlotIds.has(slotId));
+            if (prunedSelection.length > 0) {
+                nextSelectedSlotIdsByInterval[intervalId] = prunedSelection;
+            }
+        }
+
+        return nextSelectedSlotIdsByInterval;
+    }
+
+    private _areIntervalSelectionsEqual(
+        currentSelections: Record<string, string[]>,
+        nextSelections: Record<string, string[]>,
+    ): boolean {
+        const currentIntervalIds = Object.keys(currentSelections);
+        const nextIntervalIds = Object.keys(nextSelections);
+        if (currentIntervalIds.length !== nextIntervalIds.length) {
+            return false;
+        }
+
+        return currentIntervalIds.every((intervalId) => {
+            const currentSlotIds = currentSelections[intervalId] ?? [];
+            const nextSlotIds = nextSelections[intervalId] ?? [];
+            return currentSlotIds.length === nextSlotIds.length
+                && currentSlotIds.every((slotId, index) => slotId === nextSlotIds[index]);
+        });
+    }
+
+    private _isDialogStateCurrent(nextSelectedSlotIdsByInterval: Record<string, string[]>): boolean {
+        if (!this._dialogState) {
+            return true;
+        }
+
+        const interval = this._findInterval(this._dialogState.intervalId);
+        if (!interval) {
+            return false;
+        }
+
+        const selectedSlotIds = nextSelectedSlotIdsByInterval[this._dialogState.intervalId] ?? [];
+        if (selectedSlotIds.length !== this._dialogState.selectedSlots.length) {
+            return false;
+        }
+
+        const selectedSlotIdSet = new Set(selectedSlotIds);
+        const currentSelectedSlots = interval.slots.filter((slot) => selectedSlotIdSet.has(slot.id));
+        if (currentSelectedSlots.length !== this._dialogState.selectedSlots.length) {
+            return false;
+        }
+
+        return currentSelectedSlots.every((slot, index) => {
+            const dialogSlot = this._dialogState?.selectedSlots[index];
+            return dialogSlot !== undefined
+                && slot.id === dialogSlot.id
+                && areScheduleActionsEqual(slot.action, dialogSlot.action);
+        });
     }
 
     private get _localize(): LocalizeFunction {

@@ -35,6 +35,7 @@ export class SchedulingDaySection extends LitElement {
     @property({ type: String }) public dayLabel = "";
     @property({ attribute: false }) public rows: ScheduleIntervalRowModel[] = [];
     @property({ attribute: false }) public expandedIntervalIds: string[] = [];
+    @property({ attribute: false }) public selectedSlotIdsByInterval: Record<string, string[]> = {};
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: Boolean }) public busy = false;
     @property({ type: Boolean }) public executionEnabled = false;
@@ -48,6 +49,7 @@ export class SchedulingDaySection extends LitElement {
                         <scheduling-interval-row
                             .row=${row}
                             .expanded=${this.expandedIntervalIds.includes(row.id)}
+                            .selectedSlotIds=${this.selectedSlotIdsByInterval[row.id] ?? []}
                             .localize=${this.localize}
                             .busy=${this.busy}
                             .executionEnabled=${this.executionEnabled}
