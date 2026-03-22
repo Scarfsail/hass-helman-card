@@ -1,9 +1,6 @@
 const LOCAL_DATE_TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 const TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 
-export const SCHEDULE_SLOT_MINUTES = 15;
-export const SCHEDULE_SLOT_DURATION_MS = SCHEDULE_SLOT_MINUTES * 60 * 1000;
-
 interface LocalDateTimeDescriptor {
     year: string;
     month: string;
@@ -16,8 +13,14 @@ interface LocalDateTimeDescriptor {
 
 export interface ScheduleSlotLabels {
     timeLabel: string;
-    endLabel: string;
+    endLabel: string | null;
     rangeLabel: string;
+}
+
+export interface ScheduleSlotBoundary {
+    id: string;
+    startMs: number;
+    endMs: number | null;
 }
 
 export function parseScheduleDate(value: string): Date | null {
@@ -29,62 +32,91 @@ export function getScheduleSlotStartMs(slotId: string): number | null {
     return parseScheduleDate(slotId)?.getTime() ?? null;
 }
 
-export function getScheduleSlotDayKey(slotId: string, timeZone: string): string | null {
-    return _getLocalDateTimeDescriptor(slotId, timeZone)?.dayKey ?? null;
+export function getScheduleDayKey(value: Date | string, timeZone: string): string | null {
+    return _getLocalDateTimeDescriptor(value, timeZone)?.dayKey ?? null;
 }
 
-export function getScheduleSlotLabels(
-    slotId: string,
-    locale: string,
-    timeZone: string,
-): ScheduleSlotLabels {
-    const startMs = getScheduleSlotStartMs(slotId);
-    if (startMs === null) {
+export function getScheduleSlotDayKey(slotId: string, timeZone: string): string | null {
+    return getScheduleDayKey(slotId, timeZone);
+}
+
+export function resolveScheduleSlotBoundaries(slotIds: readonly string[]): ScheduleSlotBoundary[] {
+    const slots = slotIds
+        .map((slotId) => {
+            const startMs = getScheduleSlotStartMs(slotId);
+            if (startMs === null) {
+                throw new Error(`helman-scheduling: invalid schedule slot id "${slotId}"`);
+            }
+
+            return {
+                id: slotId,
+                startMs,
+            };
+        })
+        .sort((left, right) => left.startMs - right.startMs);
+
+    for (let index = 0; index < slots.length - 1; index += 1) {
+        const durationMs = slots[index + 1].startMs - slots[index].startMs;
+        if (durationMs <= 0) {
+            throw new Error("helman-scheduling: schedule slot ids must be strictly increasing");
+        }
+    }
+
+    return slots.map((slot, index) => {
+        const nextSlot = slots[index + 1];
+
         return {
-            timeLabel: slotId,
-            endLabel: slotId,
-            rangeLabel: slotId,
+            id: slot.id,
+            startMs: slot.startMs,
+            endMs: nextSlot?.startMs ?? null,
+        };
+    });
+}
+
+export function getScheduleTimeRangeLabels({
+    startMs,
+    endMs,
+    locale,
+    timeZone,
+}: {
+    startMs: number;
+    endMs: number | null;
+    locale: string;
+    timeZone: string;
+}): ScheduleSlotLabels {
+    const timeLabel = formatScheduleTime(startMs, locale, timeZone);
+    if (endMs === null) {
+        return {
+            timeLabel,
+            endLabel: null,
+            rangeLabel: `${timeLabel}+`,
         };
     }
 
-    const endMs = startMs + SCHEDULE_SLOT_DURATION_MS;
-    const timeLabel = formatScheduleTime(startMs, locale, timeZone);
     const endLabel = formatScheduleTime(endMs, locale, timeZone);
     return {
         timeLabel,
         endLabel,
-        rangeLabel: `${timeLabel}–${endLabel}`,
+        rangeLabel: startMs === endMs ? timeLabel : `${timeLabel}–${endLabel}`,
     };
 }
 
-export function buildCurrentScheduleSlotId(now: Date, timeZone: string): string | null {
-    const descriptor = _getLocalDateTimeDescriptor(now, timeZone);
-    if (descriptor === null) {
+export function getNextScheduleBoundaryDelayMs(slotIds: readonly string[], now: Date = new Date()): number | null {
+    const boundaries = resolveScheduleSlotBoundaries(slotIds);
+    if (boundaries.length === 0) {
         return null;
     }
 
-    const roundedMinute = Math.floor(descriptor.minute / SCHEDULE_SLOT_MINUTES) * SCHEDULE_SLOT_MINUTES;
-    return [
-        `${descriptor.dayKey}T`,
-        String(descriptor.hour).padStart(2, "0"),
-        ":",
-        String(roundedMinute).padStart(2, "0"),
-        `:00${descriptor.offset}`,
-    ].join("");
-}
+    const nowMs = now.getTime();
+    const boundaryMs = [...new Set(boundaries.flatMap((slot) => slot.endMs === null ? [slot.startMs] : [slot.startMs, slot.endMs]))]
+        .sort((left, right) => left - right);
 
-export function getNextScheduleBoundaryDelayMs(now: Date, timeZone: string): number | null {
-    const currentSlotId = buildCurrentScheduleSlotId(now, timeZone);
-    if (currentSlotId === null) {
-        return null;
+    const nextBoundaryMs = boundaryMs.find((value) => value > nowMs);
+    if (nextBoundaryMs !== undefined) {
+        return Math.max(nextBoundaryMs - nowMs, 0);
     }
 
-    const currentSlotStartMs = getScheduleSlotStartMs(currentSlotId);
-    if (currentSlotStartMs === null) {
-        return null;
-    }
-
-    return Math.max(currentSlotStartMs + SCHEDULE_SLOT_DURATION_MS - now.getTime(), 0);
+    return null;
 }
 
 export function formatScheduleDayLabel({

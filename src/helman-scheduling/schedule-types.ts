@@ -13,10 +13,10 @@ export interface ScheduleSlot {
     id: string;
     index: number;
     startMs: number;
-    endMs: number;
+    endMs: number | null;
     dayKey: string;
     timeLabel: string;
-    endLabel: string;
+    endLabel: string | null;
     rangeLabel: string;
     action: ScheduleAction;
     runtime: ScheduleRuntime | null;
@@ -40,7 +40,7 @@ export interface ScheduleIntervalRowModel {
     startSlotId: string;
     endSlotId: string;
     startMs: number;
-    endMs: number;
+    endMs: number | null;
     timeRangeLabel: string;
     action: ScheduleAction;
     slotCount: number;

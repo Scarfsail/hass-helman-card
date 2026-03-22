@@ -7,10 +7,10 @@ import type {
     ScheduleSlot,
 } from "../schedule-types";
 import {
+    getScheduleDayKey,
     getScheduleSlotDayKey,
-    getScheduleSlotLabels,
-    getScheduleSlotStartMs,
-    SCHEDULE_SLOT_DURATION_MS,
+    getScheduleTimeRangeLabels,
+    resolveScheduleSlotBoundaries,
 } from "./schedule-time";
 
 export function normalizeSchedulePayload({
@@ -34,15 +34,31 @@ export function normalizeSchedulePayload({
     }
 
     const nowMs = now.getTime();
+    const slotBoundaries = resolveScheduleSlotBoundaries(schedule.slots.map((slot) => slot.id));
+    const slotBoundariesById = new Map(slotBoundaries.map((slot) => [slot.id, slot]));
     const normalizedSlots = schedule.slots
-        .map((slot) => _normalizeSlot(slot, timeZone, locale))
+        .map((slot) => {
+            const boundary = slotBoundariesById.get(slot.id);
+            if (boundary === undefined) {
+                throw new Error(`helman-scheduling: missing derived timing for slot "${slot.id}"`);
+            }
+
+            return _normalizeSlot({
+                slot,
+                boundary,
+                timeZone,
+                locale,
+            });
+        })
         .sort((left, right) => left.startMs - right.startMs)
         .map((slot, index) => ({
             ...slot,
             index,
         }));
 
-    const resolvedCurrentSlotId = normalizedSlots.find((slot) => slot.startMs <= nowMs && nowMs < slot.endMs)?.id
+    const resolvedCurrentSlotId = normalizedSlots.find((slot) =>
+        slot.endMs !== null && slot.startMs <= nowMs && nowMs < slot.endMs
+    )?.id
         ?? normalizedSlots.find((slot) => slot.runtime !== null)?.id
         ?? null;
 
@@ -60,30 +76,36 @@ export function normalizeSchedulePayload({
         slots,
         now: currentSlot ? _buildNowStripModel(currentSlot) : null,
         currentSlotId: currentSlot?.id ?? null,
-        currentDayKey: currentSlot?.dayKey ?? null,
+        currentDayKey: getScheduleDayKey(now, timeZone),
     };
 }
 
-function _normalizeSlot(
-    slot: SchedulePayload["slots"][number],
-    timeZone: string,
-    locale: string,
-): Omit<ScheduleSlot, "index" | "isCurrent"> {
-    const startMs = getScheduleSlotStartMs(slot.id);
-    if (startMs === null) {
-        throw new Error(`helman-scheduling: invalid schedule slot id "${slot.id}"`);
-    }
-
+function _normalizeSlot({
+    slot,
+    boundary,
+    timeZone,
+    locale,
+}: {
+    slot: SchedulePayload["slots"][number];
+    boundary: { startMs: number; endMs: number | null };
+    timeZone: string;
+    locale: string;
+}): Omit<ScheduleSlot, "index" | "isCurrent"> {
     const dayKey = getScheduleSlotDayKey(slot.id, timeZone);
     if (dayKey === null) {
         throw new Error(`helman-scheduling: failed to derive day key for slot "${slot.id}"`);
     }
 
-    const labels = getScheduleSlotLabels(slot.id, locale, timeZone);
+    const labels = getScheduleTimeRangeLabels({
+        startMs: boundary.startMs,
+        endMs: boundary.endMs,
+        locale,
+        timeZone,
+    });
     return {
         id: slot.id,
-        startMs,
-        endMs: startMs + SCHEDULE_SLOT_DURATION_MS,
+        startMs: boundary.startMs,
+        endMs: boundary.endMs,
         dayKey,
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,

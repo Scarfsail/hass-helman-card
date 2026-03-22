@@ -256,12 +256,14 @@ export class SchedulingRangeEditDialog extends LitElement {
             labels.push(
                 rangeStart.id === previousSlot.id
                     ? rangeStart.rangeLabel
-                    : `${rangeStart.timeLabel}–${previousSlot.endLabel}`,
+                    : previousSlot.endLabel !== null
+                    ? `${rangeStart.timeLabel}–${previousSlot.endLabel}`
+                    : `${rangeStart.timeLabel}–${previousSlot.timeLabel}+`,
             );
         };
 
         for (const slot of selectedSlots.slice(1)) {
-            if (slot.index === previousSlot.index + 1) {
+            if (previousSlot.endMs !== null && previousSlot.endMs === slot.startMs) {
                 previousSlot = slot;
                 continue;
             }

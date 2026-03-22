@@ -290,6 +290,7 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
                 if (this._hass.connection === connection) {
                     this._loading = false;
                     this._refreshing = false;
+                    this._scheduleNextBoundaryRefresh();
                     this._emit();
                 }
             }
@@ -311,12 +312,10 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
             return;
         }
 
-        const timeZone = _normalizeTimeZone(this._hass.config.time_zone);
-        if (timeZone === null) {
-            return;
-        }
-
-        const delay = getNextScheduleBoundaryDelayMs(new Date(), timeZone);
+        const delay = getNextScheduleBoundaryDelayMs(
+            this._schedule?.slots.map((slot) => slot.id) ?? [],
+            new Date(),
+        );
         if (delay === null) {
             return;
         }
@@ -324,10 +323,6 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
         this._boundaryTimer = window.setTimeout(async () => {
             this._boundaryTimer = null;
             await this.refresh();
-            if (this._listeners.size === 0) {
-                return;
-            }
-            this._scheduleNextBoundaryRefresh();
         }, delay + BOUNDARY_BUFFER_MS);
     }
 

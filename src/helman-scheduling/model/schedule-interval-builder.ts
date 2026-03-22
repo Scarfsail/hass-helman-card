@@ -55,7 +55,11 @@ export function buildScheduleDaySections({
         }
 
         const previousSlot = currentRowSlots[currentRowSlots.length - 1];
-        if (!areScheduleActionsEqual(previousSlot.action, slot.action)) {
+        if (
+            !areScheduleActionsEqual(previousSlot.action, slot.action)
+            || previousSlot.endMs === null
+            || previousSlot.endMs !== slot.startMs
+        ) {
             flushRow();
             currentRowSlots = [slot];
             continue;
@@ -80,7 +84,7 @@ function _buildIntervalRow(slots: ScheduleSlot[]): ScheduleIntervalRowModel {
         endSlotId: lastSlot.id,
         startMs: firstSlot.startMs,
         endMs: lastSlot.endMs,
-        timeRangeLabel: `${firstSlot.timeLabel}–${lastSlot.endLabel}`,
+        timeRangeLabel: _buildIntervalTimeRangeLabel(firstSlot, lastSlot),
         action: firstSlot.action,
         slotCount: slots.length,
         slotIds: slots.map((slot) => slot.id),
@@ -89,4 +93,16 @@ function _buildIntervalRow(slots: ScheduleSlot[]): ScheduleIntervalRowModel {
         currentSlotId: currentSlot?.id ?? null,
         accessory: null,
     };
+}
+
+function _buildIntervalTimeRangeLabel(firstSlot: ScheduleSlot, lastSlot: ScheduleSlot): string {
+    if (firstSlot.id === lastSlot.id) {
+        return firstSlot.rangeLabel;
+    }
+
+    if (lastSlot.endLabel !== null) {
+        return `${firstSlot.timeLabel}–${lastSlot.endLabel}`;
+    }
+
+    return `${firstSlot.timeLabel}–${lastSlot.timeLabel}+`;
 }
