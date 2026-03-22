@@ -218,3 +218,59 @@ export interface ForecastPayload {
     house_consumption: HouseConsumptionForecastDTO;
     battery_capacity: BatteryCapacityForecastDTO;
 }
+
+export type ScheduleActionKind =
+    | "normal"
+    | "charge_to_target_soc"
+    | "discharge_to_target_soc"
+    | "stop_charging"
+    | "stop_discharging";
+
+export interface ScheduleActionDTO {
+    kind: ScheduleActionKind;
+    targetSoc?: number;
+}
+
+export type ScheduleRuntimeStatus = "applied" | "error";
+export type ScheduleRuntimeReason = "scheduled" | "target_soc_reached";
+
+export interface ActiveSlotRuntimeDTO {
+    status: ScheduleRuntimeStatus;
+    executedAction?: ScheduleActionDTO;
+    reason?: ScheduleRuntimeReason;
+    errorCode?: string;
+}
+
+export interface ScheduleSlotDTO {
+    id: string;
+    action: ScheduleActionDTO;
+    runtime?: ActiveSlotRuntimeDTO;
+}
+
+export interface SchedulePayload {
+    executionEnabled: boolean;
+    slots: ScheduleSlotDTO[];
+}
+
+export interface GetScheduleRequest {
+    type: "helman/get_schedule";
+}
+
+export interface SetScheduleRequest {
+    type: "helman/set_schedule";
+    slots: ScheduleSlotDTO[];
+}
+
+export interface SetScheduleResponse {
+    success: true;
+}
+
+export interface SetScheduleExecutionRequest {
+    type: "helman/set_schedule_execution";
+    enabled: boolean;
+}
+
+export interface SetScheduleExecutionResponse {
+    success: true;
+    executionEnabled: boolean;
+}

@@ -114,5 +114,96 @@
       "exported_to_grid": "Export do sítě",
       "slot_duration": "Délka slotu"
     }
+  },
+  "scheduling": {
+    "title_default": "Helman Scheduling",
+    "empty": "Rozvrh není k dispozici.",
+    "execution": {
+      "toggle": "Provádění",
+      "enabled": "Provádění zapnuto",
+      "disabled": "Provádění vypnuto"
+    },
+    "status": {
+      "refreshing": "Obnovuje se…",
+      "updated": "Aktualizováno"
+    },
+    "day": {
+      "today": "Dnes",
+      "tomorrow": "Zítra"
+    },
+    "badge": {
+      "now": "Teď"
+    },
+    "action": {
+      "normal": "Normální",
+      "charge_to_target_soc": "Nabíjet do",
+      "discharge_to_target_soc": "Vybíjet do",
+      "stop_charging": "Zastavit nabíjení",
+      "stop_discharging": "Zastavit vybíjení"
+    },
+    "action_kind": {
+      "normal": "Normální režim",
+      "charge_to_target_soc": "Nabíjet do cílového SoC",
+      "discharge_to_target_soc": "Vybíjet do cílového SoC",
+      "stop_charging": "Zakázat nabíjení",
+      "stop_discharging": "Zakázat vybíjení"
+    },
+    "reason": {
+      "scheduled": "Podle plánu",
+      "target_soc_reached": "Cílové SoC dosaženo"
+    },
+    "runtime": {
+      "applied": "Použito",
+      "error": "Chyba běhu"
+    },
+    "actions": {
+      "refresh": "Obnovit",
+      "edit_interval": "Upravit interval",
+      "edit_range": "Upravit podrozsah",
+      "edit_slot": "Upravit",
+      "reset_interval": "Resetovat interval",
+      "reset_range": "Resetovat podrozsah"
+    },
+    "now": {
+      "title": "Teď",
+      "unavailable": "Aktuální slot není k dispozici.",
+      "scheduled": "Naplánováno",
+      "running": "Běží",
+      "reason": "Důvod",
+      "execution_disabled": "Provádění je vypnuté",
+      "runtime_unavailable": "Stav běhu není k dispozici."
+    },
+    "dialog": {
+      "title": {
+        "edit_interval": "Upravit interval",
+        "edit_range": "Upravit rozvrh",
+        "edit_slot": "Upravit slot",
+        "reset_interval": "Resetovat interval",
+        "reset_range": "Resetovat podrozsah"
+      },
+      "interval": "Interval",
+      "range": "Rozsah",
+      "from_slot": "Od slotu",
+      "to_slot": "Do slotu",
+      "action": "Akce",
+      "target_soc": "Cílové SoC",
+      "affects_prefix": "Ovlivní",
+      "cancel": "Zrušit",
+      "apply": "Použít změny",
+      "apply_reset": "Resetovat na normální"
+    },
+    "copy": {
+      "slot_one": "slot",
+      "slot_few": "sloty",
+      "slot_many": "slotů"
+    },
+    "error": {
+      "invalid_slots": "Vybrané sloty nejsou platné.",
+      "invalid_action": "Vybraná akce není platná.",
+      "not_configured": "Plánování není správně nakonfigurované.",
+      "execution_unavailable": "Provádění plánu není momentálně dostupné.",
+      "unknown": "Nepodařilo se načíst nebo upravit rozvrh.",
+      "showing_last_good": "Zobrazuji poslední známý rozvrh."
+    }
   }
 }

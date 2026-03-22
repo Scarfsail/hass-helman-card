@@ -235,6 +235,26 @@ Options:
 The standalone forecast card uses the same backend forecast configuration described above for solar, house, battery, and price data. These YAML options only control presentation of the unified Lovelace card.
 
 
+## Scheduling card
+
+The manual scheduling card is available as `custom:helman-scheduling-card`.
+
+It reads the backend's slot-native `helman/get_schedule` response, shows the current slot in a dedicated **Now** strip, groups future slots into day sections and readable intervals, and lets you edit a single slot, a contiguous sub-range, or a whole interval through a dialog.
+
+This card depends on the Helman backend scheduling API being configured and available. The Lovelace config for v1 is intentionally minimal and YAML-only:
+
+```yaml
+type: custom:helman-scheduling-card
+title: Bateriový rozvrh
+transparent_background: false
+```
+
+Options:
+
+- `title`: optional custom card title.
+- `transparent_background`: removes card background and shadow.
+
+
 ## Examples
 
 Minimal with grouping and regex cleaner:
