@@ -172,10 +172,11 @@ export function buildUnifiedForecastModel({
         timeZone: chartContext.timeZone,
         now,
     });
+    const houseForecast = forecast.house_consumption;
     const houseDays = buildHouseForecastModel({
-        actualHistory: forecast.house_consumption.actualHistory,
-        currentHour: forecast.house_consumption.currentHour ?? null,
-        series: forecast.house_consumption.series,
+        actualHistory: houseForecast.actualHistory,
+        currentSlot: houseForecast.currentSlot ?? houseForecast.currentHour ?? null,
+        series: houseForecast.series,
         timeZone: chartContext.timeZone,
         now,
     });

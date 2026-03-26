@@ -13,6 +13,7 @@ import {
     normalizeForecastBarHeight,
     type ForecastChartBuildContext,
 } from "./forecast-chart-shared";
+import type { SharedForecastAxis } from "./shared-forecast-axis";
 
 export type BatteryChartBuildContext = ForecastChartBuildContext;
 
@@ -20,6 +21,8 @@ export interface BatteryDetailColumnModel {
     source: BatterySlotSource;
     timestamp: string;
     endsAt: string;
+    displayStartAt: string;
+    displayEndAt: string;
     durationHours: number;
     hourLabel: string | null;
     isPast: boolean;
@@ -56,6 +59,7 @@ export interface BatteryDetailChartModel {
 
 interface BuildBatteryDetailChartModelParams {
     day: BatteryCapacityForecastDay;
+    axis: SharedForecastAxis;
     minSoc: number | null;
     maxSoc: number | null;
     context: BatteryChartBuildContext;
@@ -65,6 +69,7 @@ const DETAIL_MAX_FLOW_HEIGHT = 34;
 
 export function buildBatteryDetailChartModel({
     day,
+    axis,
     minSoc,
     maxSoc,
     context,
@@ -108,6 +113,8 @@ export function buildBatteryDetailChartModel({
                 source: slot.source,
                 timestamp: slot.timestamp,
                 endsAt: slot.endsAt,
+                displayStartAt: axis.columns[index]?.timestamp ?? slot.timestamp,
+                displayEndAt: axis.columns[index + 1]?.timestamp ?? slot.endsAt,
                 durationHours: slot.durationHours,
                 hourLabel: sparseHourLabels.get(index) ?? null,
                 isPast: isPastForecastTimestamp(slot.timestamp, day.isToday, context),

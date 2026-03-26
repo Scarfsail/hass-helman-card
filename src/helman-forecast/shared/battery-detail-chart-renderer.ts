@@ -68,31 +68,36 @@ export function buildBatteryDetailColumnTitle(
 ): string {
     if (column.isGap || column.endSocPct === null) {
         return [
-            formatHourRange(column.timestamp, column.endsAt),
+            formatHourRange(column.displayStartAt, column.displayEndAt),
             localize("node_detail.battery_forecast.no_data"),
         ].join(" · ");
     }
 
     const parts = [
-        formatHourRange(column.timestamp, column.endsAt),
+        formatHourRange(column.displayStartAt, column.displayEndAt),
         `${localize("node_detail.battery.soc")}: ${formatSocWithUnit(column.startSocPct ?? column.endSocPct)} → ${formatSocWithUnit(column.endSocPct)}`,
         `${localize("node_detail.battery_forecast.slot_duration")}: ${formatDurationHours(column.durationHours)}`,
     ];
 
+    let hasEnergyBreakdown = false;
     if (column.chargedKwh > 0) {
         parts.push(`${localize("node_detail.battery_forecast.charged")}: ${formatEnergy(column.chargedKwh)}`);
+        hasEnergyBreakdown = true;
     }
     if (column.dischargedKwh > 0) {
         parts.push(`${localize("node_detail.battery_forecast.discharged")}: ${formatEnergy(column.dischargedKwh)}`);
+        hasEnergyBreakdown = true;
     }
     if (column.importedFromGridKwh > 0) {
         parts.push(`${localize("node_detail.battery_forecast.imported_from_grid")}: ${formatEnergy(column.importedFromGridKwh)}`);
+        hasEnergyBreakdown = true;
     }
     if (column.exportedToGridKwh > 0) {
         parts.push(`${localize("node_detail.battery_forecast.exported_to_grid")}: ${formatEnergy(column.exportedToGridKwh)}`);
+        hasEnergyBreakdown = true;
     }
 
-    if (parts.length === 3) {
+    if (!hasEnergyBreakdown) {
         if (column.flowDirection !== "idle" && column.flowMagnitudeKwh === null && column.flowSource === "actual_soc_delta") {
             parts.push(`${localize("node_detail.battery_forecast.charge_discharge")}: ${_formatBatteryFlowMode(column, localize)}`);
         } else {

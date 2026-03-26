@@ -1,8 +1,10 @@
 import type { HomeAssistant } from "../../hass-frontend/src/types";
-import type { ForecastPayload } from "../helman-api";
+import type { ForecastPayload, GetForecastRequest } from "../helman-api";
 
 export const FORECAST_REFRESH_MS = 5 * 60 * 1000;
 const FORECAST_REQUEST_CACHE_MS = 2000;
+const FORECAST_REQUEST_GRANULARITY = 60;
+const FORECAST_REQUEST_DAYS = 7;
 
 type ForecastConnection = HomeAssistant["connection"];
 
@@ -60,9 +62,12 @@ export function loadForecast(hass: HomeAssistant): Promise<ForecastPayload> {
         return cache.inFlight;
     }
 
-    const request = hass.connection.sendMessagePromise<ForecastPayload>({
+    const requestMessage: GetForecastRequest = {
         type: "helman/get_forecast",
-    }).then((payload) => {
+        granularity: FORECAST_REQUEST_GRANULARITY,
+        forecast_days: FORECAST_REQUEST_DAYS,
+    };
+    const request = hass.connection.sendMessagePromise<ForecastPayload>(requestMessage).then((payload) => {
         cache.payload = payload;
         cache.payloadHourKey = requestHourKey;
         cache.fetchedAt = Date.now();

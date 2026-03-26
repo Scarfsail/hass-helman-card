@@ -93,6 +93,10 @@ export type ForecastStatus =
     | "partial"
     | "available";
 
+export type ForecastGranularity = 15 | 30 | 60;
+
+export type ForecastResolution = "quarter_hour" | "half_hour" | "hour";
+
 export interface ForecastPointDTO {
     timestamp: string;
     value: number;
@@ -101,15 +105,19 @@ export interface ForecastPointDTO {
 export interface SolarForecastDTO {
     status: ForecastStatus;
     unit: string | null;
+    resolution: ForecastResolution;
+    horizonHours: number;
     remainingTodayKwh?: number | null;
     remainingTodayEnergyEntityId?: string | null;
     actualHistory: ForecastPointDTO[];
-    points: ForecastPointDTO[]; // hourly solar forecast points
+    points: ForecastPointDTO[]; // forecast points at the returned response granularity
 }
 
 export interface GridForecastDTO {
     status: ForecastStatus;
     unit: string | null;
+    resolution: ForecastResolution;
+    horizonHours: number;
     currentSellPrice: number | null;
     points: ForecastPointDTO[];
 }
@@ -154,13 +162,14 @@ export interface HouseConsumptionForecastDTO {
     status: ForecastStatus;
     generatedAt: string | null;
     unit: string;
-    resolution: string;
+    resolution: ForecastResolution;
     horizonHours: number;
     trainingWindowDays: number;
     historyDaysAvailable: number;
     requiredHistoryDays: number;
     model: string | null;
     actualHistory: HouseConsumptionActualHourDTO[];
+    currentSlot?: HouseConsumptionForecastHourDTO;
     currentHour?: HouseConsumptionForecastHourDTO;
     series: HouseConsumptionForecastHourDTO[];
 }
@@ -194,7 +203,7 @@ export interface BatteryCapacityForecastDTO {
     generatedAt: string | null;
     startedAt: string | null;
     unit: "kWh";
-    resolution: "hour";
+    resolution: ForecastResolution;
     horizonHours: number;
     model: string | null;
     nominalCapacityKwh: number | null;
@@ -217,6 +226,12 @@ export interface ForecastPayload {
     grid: GridForecastDTO;
     house_consumption: HouseConsumptionForecastDTO;
     battery_capacity: BatteryCapacityForecastDTO;
+}
+
+export interface GetForecastRequest {
+    type: "helman/get_forecast";
+    granularity?: ForecastGranularity;
+    forecast_days?: number;
 }
 
 export type ScheduleActionKind =

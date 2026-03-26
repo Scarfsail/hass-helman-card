@@ -136,6 +136,7 @@ export function buildUnifiedForecastDetailModel({
         battery: sectionVisibility.battery && day.battery !== null && day.batteryDay !== null
             ? buildBatteryDetailChartModel({
                 day: _alignBatteryDayToAxis(day.batteryDay, axis, chartContext.timeZone),
+                axis,
                 minSoc: batteryMinSoc,
                 maxSoc: batteryMaxSoc,
                 context: chartContext,

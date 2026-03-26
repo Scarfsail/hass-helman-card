@@ -49,7 +49,7 @@ export interface HouseForecastDay {
 
 interface BuildHouseForecastModelParams {
     actualHistory: HouseConsumptionActualHourDTO[];
-    currentHour: HouseConsumptionForecastHourDTO | null;
+    currentSlot: HouseConsumptionForecastHourDTO | null;
     series: HouseConsumptionForecastHourDTO[];
     timeZone: string;
     now?: Date;
@@ -57,7 +57,7 @@ interface BuildHouseForecastModelParams {
 
 export function buildHouseForecastModel({
     actualHistory,
-    currentHour,
+    currentSlot,
     series,
     timeZone,
     now = new Date(),
@@ -72,8 +72,8 @@ export function buildHouseForecastModel({
     const tomorrowKey = _addDaysToDayKey(todayKey, 1);
     const forecastDayMap = new Map<string, HouseForecastHour[]>();
 
-    if (currentHour !== null) {
-        _addForecastEntry(forecastDayMap, currentHour, timeZone, todayKey);
+    if (currentSlot !== null) {
+        _addForecastEntry(forecastDayMap, currentSlot, timeZone, todayKey);
     }
     for (const entry of series) {
         _addForecastEntry(forecastDayMap, entry, timeZone, todayKey);
