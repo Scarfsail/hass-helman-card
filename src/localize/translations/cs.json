@@ -186,7 +186,8 @@
     "copy": {
       "slot_one": "slot",
       "slot_few": "sloty",
-      "slot_many": "slotů"
+      "slot_many": "slotů",
+      "selected_prefix": "Vybráno"
     },
     "error": {
       "invalid_slots": "Vybrané sloty nejsou platné.",

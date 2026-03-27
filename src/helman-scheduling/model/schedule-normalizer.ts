@@ -2,7 +2,6 @@ import type { SchedulePayload } from "../../helman-api";
 import type {
     NormalizedScheduleModel,
     ScheduleAction,
-    ScheduleNowStripModel,
     ScheduleRuntime,
     ScheduleSlot,
 } from "../schedule-types";
@@ -27,7 +26,6 @@ export function normalizeSchedulePayload({
     if (schedule === null) {
         return {
             slots: [],
-            now: null,
             currentSlotId: null,
             currentDayKey: null,
         };
@@ -74,7 +72,6 @@ export function normalizeSchedulePayload({
 
     return {
         slots,
-        now: currentSlot ? _buildNowStripModel(currentSlot) : null,
         currentSlotId: currentSlot?.id ?? null,
         currentDayKey: getScheduleDayKey(now, timeZone),
     };
@@ -112,15 +109,6 @@ function _normalizeSlot({
         rangeLabel: labels.rangeLabel,
         action: _cloneAction(slot.action),
         runtime: _cloneRuntime(slot.runtime),
-    };
-}
-
-function _buildNowStripModel(slot: ScheduleSlot): ScheduleNowStripModel {
-    return {
-        slotId: slot.id,
-        rangeLabel: slot.rangeLabel,
-        scheduledAction: slot.action,
-        runtime: slot.runtime,
     };
 }
 

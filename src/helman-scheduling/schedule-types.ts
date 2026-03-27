@@ -23,59 +23,18 @@ export interface ScheduleSlot {
     isCurrent: boolean;
 }
 
-export interface ScheduleNowStripModel {
-    slotId: string;
-    rangeLabel: string;
-    scheduledAction: ScheduleAction;
-    runtime: ScheduleRuntime | null;
-}
-
-export interface ScheduleAccessorySummary {
-    label: string;
-}
-
-export interface ScheduleIntervalRowModel {
-    id: string;
-    dayKey: string;
-    startSlotId: string;
-    endSlotId: string;
-    startMs: number;
-    endMs: number | null;
-    timeRangeLabel: string;
-    action: ScheduleAction;
-    slotCount: number;
-    slotIds: string[];
-    slots: ScheduleSlot[];
-    containsCurrentSlot: boolean;
-    currentSlotId: string | null;
-    accessory: ScheduleAccessorySummary | null;
-}
-
-export interface ScheduleDaySectionModel {
+export interface ScheduleTableSectionModel {
     dayKey: string;
     dayLabel: string;
-    rows: ScheduleIntervalRowModel[];
+    slots: ScheduleSlot[];
 }
 
-export interface ScheduleSlotSelectionDetail {
-    intervalId: string;
+export interface ScheduleSlotToggleDetail {
     slotId: string;
     selected: boolean;
-}
-
-export interface ScheduleIntervalSelectionDetail {
-    intervalId: string;
-    slotIds: string[];
-    selected: boolean;
-}
-
-export interface ScheduleOpenDialogDetail {
-    intervalId: string;
 }
 
 export interface ScheduleDialogState {
-    intervalId: string;
-    intervalLabel: string;
     selectedSlots: ScheduleSlot[];
     initialAction: ScheduleAction;
 }
@@ -102,7 +61,6 @@ export interface ScheduleOwnerSnapshot {
 
 export interface NormalizedScheduleModel {
     slots: ScheduleSlot[];
-    now: ScheduleNowStripModel | null;
     currentSlotId: string | null;
     currentDayKey: string | null;
 }

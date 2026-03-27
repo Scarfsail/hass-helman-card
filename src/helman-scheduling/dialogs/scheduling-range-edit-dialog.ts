@@ -189,10 +189,6 @@ export class SchedulingRangeEditDialog extends LitElement {
                 <div class="dialog-content">
                     <div class="dialog-summary">
                         <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.interval")}</div>
-                            <div class="dialog-summary-value">${this.dialogState.intervalLabel}</div>
-                        </div>
-                        <div class="field">
                             <div class="field-label">${this.localize("scheduling.dialog.selection")}</div>
                             <div class="dialog-summary-value">${this._selectedSlotSummaryLabel()}</div>
                         </div>
