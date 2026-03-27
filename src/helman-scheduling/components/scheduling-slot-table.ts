@@ -8,12 +8,22 @@ import {
     getScheduleErrorLabel,
     getScheduleReasonLabel,
 } from "../model/schedule-labels";
+import {
+    EMPTY_SLOT_FORECAST_MAP,
+    type SlotForecastMap,
+    type SlotForecastPoint,
+} from "../model/slot-forecast-model";
 import type {
     ScheduleSlot,
     ScheduleSlotToggleDetail,
     ScheduleTableSectionModel,
 } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
+
+function _formatSolarLabel(wh: number): string {
+    const kwh = wh / 1000;
+    return kwh >= 10 ? `${Math.round(kwh)} kWh` : `${kwh.toFixed(1)} kWh`;
+}
 
 @customElement("scheduling-slot-table")
 export class SchedulingSlotTable extends LitElement {
@@ -129,6 +139,54 @@ export class SchedulingSlotTable extends LitElement {
             .edit-bar .muted {
                 font-size: 0.82rem;
             }
+
+            .slot-forecast {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin-inline-start: auto;
+                min-width: 0;
+            }
+
+            .forecast-gauge {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                min-width: 0;
+            }
+
+            .forecast-bar-track {
+                width: 40px;
+                height: 4px;
+                border-radius: 2px;
+                background: color-mix(in srgb, var(--secondary-text-color) 20%, transparent);
+                overflow: hidden;
+                flex-shrink: 0;
+            }
+
+            .forecast-bar-fill {
+                height: 100%;
+                border-radius: 2px;
+            }
+
+            .forecast-gauge.battery .forecast-bar-fill {
+                background: var(--simple-card-source-battery, #22c55e);
+            }
+
+            .forecast-gauge.solar .forecast-bar-fill {
+                background: #f5b912;
+            }
+
+            .forecast-gauge.unavailable .forecast-bar-track {
+                opacity: 0.4;
+            }
+
+            .forecast-label {
+                font-size: 0.68rem;
+                font-weight: 600;
+                color: var(--secondary-text-color);
+                white-space: nowrap;
+            }
         `,
     ];
 
@@ -136,6 +194,7 @@ export class SchedulingSlotTable extends LitElement {
 
     @property({ attribute: false }) public sections: ScheduleTableSectionModel[] = [];
     @property({ attribute: false }) public selectedSlotIds: string[] = [];
+    @property({ attribute: false }) public slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: Boolean }) public busy = false;
     @property({ type: Boolean }) public executionEnabled = false;
@@ -188,10 +247,67 @@ export class SchedulingSlotTable extends LitElement {
                     <div class="slot-time">${slot.rangeLabel}</div>
                     <div class="chip action">${getScheduleActionLabel(slot.action, this.localize)}</div>
                     ${slot.isCurrent ? html`<div class="chip now">${this.localize("scheduling.badge.now")}</div>` : nothing}
+                    ${this._renderForecastGauges(slot)}
                 </div>
                 ${slot.isCurrent ? html`
                     <div class="slot-runtime">${this._renderSlotRuntime(slot)}</div>
                 ` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderForecastGauges(slot: ScheduleSlot) {
+        const map = this.slotForecastMap;
+        if (map.points.size === 0) {
+            return nothing;
+        }
+
+        const point = map.points.get(slot.id);
+        return html`
+            <div class="slot-forecast">
+                ${this._renderGauge(
+                    "battery",
+                    map.batteryAvailable,
+                    point?.socPct ?? null,
+                    100,
+                    point?.socPct != null ? `${Math.round(point.socPct)}%` : null,
+                )}
+                ${this._renderGauge(
+                    "solar",
+                    map.solarAvailable,
+                    point?.solarWh ?? null,
+                    map.solarMaxWh,
+                    point?.solarWh != null ? _formatSolarLabel(point.solarWh) : null,
+                )}
+            </div>
+        `;
+    }
+
+    private _renderGauge(
+        type: string,
+        available: boolean,
+        value: number | null,
+        maxValue: number,
+        label: string | null,
+    ) {
+        if (!available) {
+            return html`
+                <div class="forecast-gauge ${type} unavailable">
+                    <div class="forecast-bar-track"></div>
+                </div>
+            `;
+        }
+
+        const widthPct = value !== null && maxValue > 0
+            ? Math.min((value / maxValue) * 100, 100)
+            : 0;
+
+        return html`
+            <div class="forecast-gauge ${type}">
+                <div class="forecast-bar-track">
+                    <div class="forecast-bar-fill" style="width:${widthPct}%"></div>
+                </div>
+                ${label !== null ? html`<span class="forecast-label">${label}</span>` : nothing}
             </div>
         `;
     }

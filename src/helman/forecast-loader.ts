@@ -1,39 +1,9 @@
 import type { HomeAssistant } from "../../hass-frontend/src/types";
-import type { ForecastPayload, GetForecastRequest } from "../helman-api";
+import type { ForecastGranularity, ForecastPayload, GetForecastRequest } from "../helman-api";
 
 export const FORECAST_REFRESH_MS = 5 * 60 * 1000;
+
 const FORECAST_REQUEST_CACHE_MS = 2000;
-const FORECAST_REQUEST_GRANULARITY = 60;
-const FORECAST_REQUEST_DAYS = 7;
-
-type ForecastConnection = HomeAssistant["connection"];
-
-type ForecastRequestCache = {
-    inFlight: Promise<ForecastPayload> | null;
-    inFlightHourKey: string | null;
-    payload: ForecastPayload | null;
-    payloadHourKey: string | null;
-    fetchedAt: number;
-};
-
-const forecastRequestCache = new WeakMap<ForecastConnection, ForecastRequestCache>();
-
-function getRequestCache(hass: HomeAssistant): ForecastRequestCache {
-    let cache = forecastRequestCache.get(hass.connection);
-    if (cache !== undefined) {
-        return cache;
-    }
-
-    cache = {
-        inFlight: null,
-        inFlightHourKey: null,
-        payload: null,
-        payloadHourKey: null,
-        fetchedAt: 0,
-    };
-    forecastRequestCache.set(hass.connection, cache);
-    return cache;
-}
 
 function getLocalHourRequestKey(now: Date): string {
     return [
@@ -45,53 +15,62 @@ function getLocalHourRequestKey(now: Date): string {
     ].join(":");
 }
 
-export function loadForecast(hass: HomeAssistant): Promise<ForecastPayload> {
-    const now = new Date();
-    const requestHourKey = getLocalHourRequestKey(now);
-    const cache = getRequestCache(hass);
+export class ForecastLoader {
+    private _inFlight: Promise<ForecastPayload> | null = null;
+    private _inFlightHourKey: string | null = null;
+    private _payload: ForecastPayload | null = null;
+    private _payloadHourKey: string | null = null;
+    private _fetchedAt = 0;
 
-    if (
-        cache.payload !== null &&
-        cache.payloadHourKey === requestHourKey &&
-        now.getTime() - cache.fetchedAt <= FORECAST_REQUEST_CACHE_MS
-    ) {
-        return Promise.resolve(cache.payload);
-    }
+    constructor(
+        private readonly _granularity: ForecastGranularity,
+        private readonly _forecastDays: number,
+    ) {}
 
-    if (cache.inFlight !== null && cache.inFlightHourKey === requestHourKey) {
-        return cache.inFlight;
-    }
+    load(hass: HomeAssistant): Promise<ForecastPayload> {
+        const now = new Date();
+        const requestHourKey = getLocalHourRequestKey(now);
 
-    const requestMessage: GetForecastRequest = {
-        type: "helman/get_forecast",
-        granularity: FORECAST_REQUEST_GRANULARITY,
-        forecast_days: FORECAST_REQUEST_DAYS,
-    };
-    const request = hass.connection.sendMessagePromise<ForecastPayload>(requestMessage).then((payload) => {
-        cache.payload = payload;
-        cache.payloadHourKey = requestHourKey;
-        cache.fetchedAt = Date.now();
-        return payload;
-    }).finally(() => {
-        if (cache.inFlight === request) {
-            cache.inFlight = null;
-            cache.inFlightHourKey = null;
+        if (
+            this._payload !== null
+            && this._payloadHourKey === requestHourKey
+            && now.getTime() - this._fetchedAt <= FORECAST_REQUEST_CACHE_MS
+        ) {
+            return Promise.resolve(this._payload);
         }
-    });
 
-    cache.inFlight = request;
-    cache.inFlightHourKey = requestHourKey;
-    return request;
-}
+        if (this._inFlight !== null && this._inFlightHourKey === requestHourKey) {
+            return this._inFlight;
+        }
 
-export async function refreshForecast(
-    hass: HomeAssistant,
-    previous: ForecastPayload | null,
-): Promise<ForecastPayload | null> {
-    try {
-        return await loadForecast(hass);
-    } catch (err) {
-        console.error("helman: failed to refresh forecast", err);
-        return previous;
+        const requestMessage: GetForecastRequest = {
+            type: "helman/get_forecast",
+            granularity: this._granularity,
+            forecast_days: this._forecastDays,
+        };
+        const request = hass.connection.sendMessagePromise<ForecastPayload>(requestMessage).then((payload) => {
+            this._payload = payload;
+            this._payloadHourKey = requestHourKey;
+            this._fetchedAt = Date.now();
+            return payload;
+        }).finally(() => {
+            if (this._inFlight === request) {
+                this._inFlight = null;
+                this._inFlightHourKey = null;
+            }
+        });
+
+        this._inFlight = request;
+        this._inFlightHourKey = requestHourKey;
+        return request;
+    }
+
+    async refresh(hass: HomeAssistant): Promise<ForecastPayload | null> {
+        try {
+            return await this.load(hass);
+        } catch (err) {
+            console.error("helman: failed to refresh forecast", err);
+            return this._payload;
+        }
     }
 }

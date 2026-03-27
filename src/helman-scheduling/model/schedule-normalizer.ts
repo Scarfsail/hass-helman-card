@@ -8,6 +8,7 @@ import type {
 import {
     getScheduleDayKey,
     getScheduleSlotDayKey,
+    getScheduleSlotStartMs,
     getScheduleTimeRangeLabels,
     resolveScheduleSlotBoundaries,
 } from "./schedule-time";
@@ -33,20 +34,31 @@ export function normalizeSchedulePayload({
 
     const nowMs = now.getTime();
     const slotBoundaries = resolveScheduleSlotBoundaries(schedule.slots.map((slot) => slot.id));
-    const slotBoundariesById = new Map(slotBoundaries.map((slot) => [slot.id, slot]));
+    const slotBoundariesByMs = new Map(slotBoundaries.map((slot) => [slot.startMs, slot]));
+    const seenMs = new Set<number>();
     const normalizedSlots = schedule.slots
-        .map((slot) => {
-            const boundary = slotBoundariesById.get(slot.id);
-            if (boundary === undefined) {
-                throw new Error(`helman-scheduling: missing derived timing for slot "${slot.id}"`);
+        .flatMap((slot) => {
+            const startMs = getScheduleSlotStartMs(slot.id);
+            if (startMs === null) {
+                return [];
             }
 
-            return _normalizeSlot({
+            if (seenMs.has(startMs)) {
+                return [];
+            }
+            seenMs.add(startMs);
+
+            const boundary = slotBoundariesByMs.get(startMs);
+            if (boundary === undefined) {
+                return [];
+            }
+
+            return [_normalizeSlot({
                 slot,
                 boundary,
                 timeZone,
                 locale,
-            });
+            })];
         })
         .sort((left, right) => left.startMs - right.startMs)
         .map((slot, index) => ({

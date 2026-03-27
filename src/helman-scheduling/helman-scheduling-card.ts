@@ -3,6 +3,8 @@ import { customElement, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { LovelaceCard } from "../../hass-frontend/src/panels/lovelace/types";
+import type { ForecastPayload, SchedulePayload } from "../helman-api";
+import { ForecastLoader } from "../helman/forecast-loader";
 import { getLocalizeFunction, type LocalizeFunction } from "../localize/localize";
 import type { HelmanSchedulingCardConfig } from "./HelmanSchedulingCardConfig";
 import "./components/scheduling-card-header";
@@ -12,6 +14,12 @@ import { getScheduleErrorLabel } from "./model/schedule-labels";
 import { normalizeSchedulePayload } from "./model/schedule-normalizer";
 import { buildScheduleSlotPatches } from "./model/schedule-patch-builder";
 import { buildScheduleTableSections } from "./model/schedule-table-builder";
+import {
+    buildSlotForecastMap,
+    deriveScheduleForecastParams,
+    EMPTY_SLOT_FORECAST_MAP,
+    type SlotForecastMap,
+} from "./model/slot-forecast-model";
 import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-owner";
 import type {
     NormalizedScheduleModel,
@@ -79,9 +87,15 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _unsubscribeScheduleOwner?: () => void;
     private _normalizedSchedule: NormalizedScheduleModel = EMPTY_NORMALIZED_SCHEDULE;
     private _tableSections: ScheduleTableSectionModel[] = [];
+    private _forecastLoader: ForecastLoader | null = null;
+    private _forecastLoaderGranularity: number | null = null;
+    private _forecastLoaderDays: number | null = null;
+    private _forecastLoadGeneration = 0;
+    private _slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
 
     @state() private _hass?: HomeAssistant;
     @state() private _ownerSnapshot: ScheduleOwnerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
+    @state() private _forecast: ForecastPayload | null = null;
     @state() private _selectedSlotIds: string[] = [];
     @state() private _dialogState: ScheduleDialogState | null = null;
     @state() private _dialogOpen = false;
@@ -130,6 +144,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         if (!this._hass) {
             this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
             this._tableSections = [];
+            this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
             return;
         }
 
@@ -158,6 +173,10 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 this._dialogState = null;
                 this._dialogOpen = false;
             }
+        }
+
+        if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_forecast") || changedProperties.has("_hass")) {
+            this._slotForecastMap = buildSlotForecastMap(this._forecast, this._normalizedSchedule.slots);
         }
     }
 
@@ -195,6 +214,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                             <scheduling-slot-table
                                 .sections=${this._tableSections}
                                 .selectedSlotIds=${this._selectedSlotIds}
+                                .slotForecastMap=${this._slotForecastMap}
                                 .localize=${this._localize}
                                 .busy=${this._ownerSnapshot.writing || this._ownerSnapshot.togglingExecution}
                                 .executionEnabled=${this._ownerSnapshot.schedule?.executionEnabled ?? false}
@@ -339,6 +359,12 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._selectedSlotIds = [];
         this._dialogState = null;
         this._dialogOpen = false;
+        this._forecast = null;
+        this._forecastLoader = null;
+        this._forecastLoaderGranularity = null;
+        this._forecastLoaderDays = null;
+        this._forecastLoadGeneration = 0;
+        this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
     }
 
     private _syncScheduleOwner(): void {
@@ -368,7 +394,59 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     }
 
     private _applyOwnerSnapshot(snapshot: ScheduleOwnerSnapshot): void {
+        const scheduleChanged = snapshot.schedule !== null
+            && snapshot.schedule !== this._ownerSnapshot.schedule;
         this._ownerSnapshot = snapshot;
+
+        if (scheduleChanged) {
+            void this._loadForecastForSchedule(snapshot.schedule!, {
+                resetExistingForecast: snapshot.writing || snapshot.togglingExecution,
+            });
+        }
+    }
+
+    private async _loadForecastForSchedule(
+        schedule: SchedulePayload,
+        options: { resetExistingForecast?: boolean } = {},
+    ): Promise<void> {
+        const hass = this._hass;
+        if (!hass) {
+            return;
+        }
+
+        const generation = ++this._forecastLoadGeneration;
+        const params = deriveScheduleForecastParams(
+            schedule.slots,
+            hass.config.time_zone ?? "UTC",
+        );
+        if (params === null) {
+            this._forecast = null;
+            this._forecastLoader = null;
+            this._forecastLoaderGranularity = null;
+            this._forecastLoaderDays = null;
+            return;
+        }
+
+        const paramsChanged = (
+            this._forecastLoader === null
+            || this._forecastLoaderGranularity !== params.granularity
+            || this._forecastLoaderDays !== params.forecastDays
+        );
+        if (options.resetExistingForecast || paramsChanged) {
+            this._forecast = null;
+        }
+        this._forecastLoader = new ForecastLoader(params.granularity, params.forecastDays);
+        this._forecastLoaderGranularity = params.granularity;
+        this._forecastLoaderDays = params.forecastDays;
+
+        try {
+            const forecast = await this._forecastLoader.load(hass);
+            if (generation === this._forecastLoadGeneration && this._hass?.connection === hass.connection) {
+                this._forecast = forecast;
+            }
+        } catch (err) {
+            console.error("helman-scheduling: failed to load forecast", err);
+        }
     }
 
     private _isDialogStateCurrent(nextSelectedSlotIds: string[]): boolean {

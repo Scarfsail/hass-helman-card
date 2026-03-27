@@ -1,6 +1,6 @@
 import type { HomeAssistant } from "../../hass-frontend/src/types";
 import type { ForecastPayload } from "../helman-api";
-import { FORECAST_REFRESH_MS, loadForecast, refreshForecast } from "../helman/forecast-loader";
+import { FORECAST_REFRESH_MS, ForecastLoader } from "../helman/forecast-loader";
 import { getLocalHourKey } from "./shared/local-day-hour-axis";
 
 const HOUR_MS = 3600000;
@@ -36,6 +36,7 @@ export function getSharedForecastOwner(hass: HomeAssistant): SharedForecastOwner
 
 class ForecastOwnerImpl implements SharedForecastOwner {
     private _hass: HomeAssistant;
+    private readonly _loader = new ForecastLoader(60, 7);
     private _forecast: ForecastPayload | null = null;
     private _loading = false;
     private _loadFailed = false;
@@ -125,7 +126,7 @@ class ForecastOwnerImpl implements SharedForecastOwner {
 
         const request = (async () => {
             try {
-                const forecast = await loadForecast(hass);
+                const forecast = await this._loader.load(hass);
                 if (this._hass.connection === connection) {
                     this._forecast = forecast;
                     this._loadFailed = false;
@@ -163,7 +164,7 @@ class ForecastOwnerImpl implements SharedForecastOwner {
         const connection = hass.connection;
 
         const request = (async () => {
-            const forecast = await refreshForecast(hass, this._forecast);
+            const forecast = await this._loader.refresh(hass);
             if (this._hass.connection !== connection) {
                 return;
             }

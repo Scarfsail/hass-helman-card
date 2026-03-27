@@ -41,7 +41,7 @@ export function getScheduleSlotDayKey(slotId: string, timeZone: string): string 
 }
 
 export function resolveScheduleSlotBoundaries(slotIds: readonly string[]): ScheduleSlotBoundary[] {
-    const slots = slotIds
+    const sorted = slotIds
         .map((slotId) => {
             const startMs = getScheduleSlotStartMs(slotId);
             if (startMs === null) {
@@ -55,11 +55,13 @@ export function resolveScheduleSlotBoundaries(slotIds: readonly string[]): Sched
         })
         .sort((left, right) => left.startMs - right.startMs);
 
-    for (let index = 0; index < slots.length - 1; index += 1) {
-        const durationMs = slots[index + 1].startMs - slots[index].startMs;
-        if (durationMs <= 0) {
-            throw new Error("helman-scheduling: schedule slot ids must be strictly increasing");
+    const slots: { id: string; startMs: number }[] = [];
+    for (const slot of sorted) {
+        if (slots.length > 0 && slot.startMs === slots[slots.length - 1].startMs) {
+            slots[slots.length - 1] = slot;
+            continue;
         }
+        slots.push(slot);
     }
 
     return slots.map((slot, index) => {
