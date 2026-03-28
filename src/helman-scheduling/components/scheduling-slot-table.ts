@@ -54,9 +54,9 @@ export class SchedulingSlotTable extends LitElement {
                     "time primary"
                     ". runtime";
                 align-items: center;
-                column-gap: 8px;
-                row-gap: 2px;
-                padding: 6px 8px;
+                column-gap: 6px;
+                row-gap: 1px;
+                padding: 4px 8px;
                 border-radius: 10px;
                 transition: background-color 120ms ease, box-shadow 120ms ease;
             }
@@ -76,11 +76,11 @@ export class SchedulingSlotTable extends LitElement {
                 align-items: center;
                 justify-content: flex-start;
                 min-width: 0;
-                padding: 6px 10px;
+                padding: 6px 8px;
                 border-radius: 999px;
                 font-size: 0.85rem;
                 font-weight: 600;
-                line-height: 1.2;
+                line-height: 1.1;
                 white-space: nowrap;
                 cursor: pointer;
                 transition: background-color 120ms ease, color 120ms ease;
@@ -109,13 +109,15 @@ export class SchedulingSlotTable extends LitElement {
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center;
-                gap: 4px;
-                min-height: 28px;
+                gap: 3px;
+                min-height: 24px;
                 min-width: 0;
             }
 
-            .slot-action-button {
+            .slot-primary .slot-action-button.chip {
                 cursor: pointer;
+                min-height: 20px;
+                padding: 2px 6px;
             }
 
             .slot-action-button:hover:not(:disabled) {
@@ -129,30 +131,31 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-primary .chip,
             .slot-runtime .chip {
-                min-height: 18px;
-                padding: 1px 5px;
+                min-height: 16px;
+                padding: 1px 4px;
                 font-size: 0.75rem;
+                line-height: 1.1;
             }
 
             .slot-runtime {
                 grid-area: runtime;
                 display: flex;
                 flex-wrap: wrap;
-                gap: 3px;
+                gap: 2px;
                 align-items: center;
                 min-width: 0;
-                padding-bottom: 2px;
+                padding-bottom: 1px;
             }
 
             .slot-runtime .muted {
                 font-size: 0.78rem;
-                line-height: 1.2;
+                line-height: 1.1;
             }
 
             .slot-forecast {
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 4px;
                 margin-inline-start: auto;
                 min-width: 0;
             }
@@ -160,13 +163,13 @@ export class SchedulingSlotTable extends LitElement {
             .forecast-gauge {
                 display: flex;
                 align-items: center;
-                gap: 3px;
+                gap: 2px;
                 min-width: 0;
             }
 
             .forecast-bar-track {
-                width: 40px;
-                height: 4px;
+                width: 36px;
+                height: 3px;
                 border-radius: 2px;
                 background: color-mix(in srgb, var(--secondary-text-color) 20%, transparent);
                 overflow: hidden;
@@ -194,6 +197,7 @@ export class SchedulingSlotTable extends LitElement {
                 font-size: 0.68rem;
                 font-weight: 600;
                 color: var(--secondary-text-color);
+                line-height: 1.1;
                 white-space: nowrap;
             }
         `,
