@@ -3,7 +3,6 @@ import { customElement, property } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import {
-    formatScheduleSlotCount,
     getScheduleActionLabel,
     getScheduleErrorLabel,
     getScheduleReasonLabel,
@@ -11,9 +10,9 @@ import {
 import {
     EMPTY_SLOT_FORECAST_MAP,
     type SlotForecastMap,
-    type SlotForecastPoint,
 } from "../model/slot-forecast-model";
 import type {
+    ScheduleDialogOpenDetail,
     ScheduleSlot,
     ScheduleSlotToggleDetail,
     ScheduleTableSectionModel,
@@ -50,41 +49,59 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-row {
                 display: grid;
-                grid-template-columns: 32px 1fr;
+                grid-template-columns: minmax(68px, auto) 1fr;
                 grid-template-areas:
-                    "selection primary"
+                    "time primary"
                     ". runtime";
                 align-items: center;
-                column-gap: 2px;
-                padding: 0 4px;
-                border-radius: 6px;
+                column-gap: 8px;
+                row-gap: 2px;
+                padding: 6px 8px;
+                border-radius: 10px;
+                transition: background-color 120ms ease, box-shadow 120ms ease;
             }
 
             .slot-row:hover {
                 background: color-mix(in srgb, var(--primary-color) 5%, transparent);
             }
 
-            .slot-row.current {
-                background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-                border-left: 3px solid var(--primary-color);
-            }
-
             .slot-row.selected {
-                background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+                background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 36%, transparent);
             }
 
-            .slot-row.current.selected {
-                background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-            }
-
-            .slot-selection {
-                grid-area: selection;
-                display: flex;
+            .slot-time-button {
+                grid-area: time;
+                display: inline-flex;
                 align-items: center;
+                justify-content: flex-start;
+                min-width: 0;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 0.85rem;
+                font-weight: 600;
+                line-height: 1.2;
+                white-space: nowrap;
+                cursor: pointer;
+                transition: background-color 120ms ease, color 120ms ease;
             }
 
-            .slot-selection ha-checkbox {
-                display: block;
+            .slot-time-button:hover:not(:disabled) {
+                background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+            }
+
+            .slot-time-button.selected {
+                background: color-mix(in srgb, var(--primary-color) 18%, var(--card-background-color));
+                color: var(--primary-color);
+            }
+
+            .slot-time-button.current.selected {
+                background: color-mix(in srgb, var(--primary-color) 24%, var(--card-background-color));
+            }
+
+            .slot-time-button:disabled {
+                opacity: 0.55;
+                cursor: default;
             }
 
             .slot-primary {
@@ -97,12 +114,17 @@ export class SchedulingSlotTable extends LitElement {
                 min-width: 0;
             }
 
-            .slot-time {
-                min-width: 44px;
-                font-size: 0.85rem;
-                font-weight: 600;
-                line-height: 1.2;
-                white-space: nowrap;
+            .slot-action-button {
+                cursor: pointer;
+            }
+
+            .slot-action-button:hover:not(:disabled) {
+                background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+            }
+
+            .slot-action-button:disabled {
+                opacity: 0.55;
+                cursor: default;
             }
 
             .slot-primary .chip,
@@ -125,19 +147,6 @@ export class SchedulingSlotTable extends LitElement {
             .slot-runtime .muted {
                 font-size: 0.78rem;
                 line-height: 1.2;
-            }
-
-            .edit-bar {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                padding: 0 4px 8px;
-                border-bottom: 1px solid var(--divider-color);
-            }
-
-            .edit-bar .muted {
-                font-size: 0.82rem;
             }
 
             .slot-forecast {
@@ -208,17 +217,6 @@ export class SchedulingSlotTable extends LitElement {
 
     render() {
         return html`
-            ${this._selectedSet.size > 0 ? html`
-                <div class="edit-bar">
-                    <div class="muted">${this.localize("scheduling.copy.selected_prefix")} ${formatScheduleSlotCount(this._selectedSet.size, this.localize)}</div>
-                    <button
-                        class="primary-button"
-                        type="button"
-                        ?disabled=${this.busy}
-                        @click=${this._handleOpenDialog}
-                    >${this.localize("scheduling.actions.edit_selected")}</button>
-                </div>
-            ` : nothing}
             <div class="slot-table">
                 ${this.sections.map((section) => html`
                     <div class="day-separator">${section.dayLabel}</div>
@@ -231,21 +229,30 @@ export class SchedulingSlotTable extends LitElement {
     private _renderSlotRow(slot: ScheduleSlot) {
         const selected = this._selectedSet.has(slot.id);
         const classes = `slot-row${slot.isCurrent ? " current" : ""}${selected ? " selected" : ""}`;
+        const timeButtonClasses = `button-reset slot-time-button${selected ? " selected" : ""}${slot.isCurrent ? " current" : ""}`;
 
         return html`
             <div class=${classes}>
-                <div class="slot-selection">
-                    <ha-checkbox
-                        reducedTouchTarget
-                        .checked=${selected}
-                        ?disabled=${this.busy}
-                        aria-label=${`${this.localize("scheduling.actions.select_slot")} ${slot.rangeLabel}`}
-                        @change=${(event: Event) => this._handleSlotToggle(slot.id, event)}
-                    ></ha-checkbox>
-                </div>
+                <button
+                    class=${timeButtonClasses}
+                    type="button"
+                    ?disabled=${this.busy}
+                    aria-label=${`${this.localize("scheduling.actions.select_slot")} ${slot.rangeLabel}`}
+                    aria-pressed=${selected ? "true" : "false"}
+                    @click=${() => this._handleTimeClick(slot.id)}
+                >
+                    ${slot.rangeLabel}
+                </button>
                 <div class="slot-primary">
-                    <div class="slot-time">${slot.rangeLabel}</div>
-                    <div class="chip action">${getScheduleActionLabel(slot.action, this.localize)}</div>
+                    <button
+                        class="button-reset chip action slot-action-button"
+                        type="button"
+                        ?disabled=${this.busy}
+                        aria-label=${`${getScheduleActionLabel(slot.action, this.localize)} ${slot.rangeLabel}`}
+                        @click=${() => this._handleActionClick(slot.id)}
+                    >
+                        ${getScheduleActionLabel(slot.action, this.localize)}
+                    </button>
                     ${slot.isCurrent ? html`<div class="chip now">${this.localize("scheduling.badge.now")}</div>` : nothing}
                     ${this._renderForecastGauges(slot)}
                 </div>
@@ -350,20 +357,27 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _handleSlotToggle(slotId: string, event: Event): void {
-        event.stopPropagation();
-        const checked = (event.currentTarget as HTMLElement & { checked: boolean }).checked;
+    private _handleTimeClick(slotId: string): void {
+        if (this.busy) {
+            return;
+        }
+
         this.dispatchEvent(new CustomEvent("toggle-schedule-slot-selection", {
             bubbles: true,
             composed: true,
-            detail: { slotId, selected: checked } satisfies ScheduleSlotToggleDetail,
+            detail: { slotId } satisfies ScheduleSlotToggleDetail,
         }));
     }
 
-    private _handleOpenDialog(): void {
+    private _handleActionClick(slotId: string): void {
+        if (this.busy) {
+            return;
+        }
+
         this.dispatchEvent(new CustomEvent("open-schedule-dialog", {
             bubbles: true,
             composed: true,
+            detail: { slotId } satisfies ScheduleDialogOpenDetail,
         }));
     }
 }

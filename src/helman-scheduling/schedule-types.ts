@@ -31,7 +31,10 @@ export interface ScheduleTableSectionModel {
 
 export interface ScheduleSlotToggleDetail {
     slotId: string;
-    selected: boolean;
+}
+
+export interface ScheduleDialogOpenDetail {
+    slotId: string;
 }
 
 export interface ScheduleDialogState {
