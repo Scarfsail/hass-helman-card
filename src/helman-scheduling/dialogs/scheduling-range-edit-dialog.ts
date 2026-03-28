@@ -2,15 +2,17 @@ import { LitElement, css, html } from "lit-element";
 import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
+import "../components/scheduling-action-option-card";
+import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
 import {
     formatScheduleSlotCount,
-    getScheduleActionKindLabel,
 } from "../model/schedule-labels";
 import type {
     ScheduleAction,
     ScheduleDialogResult,
     ScheduleDialogState,
 } from "../schedule-types";
+import { isTargetScheduleAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 const DIALOG_HISTORY_STATE_KEY = "__helmanSchedulingDialogId";
@@ -49,64 +51,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                 gap: 10px;
             }
 
-            .action-option {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                padding: 12px;
-                border: 1px solid var(--divider-color);
-                border-radius: 12px;
-                background: var(--card-background-color);
-                cursor: pointer;
-                transition: border-color 120ms ease, background-color 120ms ease;
-            }
-
-            .action-option.selected {
-                border-color: var(--primary-color);
-                background: color-mix(in srgb, var(--primary-color) 10%, var(--card-background-color));
-            }
-
-            .action-option-header {
-                display: flex;
-                align-items: flex-start;
-                gap: 10px;
-            }
-
-            .action-option-radio {
-                margin-top: 2px;
-            }
-
-            .action-option-copy {
-                display: flex;
-                flex-direction: column;
-                gap: 2px;
-                min-width: 0;
-            }
-
-            .action-option-title {
-                font-size: 0.95rem;
-                font-weight: 600;
-                line-height: 1.35;
-            }
-
-            .action-option-target {
-                display: flex;
-                align-items: flex-start;
-                gap: 12px;
-                padding-left: 28px;
-            }
-
-            .target-field {
-                width: min(180px, 100%);
-            }
-
             @media (max-width: 600px) {
                 .dialog-content {
                     min-width: 0;
-                }
-
-                .action-option-target {
-                    padding-left: 0;
                 }
             }
         `,
@@ -277,44 +224,32 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _renderActionOption(actionKind: ScheduleAction["kind"]) {
+        const previewAction = this._buildActionOptionPreview(actionKind);
         const checked = this._actionKind === actionKind;
-        const isTargetAction = actionKind === "charge_to_target_soc" || actionKind === "discharge_to_target_soc";
         return html`
-            <div
-                class=${`action-option${checked ? " selected" : ""}`}
-                @click=${() => this._setActionKind(actionKind)}
+            <scheduling-action-option-card
+                .action=${previewAction}
+                .checked=${checked}
+                .localize=${this.localize}
+                radioName="schedule-action-kind"
+                @schedule-action-option-select=${this._handleActionOptionSelect}
             >
-                <label class="action-option-header">
-                    <input
-                        class="action-option-radio"
-                        type="radio"
-                        name="schedule-action-kind"
-                        .checked=${checked}
-                        value=${actionKind}
-                        @change=${() => this._setActionKind(actionKind)}
-                    />
-                    <div class="action-option-copy">
-                        <div class="action-option-title">${getScheduleActionKindLabel(actionKind, this.localize)}</div>
-                    </div>
-                </label>
-                ${checked && isTargetAction ? html`
-                    <div class="action-option-target" @click=${this._stopPropagation}>
-                        <ha-textfield
-                            class="target-field"
-                            id="schedule-target-soc"
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="1"
-                            no-spinner
-                            .label=${this.localize("scheduling.dialog.target_soc")}
-                            .suffix=${"%"}
-                            .value=${this._targetSocInput}
-                            @input=${this._handleTargetSocInput}
-                        ></ha-textfield>
-                    </div>
+                ${checked && this._isTargetActionKind(actionKind) ? html`
+                    <ha-textfield
+                        class="target-field"
+                        id="schedule-target-soc"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        no-spinner
+                        .label=${this.localize("scheduling.dialog.target_soc")}
+                        .suffix=${"%"}
+                        .value=${this._targetSocInput}
+                        @input=${this._handleTargetSocInput}
+                    ></ha-textfield>
                 ` : nothing}
-            </div>
+            </scheduling-action-option-card>
         `;
     }
 
@@ -323,7 +258,7 @@ export class SchedulingRangeEditDialog extends LitElement {
             return false;
         }
 
-        if (this._actionKind !== "charge_to_target_soc" && this._actionKind !== "discharge_to_target_soc") {
+        if (!this._isTargetActionKind(this._actionKind)) {
             return true;
         }
 
@@ -336,14 +271,17 @@ export class SchedulingRangeEditDialog extends LitElement {
         }
 
         this._actionKind = actionKind;
-        if (actionKind === "charge_to_target_soc") {
-            this._targetSocInput = String(DEFAULT_CHARGE_TARGET_SOC);
+        if (!this._isTargetActionKind(actionKind)) {
             return;
         }
 
-        if (actionKind === "discharge_to_target_soc") {
-            this._targetSocInput = String(DEFAULT_DISCHARGE_TARGET_SOC);
+        if (this._targetSocInput.trim().length > 0) {
+            return;
         }
+
+        this._targetSocInput = actionKind === "charge_to_target_soc"
+            ? String(DEFAULT_CHARGE_TARGET_SOC)
+            : String(DEFAULT_DISCHARGE_TARGET_SOC);
     }
 
     private _handleTargetSocInput(event: Event): void {
@@ -354,8 +292,8 @@ export class SchedulingRangeEditDialog extends LitElement {
         this.open = false;
     }
 
-    private _stopPropagation(event: Event): void {
-        event.stopPropagation();
+    private _handleActionOptionSelect(event: CustomEvent<ScheduleActionOptionSelectDetail>): void {
+        this._setActionKind(event.detail.actionKind);
     }
 
     private _handleSubmit(): void {
@@ -385,7 +323,7 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _buildEditedAction(): ScheduleAction | null {
-        if (this._actionKind !== "charge_to_target_soc" && this._actionKind !== "discharge_to_target_soc") {
+        if (!this._isTargetActionKind(this._actionKind)) {
             return { kind: this._actionKind };
         }
 
@@ -402,6 +340,41 @@ export class SchedulingRangeEditDialog extends LitElement {
             kind: this._actionKind,
             targetSoc,
         };
+    }
+
+    private _buildActionOptionPreview(actionKind: ScheduleAction["kind"]): ScheduleAction {
+        if (!this._isTargetActionKind(actionKind)) {
+            return { kind: actionKind };
+        }
+
+        const targetSoc = this._resolvePreviewTargetSoc(actionKind);
+        return targetSoc === null
+            ? { kind: actionKind }
+            : { kind: actionKind, targetSoc };
+    }
+
+    private _resolvePreviewTargetSoc(actionKind: "charge_to_target_soc" | "discharge_to_target_soc"): number | null {
+        if (/^\d+$/.test(this._targetSocInput)) {
+            return Number(this._targetSocInput);
+        }
+
+        if (this._isTargetActionKind(this._actionKind) && this._targetSocInput.trim().length === 0) {
+            return null;
+        }
+
+        if (this._targetSocInput.trim().length > 0) {
+            return null;
+        }
+
+        return actionKind === "charge_to_target_soc"
+            ? DEFAULT_CHARGE_TARGET_SOC
+            : DEFAULT_DISCHARGE_TARGET_SOC;
+    }
+
+    private _isTargetActionKind(
+        actionKind: ScheduleAction["kind"],
+    ): actionKind is "charge_to_target_soc" | "discharge_to_target_soc" {
+        return isTargetScheduleAction({ kind: actionKind });
     }
 
     private _closeDialogElement(): void {

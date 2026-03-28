@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
+import "./scheduling-action-chip";
 import {
     getScheduleActionLabel,
     getScheduleErrorLabel,
@@ -17,6 +18,7 @@ import type {
     ScheduleSlotToggleDetail,
     ScheduleTableSectionModel,
 } from "../schedule-types";
+import { areScheduleActionsEqual } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 function _formatSolarLabel(wh: number): string {
@@ -114,14 +116,24 @@ export class SchedulingSlotTable extends LitElement {
                 min-width: 0;
             }
 
-            .slot-primary .slot-action-button.chip {
+            .slot-primary .slot-action-button {
+                display: inline-flex;
+                align-items: center;
+                min-width: 0;
                 cursor: pointer;
-                min-height: 20px;
-                padding: 2px 6px;
+                border-radius: 999px;
             }
 
-            .slot-action-button:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+            .slot-action-button scheduling-action-chip {
+                max-width: 100%;
+            }
+
+            .slot-runtime scheduling-action-chip {
+                max-width: 100%;
+            }
+
+            .slot-action-button:hover:not(:disabled) scheduling-action-chip {
+                filter: brightness(0.96);
             }
 
             .slot-action-button:disabled {
@@ -129,7 +141,7 @@ export class SchedulingSlotTable extends LitElement {
                 cursor: default;
             }
 
-            .slot-primary .chip,
+            .slot-primary .chip.now,
             .slot-runtime .chip {
                 min-height: 16px;
                 padding: 1px 4px;
@@ -249,13 +261,17 @@ export class SchedulingSlotTable extends LitElement {
                 </button>
                 <div class="slot-primary">
                     <button
-                        class="button-reset chip action slot-action-button"
+                        class="button-reset slot-action-button"
                         type="button"
                         ?disabled=${this.busy}
                         aria-label=${`${getScheduleActionLabel(slot.action, this.localize)} ${slot.rangeLabel}`}
                         @click=${() => this._handleActionClick(slot.id)}
                     >
-                        ${getScheduleActionLabel(slot.action, this.localize)}
+                        <scheduling-action-chip
+                            .action=${slot.action}
+                            .localize=${this.localize}
+                            size="compact"
+                        ></scheduling-action-chip>
                     </button>
                     ${slot.isCurrent ? html`<div class="chip now">${this.localize("scheduling.badge.now")}</div>` : nothing}
                     ${this._renderForecastGauges(slot)}
@@ -333,6 +349,12 @@ export class SchedulingSlotTable extends LitElement {
         }
 
         const reasonLabel = getScheduleReasonLabel(slot.runtime.reason, this.localize);
+        const runtimeState = this._getRuntimeState(slot);
+        const reasonChipClass = runtimeState === "following"
+            ? "chip success"
+            : runtimeState === "error"
+            ? "chip error"
+            : "chip reason";
         if (slot.runtime.status === "error") {
             return html`
                 <div class="chip error">
@@ -343,22 +365,48 @@ export class SchedulingSlotTable extends LitElement {
                     })}
                 </div>
                 ${slot.runtime.executedAction ? html`
-                    <div class="chip runtime">
-                        ${getScheduleActionLabel(slot.runtime.executedAction, this.localize)}
-                    </div>
+                    ${this._renderRuntimeActionChip(slot.runtime.executedAction, runtimeState)}
                 ` : nothing}
-                ${reasonLabel ? html`<div class="chip reason">${reasonLabel}</div>` : nothing}
+                ${reasonLabel ? html`<div class=${reasonChipClass}>${reasonLabel}</div>` : nothing}
             `;
         }
 
         return html`
-            <div class="chip runtime">
-                ${slot.runtime.executedAction
-                    ? getScheduleActionLabel(slot.runtime.executedAction, this.localize)
-                    : this.localize("scheduling.runtime.applied")}
-            </div>
-            ${reasonLabel ? html`<div class="chip reason">${reasonLabel}</div>` : nothing}
+            ${slot.runtime.executedAction
+                ? this._renderRuntimeActionChip(slot.runtime.executedAction, runtimeState)
+                : html`<div class=${runtimeState === "following" ? "chip success" : "chip runtime"}>${this.localize("scheduling.runtime.applied")}</div>`}
+            ${reasonLabel ? html`<div class=${reasonChipClass}>${reasonLabel}</div>` : nothing}
         `;
+    }
+
+    private _renderRuntimeActionChip(
+        action: ScheduleSlot["action"],
+        runtimeState: "following" | "diverged" | "error",
+    ) {
+        return html`
+            <scheduling-action-chip
+                .action=${action}
+                .localize=${this.localize}
+                size="compact"
+                surface="runtime"
+                .runtimeState=${runtimeState}
+            ></scheduling-action-chip>
+        `;
+    }
+
+    private _getRuntimeState(slot: ScheduleSlot): "following" | "diverged" | "error" {
+        const runtime = slot.runtime;
+        if (runtime === null || runtime.status === "error") {
+            return runtime?.status === "error" ? "error" : "diverged";
+        }
+
+        if (runtime.executedAction) {
+            return areScheduleActionsEqual(slot.action, runtime.executedAction)
+                ? "following"
+                : "diverged";
+        }
+
+        return runtime.reason === "scheduled" ? "following" : "diverged";
     }
 
     private _handleTimeClick(slotId: string): void {
