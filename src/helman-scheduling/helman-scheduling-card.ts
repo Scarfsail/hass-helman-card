@@ -173,7 +173,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 this._selectedSlotIds = nextSelectedSlotIds;
             }
 
-            if (this._dialogState && (scheduleChanged || nextSelectedSlotIds.length !== this._dialogState.selectedSlots.length)) {
+            if (this._dialogState && scheduleChanged) {
                 this._dialogOpen = false;
                 this._pendingDialogPatches = null;
             }
@@ -317,7 +317,6 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         const initialActionSlot = this._normalizedSchedule.slots.find((slot) => slot.id === clickedSlotId)
             ?? selectedSlots[0];
 
-        this._selectedSlotIds = nextSelectedSlotIds;
         this._dialogState = {
             selectedSlots,
             initialAction: initialActionSlot.action,
@@ -469,15 +468,11 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             return selectedSlots.map((slot) => slot.id);
         }
 
-        if (selectedSlots.length === 0) {
+        if (selectedSlots.length === 0 || !selectedSlots.some((slot) => slot.id === clickedSlot.id)) {
             return [clickedSlot.id];
         }
 
-        const selectedIdSet = new Set(selectedSlots.map((slot) => slot.id));
-        selectedIdSet.add(clickedSlot.id);
-        return this._normalizedSchedule.slots
-            .filter((slot) => selectedIdSet.has(slot.id))
-            .map((slot) => slot.id);
+        return selectedSlots.map((slot) => slot.id);
     }
 
     private get _localize(): LocalizeFunction {
