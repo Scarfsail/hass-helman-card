@@ -31,6 +31,7 @@ export interface ScheduleTableSectionModel {
 
 export interface ScheduleSlotToggleDetail {
     slotId: string;
+    shiftKey: boolean;
 }
 
 export interface ScheduleDialogOpenDetail {

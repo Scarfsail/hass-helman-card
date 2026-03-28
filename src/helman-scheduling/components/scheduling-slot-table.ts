@@ -255,7 +255,7 @@ export class SchedulingSlotTable extends LitElement {
                     ?disabled=${this.busy}
                     aria-label=${`${this.localize("scheduling.actions.select_slot")} ${slot.rangeLabel}`}
                     aria-pressed=${selected ? "true" : "false"}
-                    @click=${() => this._handleTimeClick(slot.id)}
+                    @click=${(event: MouseEvent) => this._handleTimeClick(slot.id, event)}
                 >
                     ${slot.rangeLabel}
                 </button>
@@ -409,7 +409,7 @@ export class SchedulingSlotTable extends LitElement {
         return runtime.reason === "scheduled" ? "following" : "diverged";
     }
 
-    private _handleTimeClick(slotId: string): void {
+    private _handleTimeClick(slotId: string, event: MouseEvent): void {
         if (this.busy) {
             return;
         }
@@ -417,7 +417,7 @@ export class SchedulingSlotTable extends LitElement {
         this.dispatchEvent(new CustomEvent("toggle-schedule-slot-selection", {
             bubbles: true,
             composed: true,
-            detail: { slotId } satisfies ScheduleSlotToggleDetail,
+            detail: { slotId, shiftKey: event.shiftKey } satisfies ScheduleSlotToggleDetail,
         }));
     }
 

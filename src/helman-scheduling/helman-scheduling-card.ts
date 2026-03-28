@@ -94,6 +94,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _forecastLoadGeneration = 0;
     private _slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
     private _pendingDialogPatches: ScheduleSlotPatch[] | null = null;
+    private _selectionAnchorSlotId: string | null = null;
 
     @state() private _hass?: HomeAssistant;
     @state() private _ownerSnapshot: ScheduleOwnerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
@@ -171,6 +172,9 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             const nextSelectedSlotIds = this._selectedSlotIds.filter((id) => validSlotIds.has(id));
             if (nextSelectedSlotIds.length !== this._selectedSlotIds.length) {
                 this._selectedSlotIds = nextSelectedSlotIds;
+            }
+            if (this._selectionAnchorSlotId && !validSlotIds.has(this._selectionAnchorSlotId)) {
+                this._selectionAnchorSlotId = null;
             }
 
             if (this._dialogState && scheduleChanged) {
@@ -291,14 +295,29 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private _handleToggleSlotSelection(event: CustomEvent<ScheduleSlotToggleDetail>): void {
         event.stopPropagation();
-        const { slotId } = event.detail;
+        const { slotId, shiftKey } = event.detail;
+
+        if (shiftKey && this._selectionAnchorSlotId !== null) {
+            const rangeSelection = this._selectSlotRange(this._selectionAnchorSlotId, slotId);
+            if (rangeSelection !== null) {
+                this._selectedSlotIds = rangeSelection;
+                this._selectionAnchorSlotId = slotId;
+                return;
+            }
+        }
 
         if (this._selectedSlotIds.includes(slotId)) {
             this._selectedSlotIds = this._selectedSlotIds.filter((id) => id !== slotId);
+            if (this._selectionAnchorSlotId === slotId) {
+                this._selectionAnchorSlotId = null;
+            }
             return;
         }
 
-        this._selectedSlotIds = [...this._selectedSlotIds, slotId];
+        this._selectedSlotIds = this._buildSelectedSlotIdsInScheduleOrder(
+            new Set([...this._selectedSlotIds, slotId]),
+        );
+        this._selectionAnchorSlotId = slotId;
     }
 
     private _handleOpenDialog(event: CustomEvent<ScheduleDialogOpenDetail>): void {
@@ -372,6 +391,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._forecastLoadGeneration = 0;
         this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
         this._pendingDialogPatches = null;
+        this._selectionAnchorSlotId = null;
     }
 
     private _syncScheduleOwner(): void {
@@ -459,6 +479,29 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _getSelectedSlots(selectedSlotIds: readonly string[]): ScheduleDialogState["selectedSlots"] {
         const selectedIdSet = new Set(selectedSlotIds);
         return this._normalizedSchedule.slots.filter((slot) => selectedIdSet.has(slot.id));
+    }
+
+    private _buildSelectedSlotIdsInScheduleOrder(selectedIdSet: ReadonlySet<string>): string[] {
+        return this._normalizedSchedule.slots
+            .filter((slot) => selectedIdSet.has(slot.id))
+            .map((slot) => slot.id);
+    }
+
+    private _selectSlotRange(anchorSlotId: string, slotId: string): string[] | null {
+        const anchorIndex = this._normalizedSchedule.slots.findIndex((slot) => slot.id === anchorSlotId);
+        const slotIndex = this._normalizedSchedule.slots.findIndex((slot) => slot.id === slotId);
+        if (anchorIndex === -1 || slotIndex === -1) {
+            return null;
+        }
+
+        const selectedIdSet = new Set(this._selectedSlotIds);
+        const startIndex = Math.min(anchorIndex, slotIndex);
+        const endIndex = Math.max(anchorIndex, slotIndex);
+        for (const slot of this._normalizedSchedule.slots.slice(startIndex, endIndex + 1)) {
+            selectedIdSet.add(slot.id);
+        }
+
+        return this._buildSelectedSlotIdsInScheduleOrder(selectedIdSet);
     }
 
     private _resolveDialogSelectionIds(clickedSlotId: string): string[] {
