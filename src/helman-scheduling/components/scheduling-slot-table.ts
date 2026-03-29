@@ -365,7 +365,7 @@ export class SchedulingSlotTable extends LitElement {
                     aria-pressed=${selected ? "true" : "false"}
                     @click=${(event: MouseEvent) => this._handleTimeClick(slot.id, event)}
                 >
-                    ${slot.rangeLabel}
+                    ${slot.timeLabel}
                 </button>
                 <div class="slot-primary">
                     <button
