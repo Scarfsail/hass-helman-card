@@ -178,6 +178,7 @@
       "battery_label": "Baterie",
       "solar_label": "Solár",
       "grid_label": "Síť",
+      "price_label": "Prodejní cena",
       "net": "Netto",
       "import": "Import",
       "export": "Export"
@@ -186,7 +187,8 @@
       "action_label": "Akce",
       "soc_label": "SoC",
       "solar_label": "Solár",
-      "grid_label": "Síť"
+      "grid_label": "Síť",
+      "price_label": "Prodej"
     },
     "dialog": {
       "title": {

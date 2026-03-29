@@ -41,6 +41,10 @@ function _isZeroSolarDisplayValue(wh: number): boolean {
     return _isZeroKwhDisplayValue(wh / 1000);
 }
 
+function _isZeroPriceDisplayValue(value: number): boolean {
+    return Math.abs(value) < ZERO_KWH_DISPLAY_THRESHOLD;
+}
+
 function _formatKwhValue(kwh: number): string {
     const absKwh = Math.abs(kwh);
     if (absKwh >= 10) {
@@ -52,6 +56,10 @@ function _formatKwhValue(kwh: number): string {
     }
 
     return absKwh.toFixed(2);
+}
+
+function _formatVisiblePriceValue(value: number): string {
+    return value.toFixed(1);
 }
 
 @customElement("scheduling-slot-table")
@@ -132,6 +140,10 @@ export class SchedulingSlotTable extends LitElement {
 
             .day-separator-metric.grid {
                 width: 68px;
+            }
+
+            .day-separator-metric.price {
+                width: 96px;
             }
 
             .day-separator-title {
@@ -430,6 +442,50 @@ export class SchedulingSlotTable extends LitElement {
                 font-variant-numeric: tabular-nums;
             }
 
+            .slot-forecast-gauge.price {
+                width: 96px;
+                flex-basis: 96px;
+                justify-content: flex-end;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--forecast-price-negative, #6d4c41) 12%, transparent),
+                    color-mix(in srgb, var(--card-background-color) 88%, transparent),
+                    color-mix(in srgb, var(--forecast-price-positive, #8d6e63) 12%, transparent)
+                );
+                color: color-mix(in srgb, var(--primary-text-color) 92%, transparent);
+                text-shadow:
+                    0 0 1px rgba(255, 255, 255, 0.55),
+                    0 1px 1px rgba(36, 24, 20, 0.12);
+            }
+
+            .slot-forecast-gauge.price .slot-forecast-gauge-fill.negative {
+                inset: 0 auto 0 auto;
+                right: 50%;
+                left: auto;
+                background: linear-gradient(
+                    270deg,
+                    color-mix(in srgb, var(--forecast-price-negative, #6d4c41) 84%, white 6%),
+                    color-mix(in srgb, var(--forecast-price-negative, #6d4c41) 46%, transparent)
+                );
+                border-radius: 4px 0 0 4px;
+            }
+
+            .slot-forecast-gauge.price .slot-forecast-gauge-fill.positive {
+                inset: 0 auto 0 50%;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--forecast-price-positive, #8d6e63) 84%, white 6%),
+                    color-mix(in srgb, var(--forecast-price-positive, #8d6e63) 46%, transparent)
+                );
+                border-radius: 0 4px 4px 0;
+            }
+
+            .slot-forecast-gauge.price .slot-forecast-gauge-text {
+                flex: 1 1 auto;
+                text-align: end;
+                font-variant-numeric: tabular-nums;
+            }
+
             .slot-forecast-gauge.zero {
                 color: var(--secondary-text-color);
                 background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent);
@@ -484,13 +540,14 @@ export class SchedulingSlotTable extends LitElement {
                         ${this._renderHeaderMetric("soc", this.localize("scheduling.table.soc_label"), "%")}
                         ${this._renderHeaderMetric("solar", this.localize("scheduling.table.solar_label"), "kWh")}
                         ${this._renderHeaderMetric("grid", this.localize("scheduling.table.grid_label"), "kWh")}
+                        ${this._renderHeaderMetric("price", this.localize("scheduling.table.price_label"), this.slotForecastMap.priceDisplayUnit ?? "")}
                     </div>
                 </div>
             </div>
         `;
     }
 
-    private _renderHeaderMetric(type: "soc" | "solar" | "grid", title: string, unit: string) {
+    private _renderHeaderMetric(type: "soc" | "solar" | "grid" | "price", title: string, unit: string) {
         return html`
             <div class=${`day-separator-metric ${type}`}>
                 <span class="day-separator-title">${title}</span>
@@ -562,6 +619,7 @@ export class SchedulingSlotTable extends LitElement {
                     map.solarMaxWh,
                 )}
                 ${this._renderGridGauge(point, map)}
+                ${this._renderPriceGauge(point, map)}
             </div>
         `;
     }
@@ -647,6 +705,45 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
+    private _renderPriceGauge(point: SlotForecastPoint | undefined, map: SlotForecastMap) {
+        if (!map.priceAvailable || !point || point.price === null) {
+            return html`
+                <div class="slot-forecast-gauge price unavailable" aria-hidden="true">
+                </div>
+            `;
+        }
+
+        const isZero = _isZeroPriceDisplayValue(point.price);
+        const displayValue = isZero ? 0 : point.price;
+        const direction = displayValue < 0
+            ? "negative"
+            : displayValue > 0
+            ? "positive"
+            : null;
+        const widthPct = map.priceMaxAbs > 0 && direction !== null
+            ? Math.min((Math.abs(displayValue) / map.priceMaxAbs) * 50, 50)
+            : 0;
+
+        return html`
+            <div
+                class=${`slot-forecast-gauge price${isZero ? " zero" : ""}`}
+                role="img"
+                aria-label=${this._buildPriceGaugeTitle(displayValue, map.priceDisplayUnit)}
+                title=${this._buildPriceGaugeTitle(displayValue, map.priceDisplayUnit)}
+            >
+                <span class="slot-forecast-gauge-center" aria-hidden="true"></span>
+                ${direction !== null && widthPct > 0 ? html`
+                    <span
+                        class=${`slot-forecast-gauge-fill ${direction}`}
+                        style=${`width:${widthPct}%;`}
+                        aria-hidden="true"
+                    ></span>
+                ` : nothing}
+                <span class="slot-forecast-gauge-text">${_formatVisiblePriceValue(displayValue)}</span>
+            </div>
+        `;
+    }
+
     private _renderSlotRuntime(slot: ScheduleSlot) {
         if (!this.executionEnabled) {
             return html`<div class="chip disabled">${this.localize("scheduling.now.execution_disabled")}</div>`;
@@ -726,6 +823,10 @@ export class SchedulingSlotTable extends LitElement {
         ].join(" · ");
     }
 
+    private _buildPriceGaugeTitle(price: number, unit: string | null): string {
+        return `${this.localize("scheduling.forecast.price_label")}: ${this._formatPriceValue(price, unit)}`;
+    }
+
     private _buildGaugeTitle(type: "battery" | "solar", value: number): string {
         const gaugeLabel = type === "battery"
             ? this.localize("scheduling.forecast.battery_label")
@@ -752,6 +853,11 @@ export class SchedulingSlotTable extends LitElement {
 
     private _formatGridEnergy(kwh: number): string {
         return `${_formatKwhValue(kwh)} kWh`;
+    }
+
+    private _formatPriceValue(value: number, unit: string | null): string {
+        const formattedValue = _formatVisiblePriceValue(value);
+        return unit ? `${formattedValue} ${unit}` : formattedValue;
     }
 
     private _handleTimeClick(slotId: string, event: MouseEvent): void {

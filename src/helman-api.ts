@@ -124,6 +124,9 @@ export interface GridForecastDTO {
     coverageUntil: string | null;
     scheduleAdjusted?: boolean;
     scheduleAdjustmentCoverageUntil?: string | null;
+    currentImportPrice: number | null;
+    importPriceUnit: string | null;
+    importPricePoints: ForecastPointDTO[];
     currentExportPrice: number | null;
     exportPriceUnit: string | null;
     exportPricePoints: ForecastPointDTO[];

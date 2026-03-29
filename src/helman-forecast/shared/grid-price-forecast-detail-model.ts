@@ -1,4 +1,5 @@
 import type { ForecastPointDTO, GridForecastDTO } from "../../helman-api";
+import { getLocalHourKey } from "./local-day-hour-axis";
 import { getCachedLocalDateTimeParts } from "./local-date-time-parts-cache";
 
 export interface GridPriceForecastDayModel {
@@ -28,6 +29,7 @@ export function buildGridPriceForecastDetailModel({
 
     const todayKey = currentLocalParts.dayKey;
     const tomorrowKey = _addDaysToDayKey(todayKey, 1);
+    const currentHourKey = getLocalHourKey(now, timeZone);
     const priceDayMap = _groupPointsByDay(
         gridForecast?.exportPricePoints ?? [],
         timeZone,
@@ -39,20 +41,30 @@ export function buildGridPriceForecastDetailModel({
 
     return Array.from(priceDayMap.entries())
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([dayKey, priceHours]) => ({
-            dayKey,
-            isToday: dayKey === todayKey,
-            isTomorrow: dayKey === tomorrowKey,
-            currentPrice: dayKey === todayKey ? gridForecast?.currentExportPrice ?? null : null,
-            priceMin: priceHours.length > 0
-                ? Math.min(...priceHours.map((point) => point.value))
-                : null,
-            priceMax: priceHours.length > 0
-                ? Math.max(...priceHours.map((point) => point.value))
-                : null,
-            priceHours,
-            hasPriceData: priceHours.length > 0,
-        }));
+        .map(([dayKey, dayPriceHours]) => {
+            const currentPrice = dayKey === todayKey ? gridForecast?.currentExportPrice ?? null : null;
+            const priceHours = _mergeCurrentPriceHour(
+                dayPriceHours,
+                currentPrice,
+                dayKey === todayKey ? currentHourKey : null,
+                timeZone,
+            );
+
+            return {
+                dayKey,
+                isToday: dayKey === todayKey,
+                isTomorrow: dayKey === tomorrowKey,
+                currentPrice,
+                priceMin: priceHours.length > 0
+                    ? Math.min(...priceHours.map((point) => point.value))
+                    : null,
+                priceMax: priceHours.length > 0
+                    ? Math.max(...priceHours.map((point) => point.value))
+                    : null,
+                priceHours,
+                hasPriceData: priceHours.length > 0,
+            };
+        });
 }
 
 function _groupPointsByDay(
@@ -82,6 +94,29 @@ function _groupPointsByDay(
     }
 
     return dayMap;
+}
+
+function _mergeCurrentPriceHour(
+    points: readonly ForecastPointDTO[],
+    currentPrice: number | null,
+    currentHourKey: string | null,
+    timeZone: string,
+): ForecastPointDTO[] {
+    if (currentPrice === null || currentHourKey === null) {
+        return [...points];
+    }
+
+    if (points.some((point) => getLocalHourKey(point.timestamp, timeZone) === currentHourKey)) {
+        return [...points];
+    }
+
+    return [
+        ...points,
+        {
+            timestamp: currentHourKey,
+            value: currentPrice,
+        },
+    ].sort(_comparePointsByTimestamp);
 }
 
 function _addDaysToDayKey(dayKey: string, days: number): string {
