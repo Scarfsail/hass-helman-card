@@ -2,6 +2,7 @@ import type {
     BatteryCapacityForecastDTO,
     ForecastGranularity,
     ForecastPayload,
+    GridForecastDTO,
     ScheduleSlotDTO,
     SolarForecastDTO,
 } from "../../helman-api";
@@ -11,20 +12,27 @@ import { getScheduleDayKey, resolveScheduleSlotBoundaries } from "./schedule-tim
 export interface SlotForecastPoint {
     socPct: number | null;
     solarWh: number | null;
+    gridNetKwh: number | null;
+    gridImportKwh: number | null;
+    gridExportKwh: number | null;
 }
 
 export interface SlotForecastMap {
     points: ReadonlyMap<string, SlotForecastPoint>;
     solarMaxWh: number;
+    gridMaxAbsKwh: number;
     batteryAvailable: boolean;
     solarAvailable: boolean;
+    gridAvailable: boolean;
 }
 
 export const EMPTY_SLOT_FORECAST_MAP: SlotForecastMap = {
     points: new Map(),
     solarMaxWh: 0,
+    gridMaxAbsKwh: 0,
     batteryAvailable: false,
     solarAvailable: false,
+    gridAvailable: false,
 };
 
 export interface ScheduleForecastParams {
@@ -79,7 +87,8 @@ export function buildSlotForecastMap(
 
     const batteryAvailable = FORECAST_AVAILABLE_STATUSES.has(forecast.battery_capacity.status);
     const solarAvailable = FORECAST_AVAILABLE_STATUSES.has(forecast.solar.status);
-    if (!batteryAvailable && !solarAvailable) {
+    const gridAvailable = FORECAST_AVAILABLE_STATUSES.has(forecast.grid.status);
+    if (!batteryAvailable && !solarAvailable && !gridAvailable) {
         return EMPTY_SLOT_FORECAST_MAP;
     }
 
@@ -89,6 +98,9 @@ export function buildSlotForecastMap(
     const solarByMs = solarAvailable
         ? _buildSolarTimeline(forecast.solar)
         : new Map<number, number>();
+    const gridProjection = gridAvailable
+        ? _buildGridProjection(forecast.grid, slots)
+        : { points: new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>(), maxAbsKwh: 0 };
     const currentBatterySoc = batteryAvailable
         ? forecast.battery_capacity.currentSoc
         : null;
@@ -100,15 +112,29 @@ export function buildSlotForecastMap(
         const socPct = batteryByMs.get(slot.startMs)
             ?? (slot.isCurrent ? currentBatterySoc ?? null : null);
         const solarWh = solarByMs.get(slot.startMs) ?? null;
+        const gridPoint = gridProjection.points.get(slot.id);
 
         if (solarWh !== null && solarWh > solarMaxWh) {
             solarMaxWh = solarWh;
         }
 
-        points.set(slot.id, { socPct, solarWh });
+        points.set(slot.id, {
+            socPct,
+            solarWh,
+            gridNetKwh: gridPoint?.gridNetKwh ?? null,
+            gridImportKwh: gridPoint?.gridImportKwh ?? null,
+            gridExportKwh: gridPoint?.gridExportKwh ?? null,
+        });
     }
 
-    return { points, solarMaxWh, batteryAvailable, solarAvailable };
+    return {
+        points,
+        solarMaxWh,
+        gridMaxAbsKwh: gridProjection.maxAbsKwh,
+        batteryAvailable,
+        solarAvailable,
+        gridAvailable,
+    };
 }
 
 function _buildBatteryTimeline(battery: BatteryCapacityForecastDTO): Map<number, number> {
@@ -149,4 +175,71 @@ function _buildSolarTimeline(solar: SolarForecastDTO): Map<number, number> {
     }
 
     return timeline;
+}
+
+function _buildGridProjection(
+    grid: GridForecastDTO,
+    slots: readonly ScheduleSlot[],
+): {
+    points: Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>;
+    maxAbsKwh: number;
+} {
+    const points = new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>();
+    const defaultSlotDurationMs = _getDefaultSlotDurationMs(slots);
+    let maxAbsKwh = 0;
+
+    for (const slot of slots) {
+        const slotEndMs = slot.endMs ?? (defaultSlotDurationMs > 0 ? slot.startMs + defaultSlotDurationMs : null);
+        if (slotEndMs === null || slotEndMs <= slot.startMs) {
+            continue;
+        }
+
+        let importedKwh = 0;
+        let exportedKwh = 0;
+        let hasOverlap = false;
+
+        for (const entry of grid.series) {
+            const entryStartMs = new Date(entry.timestamp).getTime();
+            const entryDurationMs = entry.durationHours * 3_600_000;
+            if (Number.isNaN(entryStartMs) || !(entryDurationMs > 0)) {
+                continue;
+            }
+
+            const entryEndMs = entryStartMs + entryDurationMs;
+            const overlapMs = Math.min(slotEndMs, entryEndMs) - Math.max(slot.startMs, entryStartMs);
+            if (overlapMs <= 0) {
+                continue;
+            }
+
+            const overlapRatio = overlapMs / entryDurationMs;
+            importedKwh += entry.importedFromGridKwh * overlapRatio;
+            exportedKwh += entry.exportedToGridKwh * overlapRatio;
+            hasOverlap = true;
+        }
+
+        if (!hasOverlap) {
+            continue;
+        }
+
+        const netKwh = exportedKwh - importedKwh;
+        maxAbsKwh = Math.max(maxAbsKwh, Math.abs(netKwh));
+        points.set(slot.id, {
+            gridNetKwh: netKwh,
+            gridImportKwh: importedKwh,
+            gridExportKwh: exportedKwh,
+        });
+    }
+
+    return { points, maxAbsKwh };
+}
+
+function _getDefaultSlotDurationMs(slots: readonly ScheduleSlot[]): number {
+    for (let index = 1; index < slots.length; index += 1) {
+        const durationMs = slots[index].startMs - slots[index - 1].startMs;
+        if (durationMs > 0) {
+            return durationMs;
+        }
+    }
+
+    return 0;
 }

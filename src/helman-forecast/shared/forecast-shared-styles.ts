@@ -3,6 +3,17 @@ import { css } from "lit-element";
 export const forecastSharedStyles = css`
     :host {
         display: block;
+        --forecast-grid-import: color-mix(
+            in srgb,
+            var(--simple-card-source-grid, #38bdf8) 46%,
+            #1d4ed8 54%
+        );
+        --forecast-grid-export: color-mix(
+            in srgb,
+            var(--simple-card-grid-accent, #7dd3fc) 78%,
+            white 22%
+        );
+        --forecast-house-color: #8b5cf6;
         --forecast-battery-soc-soft: color-mix(
             in srgb,
             var(--simple-card-source-battery, #22c55e) 46%,
@@ -99,7 +110,7 @@ export const forecastSharedStyles = css`
         line-height: 1.2;
     }
 
-    .forecast-day-gauge > :not(.forecast-day-gauge-fill) {
+    .forecast-day-gauge > :not(.forecast-day-gauge-fill, .forecast-day-gauge-center) {
         position: relative;
         z-index: 1;
     }
@@ -110,6 +121,17 @@ export const forecastSharedStyles = css`
         z-index: 0;
         border-radius: inherit;
         pointer-events: none;
+    }
+
+    .forecast-day-gauge-center {
+        position: absolute;
+        top: 3px;
+        bottom: 3px;
+        left: 50%;
+        width: 1px;
+        z-index: 1;
+        background: color-mix(in srgb, var(--primary-text-color) 26%, transparent);
+        transform: translateX(-50%);
     }
 
     .forecast-day-gauge.solar {
@@ -141,6 +163,38 @@ export const forecastSharedStyles = css`
         );
     }
 
+    .forecast-day-gauge.grid {
+        justify-content: flex-end;
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent),
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 8%, transparent),
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent)
+        );
+    }
+
+    .forecast-day-gauge.grid .forecast-day-gauge-fill.import {
+        inset: 0 auto 0 auto;
+        right: 50%;
+        left: auto;
+        background: linear-gradient(
+            270deg,
+            color-mix(in srgb, var(--forecast-grid-import) 74%, white 6%),
+            color-mix(in srgb, var(--forecast-grid-import) 46%, transparent)
+        );
+        border-radius: 4px 0 0 4px;
+    }
+
+    .forecast-day-gauge.grid .forecast-day-gauge-fill.export {
+        inset: 0 auto 0 50%;
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--forecast-grid-export) 74%, white 6%),
+            color-mix(in srgb, var(--forecast-grid-export) 46%, transparent)
+        );
+        border-radius: 0 4px 4px 0;
+    }
+
     .forecast-day-gauge.solar .forecast-day-gauge-primary {
         color: rgba(58, 46, 16, 0.98);
         text-shadow:
@@ -154,6 +208,14 @@ export const forecastSharedStyles = css`
         text-shadow:
             0 0 1px rgba(255, 255, 255, 0.55),
             0 1px 1px rgba(24, 44, 28, 0.12);
+    }
+
+    .forecast-day-gauge.grid .forecast-day-gauge-primary,
+    .forecast-day-gauge.grid .forecast-day-gauge-unit {
+        color: color-mix(in srgb, var(--primary-text-color) 92%, transparent);
+        text-shadow:
+            0 0 1px rgba(255, 255, 255, 0.55),
+            0 1px 1px rgba(24, 32, 52, 0.1);
     }
 
     .forecast-day-gauge.solar .forecast-day-gauge-separator,
@@ -252,6 +314,10 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-day-chart-track.price.has-negative::before {
+        bottom: 50%;
+    }
+
+    .forecast-day-chart-track.grid::before {
         bottom: 50%;
     }
 
@@ -497,6 +563,10 @@ export const forecastSharedStyles = css`
         bottom: 50%;
     }
 
+    .forecast-detail-track.grid::before {
+        bottom: 50%;
+    }
+
     .forecast-detail-track.empty::after {
         content: "";
         position: absolute;
@@ -617,17 +687,44 @@ export const forecastSharedStyles = css`
         color: var(--forecast-price-neutral, #a1887f);
     }
 
+    .forecast-day-chart-track.grid .forecast-day-chart-bar.grid-import {
+        color: var(--forecast-grid-import);
+    }
+
+    .forecast-day-chart-track.grid .forecast-day-chart-bar.grid-export {
+        color: var(--forecast-grid-export);
+    }
+
+    .forecast-day-chart-track.grid .forecast-day-chart-bar.grid-neutral {
+        color: color-mix(in srgb, var(--secondary-text-color) 72%, transparent);
+    }
+
+    .forecast-detail-track.grid .forecast-detail-bar.grid-import,
+    .forecast-detail-highlight.grid-import {
+        color: var(--forecast-grid-import);
+    }
+
+    .forecast-detail-track.grid .forecast-detail-bar.grid-export,
+    .forecast-detail-highlight.grid-export {
+        color: var(--forecast-grid-export);
+    }
+
+    .forecast-detail-track.grid .forecast-detail-bar.grid-neutral,
+    .forecast-detail-highlight.grid-neutral {
+        color: color-mix(in srgb, var(--secondary-text-color) 72%, transparent);
+    }
+
     .muted {
         color: var(--secondary-text-color);
         font-size: 0.9rem;
     }
 
     .forecast-day-chart-bar.house-baseline {
-        color: var(--primary-color);
+        color: var(--forecast-house-color);
     }
 
     .forecast-detail-row.primary .forecast-detail-track::before {
-        background: color-mix(in srgb, var(--primary-color) 26%, var(--divider-color));
+        background: color-mix(in srgb, var(--forecast-house-color) 26%, var(--divider-color));
         opacity: 1;
     }
 
@@ -640,7 +737,11 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-detail-bar.house-consumption {
-        color: var(--primary-color);
+        color: var(--forecast-house-color);
+    }
+
+    .forecast-detail-highlight.house-consumption {
+        color: var(--forecast-house-color);
     }
 
     .forecast-detail-band {

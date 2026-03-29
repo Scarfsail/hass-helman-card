@@ -37,12 +37,15 @@ import {
     type UnifiedBatteryOverviewModel,
     type UnifiedForecastDayModel,
     type UnifiedForecastModel,
+    type UnifiedGridMiniChartBarModel,
+    type UnifiedGridOverviewModel,
     type UnifiedHouseOverviewModel,
     type UnifiedPriceOverviewChip,
     type UnifiedPriceOverviewModel,
     type UnifiedSolarOverviewModel,
 } from "./unified-forecast-model";
 import {
+    getUnifiedForecastDetailVisibility,
     getUnifiedForecastOverviewConfig,
     getUnifiedForecastChartVisibility,
     getUnifiedForecastSectionVisibility,
@@ -52,6 +55,8 @@ import {
 import {
     buildUnifiedForecastDetailModel,
     type UnifiedForecastDetailModel,
+    type UnifiedGridDetailColumnModel,
+    type UnifiedGridDetailRowModel,
     type UnifiedPriceDetailColumnModel,
     type UnifiedPriceDetailRowModel,
     type UnifiedSolarDetailColumnModel,
@@ -67,6 +72,7 @@ interface UnifiedForecastModelInputs {
     remainingTodayKwh: number | null | undefined;
     sectionVisibility: HelmanForecastSectionVisibility;
     chartSectionVisibility: HelmanForecastSectionVisibility;
+    detailSectionVisibility: HelmanForecastSectionVisibility;
     selectedDayKey: string | null;
     houseBreakdownExpanded: boolean;
     batteryMinSoc: number | null;
@@ -110,6 +116,7 @@ const EMPTY_FORECAST_MODEL: UnifiedForecastModel = {
     days: [],
     visibleSections: {
         solar: false,
+        grid: false,
         battery: false,
         house: false,
         price: false,
@@ -140,22 +147,22 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             .forecast-day-gauge.house {
                 background: linear-gradient(
                     90deg,
-                    color-mix(in srgb, var(--primary-color) 18%, transparent),
-                    color-mix(in srgb, var(--primary-color) 10%, transparent)
+                    color-mix(in srgb, var(--forecast-house-color) 18%, transparent),
+                    color-mix(in srgb, var(--forecast-house-color) 10%, transparent)
                 );
             }
 
             .forecast-day-gauge.house .forecast-day-gauge-fill {
                 background: linear-gradient(
                     90deg,
-                    color-mix(in srgb, var(--primary-color) 68%, white 8%),
-                    color-mix(in srgb, var(--primary-color) 42%, transparent)
+                    color-mix(in srgb, var(--forecast-house-color) 68%, white 8%),
+                    color-mix(in srgb, var(--forecast-house-color) 42%, transparent)
                 );
             }
 
             .forecast-day-gauge.house .forecast-day-gauge-primary,
             .forecast-day-gauge.house .forecast-day-gauge-unit {
-                color: color-mix(in srgb, var(--primary-color) 38%, var(--primary-text-color));
+                color: color-mix(in srgb, var(--forecast-house-color) 42%, var(--primary-text-color));
                 text-shadow:
                     0 0 1px rgba(255, 255, 255, 0.55),
                     0 1px 1px rgba(24, 32, 52, 0.12);
@@ -236,6 +243,18 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             section: "solar",
             supportsDetail: true,
             render: (host, day) => day.solar !== null ? host._renderSolarChart(day.solar) : nothing,
+        },
+        {
+            key: "gridGauge",
+            section: "grid",
+            supportsDetail: true,
+            render: (host, day) => day.grid !== null ? host._renderGridGauge(day.grid) : nothing,
+        },
+        {
+            key: "gridChart",
+            section: "grid",
+            supportsDetail: true,
+            render: (host, day) => day.grid !== null ? host._renderGridChart(day.grid) : nothing,
         },
         {
             key: "batteryGauge",
@@ -326,11 +345,31 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             ` : nothing,
         },
         {
-            key: "house",
+            key: "grid",
             ariaOrder: 3,
             detailSummaryOrder: 3,
-            detailRowOrder: 4,
-            statusOrder: 4,
+            detailRowOrder: 3,
+            statusOrder: 2,
+            getStatus: (forecast) => forecast.grid.status,
+            buildDayCardAriaText: (host, day) => day.grid !== null
+                ? `${host._localize("node_detail.forecast_detail.grid_label")} ${host._formatSignedEnergy(day.grid.netDayKwh)}`
+                : null,
+            renderDetailSummary: (host, day) => day.grid !== null
+                ? host._renderSummaryItem(
+                    host._localize("node_detail.forecast_detail.grid_label"),
+                    host._formatGridFlowPair(day.grid.importedDayKwh, day.grid.exportedDayKwh),
+                )
+                : nothing,
+            renderDetailRow: (host, context) => context.detail.grid !== null
+                ? html`<div aria-hidden="true">${host._renderGridDetailRow(context.detail.grid)}</div>`
+                : nothing,
+        },
+        {
+            key: "house",
+            ariaOrder: 4,
+            detailSummaryOrder: 5,
+            detailRowOrder: 5,
+            statusOrder: 5,
             getStatus: (forecast) => forecast.house_consumption.status,
             buildDayCardAriaText: (host, day) => day.house !== null
                 ? `${host._localize("node_detail.house_forecast.title")} ${host._formatEnergy(day.house.baselineDayKwh)}`
@@ -357,10 +396,10 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         },
         {
             key: "price",
-            ariaOrder: 4,
+            ariaOrder: 5,
             detailSummaryOrder: 4,
-            detailRowOrder: 3,
-            statusOrder: 2,
+            detailRowOrder: 4,
+            statusOrder: 4,
             getStatus: (forecast) => forecast.grid.status,
             buildDayCardAriaText: (host, day) => day.price !== null
                 ? host._getPriceSummaryTitle(day.price)
@@ -474,7 +513,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             ? buildUnifiedForecastDetailModel({
                 day: selectedDay,
                 chartContext,
-                sectionVisibility: nextInputs.chartSectionVisibility,
+                sectionVisibility: nextInputs.detailSectionVisibility,
                 batteryMinSoc: nextInputs.batteryMinSoc,
                 batteryMaxSoc: nextInputs.batteryMaxSoc,
                 includeHouseBreakdownRows: nextInputs.houseBreakdownExpanded,
@@ -620,6 +659,47 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                                 style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:0%;`}
                             ></span>
                         `)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderGridGauge(grid: UnifiedGridOverviewModel) {
+        const title = this._getGridSummaryTitle(grid);
+
+        return html`
+            <div class="unified-day-section">
+                <div class="forecast-day-gauge grid ${grid.direction}" title=${title}>
+                    <span class="forecast-day-gauge-center" aria-hidden="true"></span>
+                    ${grid.direction === "import" && grid.gaugeFillPercent > 0 ? html`
+                        <span
+                            class="forecast-day-gauge-fill import"
+                            style=${`width:${grid.gaugeFillPercent / 2}%;`}
+                            aria-hidden="true"
+                        ></span>
+                    ` : nothing}
+                    ${grid.direction === "export" && grid.gaugeFillPercent > 0 ? html`
+                        <span
+                            class="forecast-day-gauge-fill export"
+                            style=${`width:${grid.gaugeFillPercent / 2}%;`}
+                            aria-hidden="true"
+                        ></span>
+                    ` : nothing}
+                    ${this._renderSignedEnergyValue(grid.netDayKwh)}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderGridChart(grid: UnifiedGridOverviewModel) {
+        const title = this._getGridSummaryTitle(grid);
+
+        return html`
+            <div class="unified-day-section" title=${title}>
+                <div class="forecast-day-chart-row" aria-hidden="true">
+                    <div class="forecast-day-chart-track grid ${grid.miniChartBars.length === 0 ? "empty" : ""}">
+                        ${grid.miniChartBars.map((bar) => this._renderGridChartBar(bar))}
                     </div>
                 </div>
             </div>
@@ -912,6 +992,69 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         `;
     }
 
+    private _renderGridDetailRow(detail: UnifiedGridDetailRowModel) {
+        const hasData = detail.columns.some((column) => column.netKwh !== null);
+        const trackClass = ["forecast-detail-track", "grid", !hasData ? "empty" : ""].filter(Boolean).join(" ");
+
+        return html`
+            <div class="forecast-detail-row">
+                <div class="forecast-detail-row-label">${this._localize("node_detail.forecast_detail.grid_label")}</div>
+                <div class=${trackClass}>
+                    ${detail.columns.map((column) => this._renderGridDetailColumn(column))}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderGridDetailColumn(column: UnifiedGridDetailColumnModel) {
+        const valueLabel = column.netKwh !== null
+            ? this._formatSignedEnergy(column.netKwh)
+            : this._localize("node_detail.forecast_detail.grid_unavailable");
+        const title = column.netKwh === null
+            ? [
+                formatForecastHourRange(
+                    column.displayStartAt,
+                    column.displayEndAt,
+                    this._locale,
+                    this.hass.config.time_zone,
+                ),
+                this._localize("node_detail.forecast_detail.grid_unavailable"),
+            ].join(" · ")
+            : [
+                formatForecastHourRange(
+                    column.displayStartAt,
+                    column.displayEndAt,
+                    this._locale,
+                    this.hass.config.time_zone,
+                ),
+                `${this._localize("node_detail.battery_forecast.slot_duration")}: ${this._formatDurationHours(column.durationHours)}`,
+                `${this._localize("node_detail.battery_forecast.imported_from_grid")}: ${this._formatEnergy(column.importedFromGridKwh)}`,
+                `${this._localize("node_detail.battery_forecast.exported_to_grid")}: ${this._formatEnergy(column.exportedToGridKwh)}`,
+                `${this._localize("node_detail.forecast_detail.grid_net")}: ${valueLabel}`,
+            ].join(" · ");
+        const toneClass = column.netKwh === null
+            ? "grid-neutral"
+            : column.netKwh < 0
+                ? "grid-import"
+                : column.netKwh > 0
+                    ? "grid-export"
+                    : "grid-neutral";
+
+        return html`
+            <div
+                class="forecast-detail-column ${column.isPast ? "past" : ""} ${column.isGap ? "gap" : ""}"
+                title=${title}
+            >
+                ${column.netKwh !== null ? html`
+                    <span
+                        class="forecast-detail-bar ${toneClass}"
+                        style=${`--forecast-bar-height:${column.heightPercent}%; --forecast-bar-offset:${column.offsetPercent}%;`}
+                    ></span>
+                ` : nothing}
+            </div>
+        `;
+    }
+
     private _renderPriceDetailColumn(
         column: UnifiedPriceDetailColumnModel,
         detail: UnifiedPriceDetailRowModel,
@@ -1023,6 +1166,9 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         const chartSectionVisibility = getUnifiedForecastChartVisibility(
             this._getNormalizedOverviewConfig(),
         );
+        const detailSectionVisibility = getUnifiedForecastDetailVisibility(
+            this._getNormalizedOverviewConfig(),
+        );
         return {
             forecast: this._forecast,
             timeZone,
@@ -1032,6 +1178,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             remainingTodayKwh: this._readRemainingTodayKwh(),
             sectionVisibility,
             chartSectionVisibility,
+            detailSectionVisibility,
             selectedDayKey: this._selectedDayKey,
             houseBreakdownExpanded: this._isHouseBreakdownExpanded,
             batteryMinSoc: this._forecast?.battery_capacity.minSoc ?? null,
@@ -1051,13 +1198,20 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             || this._modelInputs?.batteryMinSoc !== nextInputs.batteryMinSoc
             || this._modelInputs?.batteryMaxSoc !== nextInputs.batteryMaxSoc
             || this._modelInputs?.sectionVisibility.solar !== nextInputs.sectionVisibility.solar
+            || this._modelInputs?.sectionVisibility.grid !== nextInputs.sectionVisibility.grid
             || this._modelInputs?.sectionVisibility.battery !== nextInputs.sectionVisibility.battery
             || this._modelInputs?.sectionVisibility.house !== nextInputs.sectionVisibility.house
             || this._modelInputs?.sectionVisibility.price !== nextInputs.sectionVisibility.price
             || this._modelInputs?.chartSectionVisibility.solar !== nextInputs.chartSectionVisibility.solar
+            || this._modelInputs?.chartSectionVisibility.grid !== nextInputs.chartSectionVisibility.grid
             || this._modelInputs?.chartSectionVisibility.battery !== nextInputs.chartSectionVisibility.battery
             || this._modelInputs?.chartSectionVisibility.house !== nextInputs.chartSectionVisibility.house
-            || this._modelInputs?.chartSectionVisibility.price !== nextInputs.chartSectionVisibility.price;
+            || this._modelInputs?.chartSectionVisibility.price !== nextInputs.chartSectionVisibility.price
+            || this._modelInputs?.detailSectionVisibility.solar !== nextInputs.detailSectionVisibility.solar
+            || this._modelInputs?.detailSectionVisibility.grid !== nextInputs.detailSectionVisibility.grid
+            || this._modelInputs?.detailSectionVisibility.battery !== nextInputs.detailSectionVisibility.battery
+            || this._modelInputs?.detailSectionVisibility.house !== nextInputs.detailSectionVisibility.house
+            || this._modelInputs?.detailSectionVisibility.price !== nextInputs.detailSectionVisibility.price;
     }
 
     private _buildChartContext(now: Date) {
@@ -1081,7 +1235,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _getDetailSectionVisibility(overviewConfig: UnifiedForecastOverviewConfig): HelmanForecastSectionVisibility {
-        return getUnifiedForecastChartVisibility(overviewConfig);
+        return getUnifiedForecastDetailVisibility(overviewConfig);
     }
 
     private _hasAnyEnabledDetailSection(overviewConfig: UnifiedForecastOverviewConfig): boolean {
@@ -1093,8 +1247,9 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         overviewConfig: UnifiedForecastOverviewConfig,
     ): boolean {
         const detailVisibility = this._getDetailSectionVisibility(overviewConfig);
-        return detailVisibility.solar && day.solar !== null && day.solarPriceDay !== null
-            || detailVisibility.price && day.price !== null && day.solarPriceDay !== null
+        return detailVisibility.solar && day.solar !== null && day.solarDay !== null
+            || detailVisibility.grid && day.grid !== null && day.gridDay !== null
+            || detailVisibility.price && day.price !== null && day.gridPriceDay !== null
             || detailVisibility.battery && day.battery !== null && day.batteryDay !== null
             || detailVisibility.house && day.house !== null && day.houseDay !== null;
     }
@@ -1240,6 +1395,42 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         };
     }
 
+    private _formatSignedEnergy(valueKwh: number): string {
+        const display = this._getEnergyDisplay(Math.abs(valueKwh));
+        const prefix = valueKwh > 0 ? "+" : valueKwh < 0 ? "−" : "";
+        return `${prefix}${display.value} ${display.unit}`;
+    }
+
+    private _renderSignedEnergyValue(valueKwh: number) {
+        const display = this._getEnergyDisplay(Math.abs(valueKwh));
+        const prefix = valueKwh > 0 ? "+" : valueKwh < 0 ? "−" : "";
+        return html`
+            <span class="forecast-day-gauge-primary">${prefix}${display.value}</span>
+            <span class="forecast-day-gauge-unit">${display.unit}</span>
+        `;
+    }
+
+    private _formatGridFlowPair(importKwh: number, exportKwh: number): string {
+        return `↓ ${this._formatEnergy(importKwh)} / ↑ ${this._formatEnergy(exportKwh)}`;
+    }
+
+    private _renderGridChartBar(bar: UnifiedGridMiniChartBarModel) {
+        return html`
+            <span
+                class="forecast-day-chart-bar ${bar.toneClass} ${bar.isPast ? "past" : ""} ${bar.isGap ? "gap" : ""}"
+                style=${`--forecast-bar-height:${bar.heightPercent}%; --forecast-bar-offset:${bar.offsetPercent}%;`}
+            ></span>
+        `;
+    }
+
+    private _getGridSummaryTitle(grid: UnifiedGridOverviewModel): string {
+        return [
+            `${this._localize("node_detail.forecast_detail.grid_label")}: ${this._formatSignedEnergy(grid.netDayKwh)}`,
+            `${this._localize("node_detail.battery_forecast.imported_from_grid")}: ${this._formatEnergy(grid.importedDayKwh)}`,
+            `${this._localize("node_detail.battery_forecast.exported_to_grid")}: ${this._formatEnergy(grid.exportedDayKwh)}`,
+        ].join(" · ");
+    }
+
     private _formatCompactPrice(value: number): string {
         return this._formatSignedPriceValue(value);
     }
@@ -1259,8 +1450,8 @@ export class HelmanUnifiedForecastDetail extends LitElement {
     }
 
     private _getDisplayPriceUnit(): string | null {
-        return this._forecast?.grid.unit
-            ? this._forecast.grid.unit.replace(/\s*\/\s*/g, " / ")
+        return this._forecast?.grid.exportPriceUnit
+            ? this._forecast.grid.exportPriceUnit.replace(/\s*\/\s*/g, " / ")
             : null;
     }
 

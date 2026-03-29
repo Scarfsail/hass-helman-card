@@ -115,11 +115,32 @@ export interface SolarForecastDTO {
 
 export interface GridForecastDTO {
     status: ForecastStatus;
-    unit: string | null;
+    generatedAt: string | null;
+    unit: string;
     resolution: ForecastResolution;
     horizonHours: number;
-    currentSellPrice: number | null;
-    points: ForecastPointDTO[];
+    startedAt: string | null;
+    partialReason: string | null;
+    coverageUntil: string | null;
+    scheduleAdjusted?: boolean;
+    scheduleAdjustmentCoverageUntil?: string | null;
+    currentExportPrice: number | null;
+    exportPriceUnit: string | null;
+    exportPricePoints: ForecastPointDTO[];
+    series: GridForecastSlotDTO[];
+}
+
+export interface GridForecastBaselineDTO {
+    importedFromGridKwh: number;
+    exportedToGridKwh: number;
+}
+
+export interface GridForecastSlotDTO {
+    timestamp: string;
+    durationHours: number;
+    importedFromGridKwh: number;
+    exportedToGridKwh: number;
+    baseline?: GridForecastBaselineDTO;
 }
 
 export interface ForecastBandValueDTO {

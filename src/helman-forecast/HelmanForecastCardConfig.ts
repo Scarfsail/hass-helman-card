@@ -4,6 +4,7 @@ export type HelmanForecastMobileDensity = "comfortable" | "compact";
 
 export interface HelmanForecastSectionVisibility {
     solar: boolean;
+    grid: boolean;
     battery: boolean;
     house: boolean;
     price: boolean;
@@ -18,6 +19,8 @@ export interface HelmanForecastCardConfig extends LovelaceCardConfig {
     show_solar_gauge?: boolean;
     /** Show the solar chart in each unified day card. Default: true. */
     show_solar_chart?: boolean;
+    /** Show the grid energy gauge in each unified day card. Default: true. */
+    show_grid_gauge?: boolean;
     /** Show the battery gauge in each unified day card. Default: false. */
     show_battery_gauge?: boolean;
     /** Show the battery chart in each unified day card. Default: true. */

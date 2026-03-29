@@ -44,6 +44,10 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
                     selector: { boolean: {} },
                 },
                 {
+                    name: "show_grid_gauge",
+                    selector: { boolean: {} },
+                },
+                {
                     name: "show_battery_gauge",
                     selector: { boolean: {} },
                 },
@@ -96,12 +100,13 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
     getCardSize() { return 4; }
 
     setConfig(config: HelmanForecastCardConfig) {
-        const defaultOverviewConfig = getUnifiedForecastOverviewConfig("solar");
+        const defaultOverviewConfig = getUnifiedForecastOverviewConfig("forecastCard");
         this._config = {
             transparent_background: false,
             mobile_density: "comfortable",
             show_solar_gauge: defaultOverviewConfig.solarGauge,
             show_solar_chart: defaultOverviewConfig.solarChart,
+            show_grid_gauge: defaultOverviewConfig.gridGauge,
             show_battery_gauge: defaultOverviewConfig.batteryGauge,
             show_battery_chart: defaultOverviewConfig.batteryChart,
             show_consumption_gauge: defaultOverviewConfig.consumptionGauge,
@@ -137,6 +142,7 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
         return normalizeUnifiedForecastOverviewConfig({
             solarGauge: this._config.show_solar_gauge !== false,
             solarChart: this._config.show_solar_chart !== false,
+            gridGauge: this._config.show_grid_gauge !== false,
             batteryGauge: this._config.show_battery_gauge === true,
             batteryChart: this._config.show_battery_chart !== false,
             consumptionGauge: this._config.show_consumption_gauge === true,
@@ -151,6 +157,6 @@ export class HelmanForecastCard extends LitElement implements LovelaceCard {
 (window as any).customCards.push({
     type: "helman-forecast-card",
     name: "Helman Forecast Card",
-    description: "Unified solar, battery, house, and price forecast visualization.",
+    description: "Unified solar, grid, battery, house, and price forecast visualization.",
     preview: true,
 });

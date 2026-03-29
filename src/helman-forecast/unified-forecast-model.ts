@@ -11,10 +11,18 @@ import {
     type BatteryCapacityForecastDay,
 } from "./shared/battery-capacity-forecast-detail-model";
 import {
-    buildForecastDetailModel,
-    type ForecastDetailDayModel,
+    buildSolarForecastDetailModel,
+    type SolarForecastDayModel,
     type ForecastSolarHourPoint,
 } from "./shared/forecast-detail-model";
+import {
+    buildGridEnergyForecastModel,
+    type GridEnergyForecastDay,
+} from "./shared/grid-energy-forecast-detail-model";
+import {
+    buildGridPriceForecastDetailModel,
+    type GridPriceForecastDayModel,
+} from "./shared/grid-price-forecast-detail-model";
 import {
     buildHouseForecastModel,
     type HouseForecastDay,
@@ -62,6 +70,16 @@ export interface UnifiedPriceMiniChartBarModel {
     isGap: boolean;
 }
 
+export type UnifiedGridToneClass = "grid-import" | "grid-export" | "grid-neutral";
+
+export interface UnifiedGridMiniChartBarModel {
+    heightPercent: number;
+    offsetPercent: number;
+    toneClass: UnifiedGridToneClass;
+    isPast: boolean;
+    isGap: boolean;
+}
+
 export interface UnifiedPriceOverviewChip {
     shortLabel: string;
     value: number;
@@ -75,6 +93,17 @@ export interface UnifiedSolarOverviewModel {
     gaugeFillPercent: number;
     totalGaugeFillPercent: number;
     miniChartBars: UnifiedSolarMiniChartBarModel[];
+}
+
+export type UnifiedGridFlowDirection = "import" | "export" | "neutral";
+
+export interface UnifiedGridOverviewModel {
+    importedDayKwh: number;
+    exportedDayKwh: number;
+    netDayKwh: number;
+    direction: UnifiedGridFlowDirection;
+    gaugeFillPercent: number;
+    miniChartBars: UnifiedGridMiniChartBarModel[];
 }
 
 export interface UnifiedBatteryOverviewModel {
@@ -107,10 +136,13 @@ export interface UnifiedForecastDayModel {
     dayKey: string;
     isToday: boolean;
     isTomorrow: boolean;
-    solarPriceDay: ForecastDetailDayModel | null;
+    solarDay: SolarForecastDayModel | null;
+    gridPriceDay: GridPriceForecastDayModel | null;
+    gridDay: GridEnergyForecastDay | null;
     batteryDay: BatteryCapacityForecastDay | null;
     houseDay: HouseForecastDay | null;
     solar: UnifiedSolarOverviewModel | null;
+    grid: UnifiedGridOverviewModel | null;
     battery: UnifiedBatteryOverviewModel | null;
     house: UnifiedHouseOverviewModel | null;
     price: UnifiedPriceOverviewModel | null;
@@ -131,6 +163,7 @@ const EMPTY_FORECAST_MODEL: UnifiedForecastModel = {
     days: [],
     visibleSections: {
         solar: false,
+        grid: false,
         battery: false,
         house: false,
         price: false,
@@ -156,11 +189,20 @@ export function buildUnifiedForecastModel({
         return EMPTY_FORECAST_MODEL;
     }
 
-    const solarPriceDays = buildForecastDetailModel({
+    const solarDays = buildSolarForecastDetailModel({
         solarForecast: forecast.solar,
-        gridForecast: forecast.grid,
         timeZone: chartContext.timeZone,
         remainingTodayKwhOverride,
+        now,
+    });
+    const gridPriceDays = buildGridPriceForecastDetailModel({
+        gridForecast: forecast.grid,
+        timeZone: chartContext.timeZone,
+        now,
+    });
+    const gridDays = buildGridEnergyForecastModel({
+        gridForecast: forecast.grid,
+        timeZone: chartContext.timeZone,
         now,
     });
     const batteryDays = buildBatteryCapacityForecastModel({
@@ -181,35 +223,55 @@ export function buildUnifiedForecastModel({
         now,
     });
 
-    const solarPriceScale = _buildSolarPriceMiniChartScaleModel(solarPriceDays);
-    const maxSolarGaugeValueKwh = _getMaxSolarGaugeValueKwh(solarPriceDays);
+    const solarPriceScale = _buildSolarPriceMiniChartScaleModel(solarDays, gridPriceDays);
+    const maxSolarGaugeValueKwh = _getMaxSolarGaugeValueKwh(solarDays);
+    const maxGridGaugeValueKwh = _getMaxGridGaugeValueKwh(gridDays);
+    const maxGridMiniChartValueKwh = _getMaxGridMiniChartValueKwh(gridDays);
     const maxHouseGaugeValueKwh = Math.max(...houseDays.map((day) => day.baselineDayKwh), 0);
     const maxHouseMiniChartValue = computeHouseMetricMax(houseDays, HOUSE_BASELINE_ACCESSORS);
 
-    const solarPriceDaysByKey = new Map(solarPriceDays.map((day) => [day.dayKey, day]));
+    const solarDaysByKey = new Map(solarDays.map((day) => [day.dayKey, day]));
+    const gridPriceDaysByKey = new Map(gridPriceDays.map((day) => [day.dayKey, day]));
+    const gridDaysByKey = new Map(gridDays.map((day) => [day.dayKey, day]));
     const batteryDaysByKey = new Map(batteryDays.map((day) => [day.dayKey, day]));
     const houseDaysByKey = new Map(houseDays.map((day) => [day.dayKey, day]));
 
     const days = Array.from(
         new Set([
-            ...solarPriceDaysByKey.keys(),
+            ...solarDaysByKey.keys(),
+            ...gridPriceDaysByKey.keys(),
+            ...gridDaysByKey.keys(),
             ...batteryDaysByKey.keys(),
             ...houseDaysByKey.keys(),
         ]),
     )
         .sort()
         .map((dayKey) => {
-            const solarPriceDay = solarPriceDaysByKey.get(dayKey) ?? null;
+            const solarDay = solarDaysByKey.get(dayKey) ?? null;
+            const gridPriceDay = gridPriceDaysByKey.get(dayKey) ?? null;
+            const gridDay = gridDaysByKey.get(dayKey) ?? null;
             const batteryDay = batteryDaysByKey.get(dayKey) ?? null;
             const houseDay = houseDaysByKey.get(dayKey) ?? null;
-            const isToday = solarPriceDay?.isToday ?? batteryDay?.isToday ?? houseDay?.isToday ?? false;
-            const isTomorrow = solarPriceDay?.isTomorrow ?? batteryDay?.isTomorrow ?? houseDay?.isTomorrow ?? false;
-            const hasSolarSection = sectionVisibility.solar && solarPriceDay !== null && _hasSolarOverview(solarPriceDay);
+            const isToday = solarDay?.isToday
+                ?? gridPriceDay?.isToday
+                ?? gridDay?.isToday
+                ?? batteryDay?.isToday
+                ?? houseDay?.isToday
+                ?? false;
+            const isTomorrow = solarDay?.isTomorrow
+                ?? gridPriceDay?.isTomorrow
+                ?? gridDay?.isTomorrow
+                ?? batteryDay?.isTomorrow
+                ?? houseDay?.isTomorrow
+                ?? false;
+            const hasSolarSection = sectionVisibility.solar && solarDay !== null && _hasSolarOverview(solarDay);
+            const hasGridSection = sectionVisibility.grid && gridDay !== null;
             const hasBatterySection = sectionVisibility.battery && batteryDay !== null;
             const hasHouseSection = sectionVisibility.house && houseDay !== null;
-            const hasPriceSection = sectionVisibility.price && solarPriceDay !== null;
+            const hasPriceSection = sectionVisibility.price && gridPriceDay !== null;
             const overviewChartVisibility: HelmanForecastSectionVisibility = {
                 solar: hasSolarSection && chartSectionVisibility.solar,
+                grid: hasGridSection && chartSectionVisibility.grid,
                 battery: hasBatterySection && chartSectionVisibility.battery,
                 house: hasHouseSection && chartSectionVisibility.house,
                 price: hasPriceSection && chartSectionVisibility.price,
@@ -218,18 +280,30 @@ export function buildUnifiedForecastModel({
                 dayKey,
                 chartContext,
                 chartVisibility: overviewChartVisibility,
-                solarPriceDay,
+                solarDay,
+                gridDay,
+                priceDay: gridPriceDay,
                 batteryDay,
                 houseDay,
             });
-            const solar = hasSolarSection && solarPriceDay !== null
+            const solar = hasSolarSection && solarDay !== null
                 ? _buildSolarOverviewModel(
-                    solarPriceDay,
+                    solarDay,
                     solarPriceScale,
                     chartContext,
                     maxSolarGaugeValueKwh,
                     overviewAxis,
                     overviewChartVisibility.solar,
+                )
+                : null;
+            const grid = hasGridSection && gridDay !== null
+                ? _buildGridOverviewModel(
+                    gridDay,
+                    maxGridGaugeValueKwh,
+                    maxGridMiniChartValueKwh,
+                    chartContext,
+                    overviewAxis,
+                    overviewChartVisibility.grid,
                 )
                 : null;
             const battery = hasBatterySection && batteryDay !== null
@@ -250,11 +324,11 @@ export function buildUnifiedForecastModel({
                     overviewChartVisibility.house,
                 )
                 : null;
-            const price = hasPriceSection && solarPriceDay !== null
-                ? _buildPriceOverviewModel(solarPriceDay, solarPriceScale, chartContext, overviewAxis)
+            const price = hasPriceSection && gridPriceDay !== null
+                ? _buildPriceOverviewModel(gridPriceDay, solarPriceScale, chartContext, overviewAxis)
                 : null;
 
-            if (solar === null && battery === null && house === null && price === null) {
+            if (solar === null && grid === null && battery === null && house === null && price === null) {
                 return null;
             }
 
@@ -262,10 +336,13 @@ export function buildUnifiedForecastModel({
                 dayKey,
                 isToday,
                 isTomorrow,
-                solarPriceDay,
+                solarDay,
+                gridPriceDay,
+                gridDay,
                 batteryDay,
                 houseDay,
                 solar,
+                grid,
                 battery,
                 house,
                 price,
@@ -277,6 +354,7 @@ export function buildUnifiedForecastModel({
         days,
         visibleSections: {
             solar: days.some((day) => day.solar !== null),
+            grid: days.some((day) => day.grid !== null),
             battery: days.some((day) => day.battery !== null),
             house: days.some((day) => day.house !== null),
             price: days.some((day) => day.price !== null),
@@ -285,7 +363,7 @@ export function buildUnifiedForecastModel({
 }
 
 function _buildSolarOverviewModel(
-    day: ForecastDetailDayModel,
+    day: SolarForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
     maxSolarGaugeValueKwh: number,
@@ -299,6 +377,26 @@ function _buildSolarOverviewModel(
         totalGaugeFillPercent: _normalizeGaugeFill(_getComparableSolarGaugeValueKwh(day), maxSolarGaugeValueKwh),
         miniChartBars: chartVisible
             ? _buildSolarMiniChartBars(day, scale, chartContext, overviewAxis)
+            : [],
+    };
+}
+
+function _buildGridOverviewModel(
+    day: GridEnergyForecastDay,
+    maxGridGaugeValueKwh: number,
+    maxGridMiniChartValueKwh: number,
+    chartContext: ForecastChartBuildContext,
+    overviewAxis: SharedForecastAxis | null,
+    chartVisible: boolean,
+): UnifiedGridOverviewModel {
+    return {
+        importedDayKwh: day.importedDayKwh,
+        exportedDayKwh: day.exportedDayKwh,
+        netDayKwh: day.netDayKwh,
+        direction: _getGridFlowDirection(day.netDayKwh),
+        gaugeFillPercent: _normalizeHalfGaugeFill(day.netDayKwh, maxGridGaugeValueKwh),
+        miniChartBars: chartVisible
+            ? _buildGridMiniChartBars(day, maxGridMiniChartValueKwh, chartContext, overviewAxis)
             : [],
     };
 }
@@ -347,7 +445,7 @@ function _buildHouseOverviewModel(
 }
 
 function _buildPriceOverviewModel(
-    day: ForecastDetailDayModel,
+    day: GridPriceForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
     overviewAxis: SharedForecastAxis | null,
@@ -371,20 +469,25 @@ function _buildOverviewSharedAxis({
     dayKey,
     chartContext,
     chartVisibility,
-    solarPriceDay,
+    solarDay,
+    gridDay,
+    priceDay,
     batteryDay,
     houseDay,
 }: {
     dayKey: string;
     chartContext: ForecastChartBuildContext;
     chartVisibility: HelmanForecastSectionVisibility;
-    solarPriceDay: ForecastDetailDayModel | null;
+    solarDay: SolarForecastDayModel | null;
+    gridDay: GridEnergyForecastDay | null;
+    priceDay: GridPriceForecastDayModel | null;
     batteryDay: BatteryCapacityForecastDay | null;
     houseDay: HouseForecastDay | null;
 }): SharedForecastAxis | null {
     const referenceTimestamps = [
-        ...(chartVisibility.solar ? solarPriceDay?.solarHours.map((point) => point.timestamp) ?? [] : []),
-        ...(chartVisibility.price ? solarPriceDay?.priceHours.map((point) => point.timestamp) ?? [] : []),
+        ...(chartVisibility.solar ? solarDay?.solarHours.map((point) => point.timestamp) ?? [] : []),
+        ...(chartVisibility.grid ? gridDay?.slots.map((slot) => slot.timestamp) ?? [] : []),
+        ...(chartVisibility.price ? priceDay?.priceHours.map((point) => point.timestamp) ?? [] : []),
         ...(chartVisibility.battery ? batteryDay?.slots.map((slot) => slot.timestamp) ?? [] : []),
         ...(chartVisibility.house ? houseDay?.hours.map((hour) => hour.timestamp) ?? [] : []),
     ];
@@ -403,7 +506,7 @@ function _buildOverviewSharedAxis({
 }
 
 function _buildSolarMiniChartBars(
-    day: ForecastDetailDayModel,
+    day: SolarForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
     overviewAxis: SharedForecastAxis | null,
@@ -487,7 +590,7 @@ function _buildHouseOverviewMiniChartBars(
 }
 
 function _buildPriceMiniChartBars(
-    day: ForecastDetailDayModel,
+    day: GridPriceForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
     overviewAxis: SharedForecastAxis | null,
@@ -525,9 +628,52 @@ function _buildPriceMiniChartBars(
     });
 }
 
+function _buildGridMiniChartBars(
+    day: GridEnergyForecastDay,
+    maxGridMiniChartValueKwh: number,
+    chartContext: ForecastChartBuildContext,
+    overviewAxis: SharedForecastAxis | null,
+): UnifiedGridMiniChartBarModel[] {
+    if (overviewAxis === null) {
+        return day.slots.map((slot) => _buildGridMiniChartBar(
+            slot.netKwh,
+            day.isToday,
+            slot.timestamp,
+            maxGridMiniChartValueKwh,
+            chartContext,
+        ));
+    }
+
+    return projectIntervalsToSharedAxis(
+        overviewAxis,
+        day.slots,
+        chartContext.timeZone,
+        day.dayKey,
+    ).map((projection) => {
+        const value = projection.entry?.netKwh ?? null;
+        const heightPercent = normalizeForecastBarHeight(
+            Math.abs(value ?? 0),
+            maxGridMiniChartValueKwh,
+            50,
+        );
+
+        return {
+            heightPercent,
+            offsetPercent: value === null
+                ? 0
+                : value < 0
+                    ? Math.max(0, 50 - heightPercent)
+                    : 50,
+            toneClass: _getGridToneClass(value),
+            isPast: projection.column.isPast,
+            isGap: projection.entry === null || projection.entry.source === "gap",
+        } satisfies UnifiedGridMiniChartBarModel;
+    });
+}
+
 function _buildSolarMiniChartBar(
     point: ForecastSolarHourPoint,
-    day: ForecastDetailDayModel,
+    day: SolarForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
 ): UnifiedSolarMiniChartBarModel {
@@ -542,9 +688,31 @@ function _buildSolarMiniChartBar(
     };
 }
 
+function _buildGridMiniChartBar(
+    value: number,
+    isToday: boolean,
+    timestamp: string,
+    maxGridMiniChartValueKwh: number,
+    chartContext: ForecastChartBuildContext,
+): UnifiedGridMiniChartBarModel {
+    const heightPercent = normalizeForecastBarHeight(
+        Math.abs(value),
+        maxGridMiniChartValueKwh,
+        50,
+    );
+
+    return {
+        heightPercent,
+        offsetPercent: value < 0 ? Math.max(0, 50 - heightPercent) : 50,
+        toneClass: _getGridToneClass(value),
+        isPast: isPastForecastTimestamp(timestamp, isToday, chartContext),
+        isGap: false,
+    };
+}
+
 function _buildPriceMiniChartBar(
     point: ForecastPointDTO,
-    day: ForecastDetailDayModel,
+    day: GridPriceForecastDayModel,
     scale: SolarPriceMiniChartScaleModel,
     chartContext: ForecastChartBuildContext,
 ): UnifiedPriceMiniChartBarModel {
@@ -567,7 +735,7 @@ function _buildPriceMiniChartBar(
     };
 }
 
-function _buildPriceOverviewChips(day: ForecastDetailDayModel): UnifiedPriceOverviewChip[] {
+function _buildPriceOverviewChips(day: GridPriceForecastDayModel): UnifiedPriceOverviewChip[] {
     const hasCurrentPrice = day.isToday && day.currentPrice !== null;
     const chips: UnifiedPriceOverviewChip[] = [];
 
@@ -601,25 +769,28 @@ function _buildPriceOverviewChips(day: ForecastDetailDayModel): UnifiedPriceOver
     return chips;
 }
 
-function _buildSolarPriceMiniChartScaleModel(days: ForecastDetailDayModel[]): SolarPriceMiniChartScaleModel {
+function _buildSolarPriceMiniChartScaleModel(
+    solarDays: SolarForecastDayModel[],
+    priceDays: GridPriceForecastDayModel[],
+): SolarPriceMiniChartScaleModel {
     return {
         maxSolarHourValue: Math.max(
-            ...days.flatMap((day) => day.solarHours.map((point) => Math.max(point.value ?? 0, 0))),
+            ...solarDays.flatMap((day) => day.solarHours.map((point) => Math.max(point.value ?? 0, 0))),
             0,
         ),
         maxAbsolutePriceValue: Math.max(
-            ...days.flatMap((day) => day.priceHours.map((point) => Math.abs(point.value))),
+            ...priceDays.flatMap((day) => day.priceHours.map((point) => Math.abs(point.value))),
             0,
         ),
-        hasNegativePriceValues: days.some((day) => day.priceHours.some((point) => point.value < 0)),
+        hasNegativePriceValues: priceDays.some((day) => day.priceHours.some((point) => point.value < 0)),
     };
 }
 
-function _hasSolarOverview(day: ForecastDetailDayModel): boolean {
+function _hasSolarOverview(day: SolarForecastDayModel): boolean {
     return day.hasSolarData && day.solarSummaryKwh !== null;
 }
 
-function _getMaxSolarGaugeValueKwh(days: ForecastDetailDayModel[]): number {
+function _getMaxSolarGaugeValueKwh(days: SolarForecastDayModel[]): number {
     return days.reduce((maxValue, day) => {
         const comparableSolarKwh = _getComparableSolarGaugeValueKwh(day);
         if (comparableSolarKwh === null) {
@@ -630,11 +801,11 @@ function _getMaxSolarGaugeValueKwh(days: ForecastDetailDayModel[]): number {
     }, 0);
 }
 
-function _getComparableSolarGaugeValueKwh(day: ForecastDetailDayModel): number | null {
+function _getComparableSolarGaugeValueKwh(day: SolarForecastDayModel): number | null {
     return day.solarTotalKwh ?? day.solarSummaryKwh;
 }
 
-function _getRemainingSolarGaugeValueKwh(day: ForecastDetailDayModel): number | null {
+function _getRemainingSolarGaugeValueKwh(day: SolarForecastDayModel): number | null {
     if (day.solarSummaryKwh === null) {
         return null;
     }
@@ -644,6 +815,40 @@ function _getRemainingSolarGaugeValueKwh(day: ForecastDetailDayModel): number | 
     }
 
     return Math.max(0, Math.min(day.solarSummaryKwh, day.solarTotalKwh));
+}
+
+function _getMaxGridGaugeValueKwh(days: GridEnergyForecastDay[]): number {
+    return Math.max(...days.map((day) => Math.abs(day.netDayKwh)), 0);
+}
+
+function _getMaxGridMiniChartValueKwh(days: GridEnergyForecastDay[]): number {
+    return Math.max(...days.flatMap((day) => day.slots.map((slot) => Math.abs(slot.netKwh))), 0);
+}
+
+function _getGridFlowDirection(value: number): UnifiedGridFlowDirection {
+    if (value < 0) {
+        return "import";
+    }
+    if (value > 0) {
+        return "export";
+    }
+    return "neutral";
+}
+
+function _normalizeHalfGaugeFill(value: number | null, maxValue: number): number {
+    if (value === null || maxValue <= 0) {
+        return 0;
+    }
+
+    return Math.min((Math.abs(value) / maxValue) * 100, 100);
+}
+
+function _getGridToneClass(value: number | null): UnifiedGridToneClass {
+    if (value === null || value === 0) {
+        return "grid-neutral";
+    }
+
+    return value < 0 ? "grid-import" : "grid-export";
 }
 
 function _normalizeGaugeFill(value: number | null, maxValue: number): number {

@@ -41,7 +41,7 @@
       "today_export":     "Dnes dodáno",
       "section_producer": "Import",
       "section_consumer": "Export",
-      "forecast_section": "Předpověď prodejní ceny",
+      "forecast_section": "Předpověď sítě",
       "current_sell_price": "Aktuální prodejní cena",
       "forecast_unavailable": "Předpověď není dostupná"
     },
@@ -54,6 +54,9 @@
       "overall_label": "Celkem",
       "solar_label": "Solár",
       "solar_unavailable": "Není k dispozici",
+      "grid_label": "Síť",
+      "grid_unavailable": "Zatím není k dispozici",
+      "grid_net": "Čistý tok",
       "price_label": "Prodej",
       "price_min": "Min",
       "price_max": "Max",
@@ -170,6 +173,14 @@
       "reason": "Důvod",
       "execution_disabled": "Provádění je vypnuté",
       "runtime_unavailable": "Stav běhu není k dispozici."
+    },
+    "forecast": {
+      "battery_label": "Baterie",
+      "solar_label": "Solár",
+      "grid_label": "Síť",
+      "net": "Netto",
+      "import": "Import",
+      "export": "Export"
     },
     "dialog": {
       "title": {

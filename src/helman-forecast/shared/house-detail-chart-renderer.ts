@@ -117,6 +117,7 @@ function _renderHouseDetailColumn({
 }): TemplateResult {
     const colorStyle = colorMix ? `color:${colorMix};` : "";
     const barClass = colorMix ? "forecast-detail-bar" : "forecast-detail-bar house-consumption";
+    const highlightClass = colorMix ? "forecast-detail-highlight" : "forecast-detail-highlight house-consumption";
     const isSharedHighlight = column.isMin && column.isMax;
     const titleValue = column.valueKwh !== null
         ? formatEnergy(column.valueKwh)
@@ -128,12 +129,12 @@ function _renderHouseDetailColumn({
             title=${`${formatHour(column.timestamp)} · ${titleValue}`}
         >
             ${column.valueKwh !== null && column.valueKwh > 0 && (column.isMax || isSharedHighlight) ? html`
-                <span class="forecast-detail-highlight top" style=${colorStyle}>
+                <span class="${highlightClass} top" style=${colorStyle}>
                     ${isSharedHighlight ? "↕" : "↑"} ${formatEnergy(column.valueKwh)}
                 </span>
             ` : nothing}
             ${column.valueKwh !== null && column.valueKwh > 0 && column.isMin && !isSharedHighlight ? html`
-                <span class="forecast-detail-highlight bottom" style=${colorStyle}>
+                <span class="${highlightClass} bottom" style=${colorStyle}>
                     ↓ ${formatEnergy(column.valueKwh)}
                 </span>
             ` : nothing}

@@ -9,13 +9,18 @@ import {
     type BatteryDetailChartModel,
 } from "./shared/battery-capacity-forecast-chart-model";
 import type {
-    ForecastDetailDayModel,
+    SolarForecastDayModel,
     ForecastSolarHourPoint,
 } from "./shared/forecast-detail-model";
+import {
+    buildEmptyGridEnergySlot,
+    type GridEnergyForecastDay,
+} from "./shared/grid-energy-forecast-detail-model";
 import {
     type ForecastChartBuildContext,
     normalizeForecastBarHeight,
 } from "./shared/forecast-chart-shared";
+import type { GridPriceForecastDayModel } from "./shared/grid-price-forecast-detail-model";
 import type {
     HouseForecastDay,
     HouseForecastHour,
@@ -89,6 +94,25 @@ export interface UnifiedPriceDetailRowModel {
     maxColumnIndex: number;
 }
 
+export interface UnifiedGridDetailColumnModel {
+    timestamp: string;
+    hourLabel: string | null;
+    isPast: boolean;
+    isGap: boolean;
+    displayStartAt: string;
+    displayEndAt: string;
+    durationHours: number;
+    importedFromGridKwh: number;
+    exportedToGridKwh: number;
+    netKwh: number | null;
+    heightPercent: number;
+    offsetPercent: number;
+}
+
+export interface UnifiedGridDetailRowModel {
+    columns: UnifiedGridDetailColumnModel[];
+}
+
 export interface UnifiedHouseDetailModel {
     columns: HouseDetailColumnModel[];
     hasBreakdown: boolean;
@@ -99,6 +123,7 @@ export interface UnifiedHouseDetailModel {
 export interface UnifiedForecastDetailModel {
     axis: SharedForecastAxis;
     solar: UnifiedSolarDetailRowModel | null;
+    grid: UnifiedGridDetailRowModel | null;
     price: UnifiedPriceDetailRowModel | null;
     battery: BatteryDetailChartModel | null;
     house: UnifiedHouseDetailModel | null;
@@ -127,11 +152,14 @@ export function buildUnifiedForecastDetailModel({
 
     return {
         axis,
-        solar: sectionVisibility.solar && day.solar !== null && day.solarPriceDay !== null
-            ? _buildSolarDetailRow(day.solarPriceDay, axis, chartContext.timeZone, day.dayKey)
+        solar: sectionVisibility.solar && day.solar !== null && day.solarDay !== null
+            ? _buildSolarDetailRow(day.solarDay, axis, chartContext.timeZone, day.dayKey)
             : null,
-        price: sectionVisibility.price && day.price !== null && day.solarPriceDay !== null
-            ? _buildPriceDetailRow(day.solarPriceDay, axis, chartContext.timeZone, day.dayKey)
+        grid: sectionVisibility.grid && day.grid !== null && day.gridDay !== null
+            ? _buildGridDetailRow(day.gridDay, axis, chartContext.timeZone)
+            : null,
+        price: sectionVisibility.price && day.price !== null && day.gridPriceDay !== null
+            ? _buildPriceDetailRow(day.gridPriceDay, axis, chartContext.timeZone, day.dayKey)
             : null,
         battery: sectionVisibility.battery && day.battery !== null && day.batteryDay !== null
             ? buildBatteryDetailChartModel({
@@ -154,12 +182,16 @@ function _collectReferenceTimestamps(
 ): string[] {
     const timestamps: string[] = [];
 
-    if (sectionVisibility.solar && day.solar !== null && day.solarPriceDay !== null) {
-        timestamps.push(...day.solarPriceDay.solarHours.map((point) => point.timestamp));
+    if (sectionVisibility.solar && day.solar !== null && day.solarDay !== null) {
+        timestamps.push(...day.solarDay.solarHours.map((point) => point.timestamp));
     }
 
-    if (sectionVisibility.price && day.price !== null && day.solarPriceDay !== null) {
-        timestamps.push(...day.solarPriceDay.priceHours.map((point) => point.timestamp));
+    if (sectionVisibility.grid && day.grid !== null && day.gridDay !== null) {
+        timestamps.push(...day.gridDay.slots.map((slot) => slot.timestamp));
+    }
+
+    if (sectionVisibility.price && day.price !== null && day.gridPriceDay !== null) {
+        timestamps.push(...day.gridPriceDay.priceHours.map((point) => point.timestamp));
     }
 
     if (sectionVisibility.battery && day.battery !== null && day.batteryDay !== null) {
@@ -174,7 +206,7 @@ function _collectReferenceTimestamps(
 }
 
 function _buildSolarDetailRow(
-    day: ForecastDetailDayModel,
+    day: SolarForecastDayModel,
     axis: SharedForecastAxis,
     timeZone: string,
     dayKey: string,
@@ -220,7 +252,7 @@ function _buildSolarDetailRow(
 }
 
 function _buildPriceDetailRow(
-    day: ForecastDetailDayModel,
+    day: GridPriceForecastDayModel,
     axis: SharedForecastAxis,
     timeZone: string,
     dayKey: string,
@@ -291,6 +323,45 @@ function _buildPriceDetailRow(
     };
 }
 
+function _buildGridDetailRow(
+    day: GridEnergyForecastDay,
+    axis: SharedForecastAxis,
+    timeZone: string,
+): UnifiedGridDetailRowModel {
+    const alignedDay = _alignGridDayToAxis(day, axis, timeZone);
+    const maxAbsoluteValue = Math.max(...alignedDay.slots.map((slot) => Math.abs(slot.netKwh)), 0);
+
+    return {
+        columns: alignedDay.slots.map((slot, index) => {
+            const netKwh = slot.source === "gap" ? null : slot.netKwh;
+            const heightPercent = normalizeForecastBarHeight(
+                Math.abs(netKwh ?? 0),
+                maxAbsoluteValue,
+                34,
+            );
+
+            return {
+                timestamp: slot.timestamp,
+                hourLabel: axis.columns[index]?.hourLabel ?? null,
+                isPast: axis.columns[index]?.isPast ?? false,
+                isGap: slot.source === "gap",
+                displayStartAt: slot.timestamp,
+                displayEndAt: slot.endsAt,
+                durationHours: slot.durationHours,
+                importedFromGridKwh: slot.importedFromGridKwh,
+                exportedToGridKwh: slot.exportedToGridKwh,
+                netKwh,
+                heightPercent,
+                offsetPercent: netKwh === null
+                    ? 0
+                    : netKwh < 0
+                        ? Math.max(0, 50 - heightPercent)
+                        : 50,
+            } satisfies UnifiedGridDetailColumnModel;
+        }),
+    };
+}
+
 function _alignBatteryDayToAxis(
     day: BatteryCapacityForecastDay,
     axis: SharedForecastAxis,
@@ -301,6 +372,22 @@ function _alignBatteryDayToAxis(
     return {
         ...day,
         slots: projections.map((projection, index) => projection.entry ?? _buildGapBatterySlot(
+            projection.column.timestamp,
+            axis.columns[index + 1]?.timestamp ?? null,
+        )),
+    };
+}
+
+function _alignGridDayToAxis(
+    day: GridEnergyForecastDay,
+    axis: SharedForecastAxis,
+    timeZone: string,
+): GridEnergyForecastDay {
+    const projections = projectIntervalsToSharedAxis(axis, day.slots, timeZone, day.dayKey);
+
+    return {
+        ...day,
+        slots: projections.map((projection, index) => projection.entry ?? buildEmptyGridEnergySlot(
             projection.column.timestamp,
             axis.columns[index + 1]?.timestamp ?? null,
         )),

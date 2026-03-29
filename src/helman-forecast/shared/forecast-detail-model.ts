@@ -1,4 +1,4 @@
-import type { ForecastPointDTO, GridForecastDTO, SolarForecastDTO } from "../../helman-api";
+import type { ForecastPointDTO, SolarForecastDTO } from "../../helman-api";
 import {
     buildLocalDayHourAxis,
     getLocalHourKey,
@@ -14,7 +14,7 @@ export interface ForecastSolarHourPoint {
     source: SolarHourSource;
 }
 
-export interface ForecastDetailDayModel {
+export interface SolarForecastDayModel {
     dayKey: string;
     isToday: boolean;
     isTomorrow: boolean;
@@ -22,28 +22,21 @@ export interface ForecastDetailDayModel {
     solarTotalKwh: number | null;
     solarHours: ForecastSolarHourPoint[];
     hasSolarData: boolean;
-    currentPrice: number | null;
-    priceMin: number | null;
-    priceMax: number | null;
-    priceHours: ForecastPointDTO[];
-    hasPriceData: boolean;
 }
 
-interface BuildForecastDetailModelParams {
+interface BuildSolarForecastDetailModelParams {
     solarForecast: SolarForecastDTO | null;
-    gridForecast: GridForecastDTO | null;
     timeZone: string;
     remainingTodayKwhOverride?: number | null;
     now?: Date;
 }
 
-export function buildForecastDetailModel({
+export function buildSolarForecastDetailModel({
     solarForecast,
-    gridForecast,
     timeZone,
     remainingTodayKwhOverride,
     now = new Date(),
-}: BuildForecastDetailModelParams): ForecastDetailDayModel[] {
+}: BuildSolarForecastDetailModelParams): SolarForecastDayModel[] {
     const currentLocalParts = getCachedLocalDateTimeParts(now, timeZone);
     const currentHourKey = getLocalHourKey(now, timeZone);
     if (currentLocalParts === null || currentHourKey === null) {
@@ -56,21 +49,12 @@ export function buildForecastDetailModel({
         currentLocalParts.dayKey,
         currentHourKey,
     );
-    const priceDayMap = _groupPointsByDay(
-        gridForecast?.points ?? [],
-        timeZone,
-        currentLocalParts.dayKey,
-    );
-
     const todayKey = currentLocalParts.dayKey;
     const tomorrowKey = _addDaysToDayKey(todayKey, 1);
-    const allDayKeys = Array.from(
-        new Set([...solarDayMap.keys(), ...priceDayMap.keys()]),
-    ).sort();
+    const allDayKeys = Array.from(solarDayMap.keys()).sort();
 
     return allDayKeys.map((dayKey) => {
         const solarHours = solarDayMap.get(dayKey) ?? [];
-        const priceHours = priceDayMap.get(dayKey) ?? [];
         const solarSummaryKwh = dayKey === todayKey
             ? remainingTodayKwhOverride
                 ?? solarForecast?.remainingTodayKwh
@@ -85,15 +69,6 @@ export function buildForecastDetailModel({
             solarTotalKwh: _sumSolarHourValuesKwh(solarHours),
             solarHours,
             hasSolarData: solarHours.length > 0 || solarSummaryKwh !== null,
-            currentPrice: dayKey === todayKey ? gridForecast?.currentSellPrice ?? null : null,
-            priceMin: priceHours.length > 0
-                ? Math.min(...priceHours.map((point) => point.value))
-                : null,
-            priceMax: priceHours.length > 0
-                ? Math.max(...priceHours.map((point) => point.value))
-                : null,
-            priceHours,
-            hasPriceData: priceHours.length > 0,
         };
     });
 }
@@ -201,35 +176,6 @@ function _buildTodaySolarHours({
     });
 }
 
-function _groupPointsByDay(
-    points: ForecastPointDTO[],
-    timeZone: string,
-    currentLocalDayKey?: string,
-): Map<string, ForecastPointDTO[]> {
-    const dayMap = new Map<string, ForecastPointDTO[]>();
-
-    for (const point of points) {
-        const pointLocalParts = getCachedLocalDateTimeParts(point.timestamp, timeZone);
-        if (pointLocalParts === null) {
-            continue;
-        }
-
-        if (currentLocalDayKey !== undefined && pointLocalParts.dayKey < currentLocalDayKey) {
-            continue;
-        }
-
-        const dayPoints = dayMap.get(pointLocalParts.dayKey) ?? [];
-        dayPoints.push(point);
-        dayMap.set(pointLocalParts.dayKey, dayPoints);
-    }
-
-    for (const [dayKey, dayPoints] of dayMap.entries()) {
-        dayMap.set(dayKey, [...dayPoints].sort(_comparePointsByTimestamp));
-    }
-
-    return dayMap;
-}
-
 function _sumSolarHourValuesKwh(points: ForecastSolarHourPoint[]): number | null {
     const values = points
         .map((point) => point.value)
@@ -269,10 +215,6 @@ function _addDaysToDayKey(dayKey: string, days: number): string {
     const date = new Date(`${dayKey}T00:00:00Z`);
     date.setUTCDate(date.getUTCDate() + days);
     return date.toISOString().slice(0, 10);
-}
-
-function _comparePointsByTimestamp(a: ForecastPointDTO, b: ForecastPointDTO): number {
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
 }
 
 function _compareSolarHoursByTimestamp(a: ForecastSolarHourPoint, b: ForecastSolarHourPoint): number {

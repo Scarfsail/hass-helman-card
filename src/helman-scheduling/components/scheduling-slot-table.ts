@@ -11,6 +11,7 @@ import {
 import {
     EMPTY_SLOT_FORECAST_MAP,
     type SlotForecastMap,
+    type SlotForecastPoint,
 } from "../model/slot-forecast-model";
 import type {
     ScheduleDialogOpenDetail,
@@ -24,6 +25,19 @@ import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 function _formatSolarLabel(wh: number): string {
     const kwh = wh / 1000;
     return kwh >= 10 ? `${Math.round(kwh)} kWh` : `${kwh.toFixed(1)} kWh`;
+}
+
+function _formatKwhValue(kwh: number): string {
+    const absKwh = Math.abs(kwh);
+    if (absKwh >= 10) {
+        return absKwh.toFixed(0);
+    }
+
+    if (absKwh >= 1) {
+        return absKwh.toFixed(1);
+    }
+
+    return absKwh.toFixed(2);
 }
 
 @customElement("scheduling-slot-table")
@@ -197,7 +211,7 @@ export class SchedulingSlotTable extends LitElement {
                 white-space: nowrap;
             }
 
-            .slot-forecast-gauge > :not(.slot-forecast-gauge-fill) {
+            .slot-forecast-gauge > :not(.slot-forecast-gauge-fill, .slot-forecast-gauge-center) {
                 position: relative;
                 z-index: 1;
             }
@@ -208,6 +222,17 @@ export class SchedulingSlotTable extends LitElement {
                 z-index: 0;
                 border-radius: inherit;
                 pointer-events: none;
+            }
+
+            .slot-forecast-gauge-center {
+                position: absolute;
+                top: 3px;
+                bottom: 3px;
+                left: 50%;
+                width: 1px;
+                z-index: 1;
+                background: color-mix(in srgb, var(--primary-text-color) 26%, transparent);
+                transform: translateX(-50%);
             }
 
             .slot-forecast-gauge-text {
@@ -247,6 +272,49 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-forecast-gauge.solar .slot-forecast-gauge-fill {
                 background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
+            }
+
+            .slot-forecast-gauge.grid {
+                justify-content: flex-end;
+                width: 68px;
+                flex-basis: 68px;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent),
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 8%, transparent),
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent)
+                );
+                color: color-mix(in srgb, var(--primary-text-color) 92%, transparent);
+                text-shadow:
+                    0 0 1px rgba(255, 255, 255, 0.55),
+                    0 1px 1px rgba(24, 32, 52, 0.1);
+            }
+
+            .slot-forecast-gauge.grid .slot-forecast-gauge-fill.import {
+                inset: 0 auto 0 auto;
+                right: 50%;
+                left: auto;
+                background: linear-gradient(
+                    270deg,
+                    color-mix(in srgb, #2563eb 74%, white 6%),
+                    color-mix(in srgb, #2563eb 46%, transparent)
+                );
+                border-radius: 4px 0 0 4px;
+            }
+
+            .slot-forecast-gauge.grid .slot-forecast-gauge-fill.export {
+                inset: 0 auto 0 50%;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-grid-accent, #7dd3fc) 74%, white 6%),
+                    color-mix(in srgb, var(--simple-card-grid-accent, #7dd3fc) 46%, transparent)
+                );
+                border-radius: 0 4px 4px 0;
+            }
+
+            .slot-forecast-gauge.grid .slot-forecast-gauge-text {
+                text-align: end;
+                font-variant-numeric: tabular-nums;
             }
 
             .slot-forecast-gauge.unavailable {
@@ -346,6 +414,7 @@ export class SchedulingSlotTable extends LitElement {
                     map.solarMaxWh,
                     point?.solarWh != null ? _formatSolarLabel(point.solarWh) : null,
                 )}
+                ${this._renderGridGauge(point, map)}
             </div>
         `;
     }
@@ -369,7 +438,12 @@ export class SchedulingSlotTable extends LitElement {
             : 0;
 
         return html`
-            <div class="slot-forecast-gauge ${type}">
+            <div
+                class="slot-forecast-gauge ${type}"
+                role="img"
+                aria-label=${this._buildGaugeTitle(type, label)}
+                title=${this._buildGaugeTitle(type, label)}
+            >
                 ${widthPct > 0 ? html`
                     <span
                         class="slot-forecast-gauge-fill"
@@ -378,6 +452,43 @@ export class SchedulingSlotTable extends LitElement {
                     ></span>
                 ` : nothing}
                 ${label !== null ? html`<span class="slot-forecast-gauge-text">${label}</span>` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderGridGauge(point: SlotForecastPoint | undefined, map: SlotForecastMap) {
+        if (!map.gridAvailable || point?.gridNetKwh === null || point?.gridNetKwh === undefined) {
+            return html`
+                <div class="slot-forecast-gauge grid unavailable" aria-hidden="true">
+                </div>
+            `;
+        }
+
+        const direction = point.gridNetKwh > 0
+            ? "export"
+            : point.gridNetKwh < 0
+            ? "import"
+            : null;
+        const widthPct = map.gridMaxAbsKwh > 0
+            ? Math.min((Math.abs(point.gridNetKwh) / map.gridMaxAbsKwh) * 50, 50)
+            : 0;
+
+        return html`
+            <div
+                class="slot-forecast-gauge grid"
+                role="img"
+                aria-label=${this._buildGridGaugeTitle(point)}
+                title=${this._buildGridGaugeTitle(point)}
+            >
+                <span class="slot-forecast-gauge-center" aria-hidden="true"></span>
+                ${direction !== null && widthPct > 0 ? html`
+                    <span
+                        class="slot-forecast-gauge-fill ${direction}"
+                        style=${`width:${widthPct}%;`}
+                        aria-hidden="true"
+                    ></span>
+                ` : nothing}
+                <span class="slot-forecast-gauge-text">${this._formatCompactGridNet(point.gridNetKwh)}</span>
             </div>
         `;
     }
@@ -450,6 +561,35 @@ export class SchedulingSlotTable extends LitElement {
         }
 
         return runtime.reason === "scheduled" ? "following" : "diverged";
+    }
+
+    private _buildGridGaugeTitle(point: SlotForecastPoint): string {
+        return [
+            this.localize("scheduling.forecast.grid_label"),
+            `${this.localize("scheduling.forecast.net")}: ${this._formatSignedGridEnergy(point.gridNetKwh ?? 0)}`,
+            `${this.localize("scheduling.forecast.import")}: ${this._formatGridEnergy(point.gridImportKwh ?? 0)}`,
+            `${this.localize("scheduling.forecast.export")}: ${this._formatGridEnergy(point.gridExportKwh ?? 0)}`,
+        ].join(" · ");
+    }
+
+    private _buildGaugeTitle(type: "battery" | "solar", label: string): string {
+        const gaugeLabel = type === "battery"
+            ? this.localize("scheduling.forecast.battery_label")
+            : this.localize("scheduling.forecast.solar_label");
+        return `${gaugeLabel}: ${label}`;
+    }
+
+    private _formatCompactGridNet(kwh: number): string {
+        const prefix = kwh > 0 ? "+" : kwh < 0 ? "−" : "";
+        return `${prefix}${_formatKwhValue(kwh)}`;
+    }
+
+    private _formatSignedGridEnergy(kwh: number): string {
+        return `${this._formatCompactGridNet(kwh)} kWh`;
+    }
+
+    private _formatGridEnergy(kwh: number): string {
+        return `${_formatKwhValue(kwh)} kWh`;
     }
 
     private _handleTimeClick(slotId: string, event: MouseEvent): void {

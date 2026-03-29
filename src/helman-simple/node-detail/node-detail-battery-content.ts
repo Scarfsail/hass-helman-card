@@ -143,6 +143,7 @@ export class NodeDetailBatteryContent extends LitElement {
                 </div>
                 <node-detail-forecast-section
                     .hass=${this.hass}
+                    .localize=${this.localize}
                     .nodeType=${p.nodeType}
                 ></node-detail-forecast-section>
             </div>
