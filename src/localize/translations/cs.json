@@ -182,6 +182,12 @@
       "import": "Import",
       "export": "Export"
     },
+    "table": {
+      "action_label": "Akce",
+      "soc_label": "SoC",
+      "solar_label": "Solár",
+      "grid_label": "Síť"
+    },
     "dialog": {
       "title": {
         "edit_selection": "Upravit vybrané sloty"

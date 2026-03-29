@@ -22,9 +22,23 @@ import type {
 import { areScheduleActionsEqual } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
-function _formatSolarLabel(wh: number): string {
+const ZERO_KWH_DISPLAY_THRESHOLD = 0.05;
+
+function _formatSolarGaugeValue(wh: number): string {
     const kwh = wh / 1000;
-    return kwh >= 10 ? `${Math.round(kwh)} kWh` : `${kwh.toFixed(1)} kWh`;
+    return kwh >= 10 ? `${Math.round(kwh)}` : `${kwh.toFixed(1)}`;
+}
+
+function _formatSolarGaugeTitle(wh: number): string {
+    return `${_formatSolarGaugeValue(wh)} kWh`;
+}
+
+function _isZeroKwhDisplayValue(kwh: number): boolean {
+    return Math.abs(kwh) < ZERO_KWH_DISPLAY_THRESHOLD;
+}
+
+function _isZeroSolarDisplayValue(wh: number): boolean {
+    return _isZeroKwhDisplayValue(wh / 1000);
 }
 
 function _formatKwhValue(kwh: number): string {
@@ -54,6 +68,10 @@ export class SchedulingSlotTable extends LitElement {
                 position: sticky;
                 top: 0;
                 z-index: 1;
+                display: grid;
+                grid-template-columns: minmax(68px, auto) 1fr;
+                align-items: center;
+                column-gap: 6px;
                 padding: 6px 4px;
                 color: var(--secondary-text-color);
                 font-size: 0.78rem;
@@ -61,6 +79,77 @@ export class SchedulingSlotTable extends LitElement {
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
                 background: var(--card-background-color);
+            }
+
+            .day-separator-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .day-separator-columns {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                min-width: 0;
+            }
+
+            .day-separator-action {
+                flex: 1 1 auto;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 0.72rem;
+                font-weight: 600;
+                letter-spacing: normal;
+                text-transform: none;
+            }
+
+            .day-separator-forecast {
+                display: flex;
+                gap: 4px;
+                margin-inline-start: auto;
+                min-width: 0;
+            }
+
+            .day-separator-metric {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-width: 0;
+                padding: 0 2px;
+                line-height: 1.05;
+                text-align: center;
+            }
+
+            .day-separator-metric.soc,
+            .day-separator-metric.solar {
+                width: 60px;
+            }
+
+            .day-separator-metric.grid {
+                width: 68px;
+            }
+
+            .day-separator-title {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 0.72rem;
+                font-weight: 600;
+                letter-spacing: normal;
+                text-transform: none;
+            }
+
+            .day-separator-unit {
+                font-size: 0.62rem;
+                font-weight: 600;
+                letter-spacing: normal;
+                text-transform: none;
             }
 
             .slot-row {
@@ -123,10 +212,16 @@ export class SchedulingSlotTable extends LitElement {
             .slot-primary {
                 grid-area: primary;
                 display: flex;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 align-items: stretch;
                 gap: 3px;
                 min-height: 24px;
+                min-width: 0;
+                overflow: hidden;
+            }
+
+            .slot-primary > *,
+            .slot-runtime > * {
                 min-width: 0;
             }
 
@@ -138,16 +233,31 @@ export class SchedulingSlotTable extends LitElement {
             .slot-primary .slot-action-button {
                 display: inline-flex;
                 align-items: center;
+                flex: 1 1 auto;
                 min-width: 0;
+                overflow: hidden;
                 cursor: pointer;
                 border-radius: 999px;
             }
 
-            .slot-action-button scheduling-action-chip {
+            .slot-action-button scheduling-action-chip,
+            .slot-runtime scheduling-action-chip {
+                min-width: 0;
                 max-width: 100%;
             }
 
+            .slot-primary > .chip.now,
+            .slot-runtime > .chip,
+            .slot-runtime > .muted {
+                flex: 0 1 auto;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
             .slot-runtime scheduling-action-chip {
+                flex: 0 1 auto;
                 max-width: 100%;
             }
 
@@ -171,11 +281,12 @@ export class SchedulingSlotTable extends LitElement {
             .slot-runtime {
                 grid-area: runtime;
                 display: flex;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 gap: 2px;
                 align-items: center;
                 min-width: 0;
                 padding-bottom: 1px;
+                overflow: hidden;
             }
 
             .slot-runtime .muted {
@@ -185,12 +296,14 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-forecast {
                 display: flex;
+                flex-wrap: nowrap;
                 align-items: stretch;
                 align-self: stretch;
                 flex: 0 1 auto;
                 gap: 4px;
                 margin-inline-start: auto;
                 min-width: 0;
+                overflow: hidden;
             }
 
             .slot-forecast-gauge {
@@ -317,6 +430,17 @@ export class SchedulingSlotTable extends LitElement {
                 font-variant-numeric: tabular-nums;
             }
 
+            .slot-forecast-gauge.zero {
+                color: var(--secondary-text-color);
+                background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent);
+                text-shadow: none;
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-text-color) 16%, transparent);
+            }
+
+            .slot-forecast-gauge.zero .slot-forecast-gauge-center {
+                background: color-mix(in srgb, var(--secondary-text-color) 32%, transparent);
+            }
+
             .slot-forecast-gauge.unavailable {
                 opacity: 0.4;
             }
@@ -343,9 +467,34 @@ export class SchedulingSlotTable extends LitElement {
         return html`
             <div class="slot-table">
                 ${this.sections.map((section) => html`
-                    <div class="day-separator">${section.dayLabel}</div>
+                    ${this._renderDaySeparator(section)}
                     ${section.slots.map((slot) => this._renderSlotRow(slot))}
                 `)}
+            </div>
+        `;
+    }
+
+    private _renderDaySeparator(section: ScheduleTableSectionModel) {
+        return html`
+            <div class="day-separator">
+                <div class="day-separator-label">${section.dayLabel}</div>
+                <div class="day-separator-columns">
+                    <div class="day-separator-action">${this.localize("scheduling.table.action_label")}</div>
+                    <div class="day-separator-forecast">
+                        ${this._renderHeaderMetric("soc", this.localize("scheduling.table.soc_label"), "%")}
+                        ${this._renderHeaderMetric("solar", this.localize("scheduling.table.solar_label"), "kWh")}
+                        ${this._renderHeaderMetric("grid", this.localize("scheduling.table.grid_label"), "kWh")}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderHeaderMetric(type: "soc" | "solar" | "grid", title: string, unit: string) {
+        return html`
+            <div class=${`day-separator-metric ${type}`}>
+                <span class="day-separator-title">${title}</span>
+                <span class="day-separator-unit">${unit}</span>
             </div>
         `;
     }
@@ -405,14 +554,12 @@ export class SchedulingSlotTable extends LitElement {
                     map.batteryAvailable,
                     point?.socPct ?? null,
                     100,
-                    point?.socPct != null ? `${Math.round(point.socPct)}%` : null,
                 )}
                 ${this._renderGauge(
                     "solar",
                     map.solarAvailable,
                     point?.solarWh ?? null,
                     map.solarMaxWh,
-                    point?.solarWh != null ? _formatSolarLabel(point.solarWh) : null,
                 )}
                 ${this._renderGridGauge(point, map)}
             </div>
@@ -424,7 +571,6 @@ export class SchedulingSlotTable extends LitElement {
         available: boolean,
         value: number | null,
         maxValue: number,
-        label: string | null,
     ) {
         if (!available || value === null) {
             return html`
@@ -433,16 +579,21 @@ export class SchedulingSlotTable extends LitElement {
             `;
         }
 
-        const widthPct = maxValue > 0
+        const isZero = type === "solar" && _isZeroSolarDisplayValue(value);
+        const widthPct = maxValue > 0 && !isZero
             ? Math.min((value / maxValue) * 100, 100)
             : 0;
+        const label = type === "battery"
+            ? `${Math.round(value)}`
+            : _formatSolarGaugeValue(value);
+        const classes = `slot-forecast-gauge ${type}${isZero ? " zero" : ""}`;
 
         return html`
             <div
-                class="slot-forecast-gauge ${type}"
+                class=${classes}
                 role="img"
-                aria-label=${this._buildGaugeTitle(type, label)}
-                title=${this._buildGaugeTitle(type, label)}
+                aria-label=${this._buildGaugeTitle(type, value)}
+                title=${this._buildGaugeTitle(type, value)}
             >
                 ${widthPct > 0 ? html`
                     <span
@@ -464,18 +615,21 @@ export class SchedulingSlotTable extends LitElement {
             `;
         }
 
-        const direction = point.gridNetKwh > 0
+        const isZero = _isZeroKwhDisplayValue(point.gridNetKwh);
+        const displayValue = isZero ? 0 : point.gridNetKwh;
+        const direction = displayValue > 0
             ? "export"
-            : point.gridNetKwh < 0
+            : displayValue < 0
             ? "import"
             : null;
-        const widthPct = map.gridMaxAbsKwh > 0
-            ? Math.min((Math.abs(point.gridNetKwh) / map.gridMaxAbsKwh) * 50, 50)
+        const widthPct = map.gridMaxAbsKwh > 0 && direction !== null
+            ? Math.min((Math.abs(displayValue) / map.gridMaxAbsKwh) * 50, 50)
             : 0;
+        const classes = `slot-forecast-gauge grid${isZero ? " zero" : ""}`;
 
         return html`
             <div
-                class="slot-forecast-gauge grid"
+                class=${classes}
                 role="img"
                 aria-label=${this._buildGridGaugeTitle(point)}
                 title=${this._buildGridGaugeTitle(point)}
@@ -488,7 +642,7 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                <span class="slot-forecast-gauge-text">${this._formatCompactGridNet(point.gridNetKwh)}</span>
+                <span class="slot-forecast-gauge-text">${this._formatVisibleGridNet(displayValue)}</span>
             </div>
         `;
     }
@@ -572,11 +726,19 @@ export class SchedulingSlotTable extends LitElement {
         ].join(" · ");
     }
 
-    private _buildGaugeTitle(type: "battery" | "solar", label: string): string {
+    private _buildGaugeTitle(type: "battery" | "solar", value: number): string {
         const gaugeLabel = type === "battery"
             ? this.localize("scheduling.forecast.battery_label")
             : this.localize("scheduling.forecast.solar_label");
+        const label = type === "battery"
+            ? `${Math.round(value)}%`
+            : _formatSolarGaugeTitle(value);
         return `${gaugeLabel}: ${label}`;
+    }
+
+    private _formatVisibleGridNet(kwh: number): string {
+        const prefix = kwh > 0 ? "+" : kwh < 0 ? "−" : "";
+        return `${prefix}${Math.abs(kwh).toFixed(1)}`;
     }
 
     private _formatCompactGridNet(kwh: number): string {
