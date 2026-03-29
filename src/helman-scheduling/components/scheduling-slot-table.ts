@@ -9,15 +9,21 @@ import {
     getScheduleReasonLabel,
 } from "../model/schedule-labels";
 import {
-    EMPTY_SLOT_FORECAST_MAP,
-    type SlotForecastMap,
     type SlotForecastPoint,
 } from "../model/slot-forecast-model";
+import {
+    EMPTY_SCHEDULE_TABLE_MODEL,
+    type ScheduleHourToggleDetail,
+    type ScheduleTableHourRowModel,
+    type ScheduleTableModel,
+    type ScheduleTableRowModel,
+    type ScheduleTableSectionModel,
+    type ScheduleTableSlotRowModel,
+} from "../schedule-table-types";
 import type {
     ScheduleDialogOpenDetail,
     ScheduleSlot,
     ScheduleSlotToggleDetail,
-    ScheduleTableSectionModel,
 } from "../schedule-types";
 import { areScheduleActionsEqual } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
@@ -69,6 +75,7 @@ export class SchedulingSlotTable extends LitElement {
         css`
             :host {
                 --schedule-table-action-chip-width: 96px;
+                --schedule-table-disclosure-width: 16px;
                 --schedule-table-forecast-gap: 4px;
             }
 
@@ -165,7 +172,7 @@ export class SchedulingSlotTable extends LitElement {
                 align-items: center;
                 column-gap: 6px;
                 row-gap: 1px;
-                padding: 4px 8px;
+                padding: 4px 8px 4px 6px;
                 border-radius: 10px;
                 transition: background-color 120ms ease, box-shadow 120ms ease;
             }
@@ -179,18 +186,32 @@ export class SchedulingSlotTable extends LitElement {
                 box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 36%, transparent);
             }
 
+            .slot-row.partially-selected {
+                background: color-mix(in srgb, var(--primary-color) 5%, transparent);
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent);
+            }
+
+            .slot-row.hour-child {
+                background: color-mix(in srgb, var(--secondary-text-color) 6%, transparent);
+            }
+
+            .slot-row.hour-child:hover {
+                background: color-mix(in srgb, var(--primary-color) 6%, var(--card-background-color));
+            }
+
             .slot-time-button {
-                grid-area: time;
                 display: inline-flex;
                 align-items: center;
                 justify-content: flex-start;
+                flex: 0 1 auto;
                 min-width: 0;
-                padding: 6px 8px;
+                padding: 6px 6px 6px 4px;
                 border-radius: 999px;
                 font-size: 0.85rem;
                 font-weight: 600;
                 line-height: 1.1;
                 white-space: nowrap;
+                overflow: hidden;
                 cursor: pointer;
                 transition: background-color 120ms ease, color 120ms ease;
             }
@@ -211,6 +232,62 @@ export class SchedulingSlotTable extends LitElement {
             .slot-time-button:disabled {
                 opacity: 0.55;
                 cursor: default;
+            }
+
+            .slot-time-group {
+                grid-area: time;
+                display: inline-flex;
+                align-items: center;
+                gap: 0;
+                min-width: 0;
+            }
+
+            .slot-time-indent {
+                flex: 0 0 var(--schedule-table-disclosure-width);
+                width: var(--schedule-table-disclosure-width);
+            }
+
+            .slot-disclosure-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 var(--schedule-table-disclosure-width);
+                width: var(--schedule-table-disclosure-width);
+                height: var(--schedule-table-disclosure-width);
+                border-radius: 999px;
+                color: var(--secondary-text-color);
+                font-size: 0.82rem;
+                font-weight: 700;
+                line-height: 1;
+                transition: background-color 120ms ease, color 120ms ease;
+            }
+
+            .slot-disclosure-button:hover {
+                background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+                color: var(--primary-color);
+            }
+
+            .slot-time-button.hour-child {
+                padding: 4px 6px 4px 4px;
+                font-size: 0.78rem;
+            }
+
+            .slot-time-label {
+                display: inline-flex;
+                align-items: baseline;
+                min-width: 0;
+                overflow: hidden;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .slot-time-label-leading,
+            .slot-time-label-trailing {
+                white-space: nowrap;
+            }
+
+            .slot-time-label-leading.hidden,
+            .slot-time-label-trailing.hidden {
+                visibility: hidden;
             }
 
             .slot-primary {
@@ -245,11 +322,31 @@ export class SchedulingSlotTable extends LitElement {
                 border-radius: 999px;
             }
 
-            .slot-action-button scheduling-action-chip {
+            .slot-action-button.single-action scheduling-action-chip {
                 width: 100%;
                 min-width: 0;
                 max-width: 100%;
                 flex: 1 1 auto;
+            }
+
+            .slot-action-button.multiple-actions {
+                align-items: center;
+            }
+
+            .slot-action-pill-list {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                min-width: 0;
+                width: 100%;
+                overflow: hidden;
+            }
+
+            .slot-action-pill-list scheduling-action-chip {
+                flex: 1 1 0;
+                min-width: 0;
+                width: 0;
+                max-width: 100%;
             }
 
             .slot-runtime scheduling-action-chip {
@@ -481,14 +578,18 @@ export class SchedulingSlotTable extends LitElement {
             .slot-forecast-gauge.unavailable {
                 opacity: 0.4;
             }
+
+            .slot-children {
+                display: flex;
+                flex-direction: column;
+            }
         `,
     ];
 
     private _selectedSet: ReadonlySet<string> = new Set();
 
-    @property({ attribute: false }) public sections: ScheduleTableSectionModel[] = [];
+    @property({ attribute: false }) public tableModel: ScheduleTableModel = EMPTY_SCHEDULE_TABLE_MODEL;
     @property({ attribute: false }) public selectedSlotIds: string[] = [];
-    @property({ attribute: false }) public slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: Boolean }) public busy = false;
     @property({ type: Boolean }) public executionEnabled = false;
@@ -503,9 +604,9 @@ export class SchedulingSlotTable extends LitElement {
     render() {
         return html`
             <div class="slot-table">
-                ${this.sections.map((section) => html`
+                ${this.tableModel.sections.map((section) => html`
                     ${this._renderDaySeparator(section)}
-                    ${section.slots.map((slot) => this._renderSlotRow(slot))}
+                    ${section.rows.map((row) => this._renderTableRow(row))}
                 `)}
             </div>
         `;
@@ -521,7 +622,7 @@ export class SchedulingSlotTable extends LitElement {
                         ${this._renderHeaderMetric("soc", this.localize("scheduling.table.soc_label"), "%")}
                         ${this._renderHeaderMetric("solar", this.localize("scheduling.table.solar_label"), "kWh")}
                         ${this._renderHeaderMetric("grid", this.localize("scheduling.table.grid_label"), "kWh")}
-                        ${this._renderHeaderMetric("price", this.localize("scheduling.table.price_label"), this.slotForecastMap.priceDisplayUnit ?? "")}
+                        ${this._renderHeaderMetric("price", this.localize("scheduling.table.price_label"), this.tableModel.forecast.priceDisplayUnit ?? "")}
                     </div>
                 </div>
             </div>
@@ -537,29 +638,41 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _renderSlotRow(slot: ScheduleSlot) {
+    private _renderTableRow(row: ScheduleTableRowModel) {
+        return row.kind === "hour"
+            ? this._renderHourRow(row)
+            : this._renderSlotRow(row);
+    }
+
+    private _renderSlotRow(row: ScheduleTableSlotRowModel) {
+        const slot = row.slot;
         const selected = this._selectedSet.has(slot.id);
-        const classes = `slot-row${slot.isCurrent ? " current" : ""}${selected ? " selected" : ""}`;
-        const timeButtonClasses = `button-reset slot-time-button${selected ? " selected" : ""}${slot.isCurrent ? " current" : ""}`;
+        const classes = `slot-row${slot.isCurrent ? " current" : ""}${selected ? " selected" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
+        const timeButtonClasses = `button-reset slot-time-button${selected ? " selected" : ""}${slot.isCurrent ? " current" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
 
         return html`
             <div class=${classes}>
-                <button
-                    class=${timeButtonClasses}
-                    type="button"
-                    ?disabled=${this.busy}
-                    aria-label=${`${this.localize("scheduling.actions.select_slot")} ${slot.rangeLabel}`}
-                    aria-pressed=${selected ? "true" : "false"}
-                    @click=${(event: MouseEvent) => this._handleTimeClick(slot.id, event)}
-                >
-                    ${slot.timeLabel}
-                </button>
-                <div class="slot-primary">
+                <div class="slot-time-group">
+                    ${row.variant === "hour-child"
+                        ? html`<span class="slot-time-indent" aria-hidden="true"></span>`
+                        : nothing}
                     <button
-                        class="button-reset slot-action-button"
+                        class=${timeButtonClasses}
                         type="button"
                         ?disabled=${this.busy}
-                        aria-label=${`${getScheduleActionLabel(slot.action, this.localize)} ${slot.rangeLabel}`}
+                        aria-label=${`${this.localize("scheduling.actions.select_slot")} ${row.rangeLabel}`}
+                        aria-pressed=${selected ? "true" : "false"}
+                        @click=${(event: MouseEvent) => this._handleTimeClick(slot.id, event)}
+                    >
+                        ${this._renderTimeLabel(row.displayTimeLabel)}
+                    </button>
+                </div>
+                <div class="slot-primary">
+                    <button
+                        class="button-reset slot-action-button single-action"
+                        type="button"
+                        ?disabled=${this.busy}
+                        aria-label=${`${getScheduleActionLabel(slot.action, this.localize)} ${row.rangeLabel}`}
                         @click=${() => this._handleActionClick(slot.id)}
                     >
                         <scheduling-action-chip
@@ -569,38 +682,132 @@ export class SchedulingSlotTable extends LitElement {
                             size="compact"
                         ></scheduling-action-chip>
                     </button>
-                    ${this._renderForecastGauges(slot)}
+                    ${this._renderForecastGauges(row.forecast)}
                 </div>
-                ${slot.isCurrent ? html`
+                ${row.showRuntime ? html`
                     <div class="slot-runtime">${this._renderSlotRuntime(slot)}</div>
                 ` : nothing}
             </div>
         `;
     }
 
-    private _renderForecastGauges(slot: ScheduleSlot) {
-        const map = this.slotForecastMap;
-        if (map.points.size === 0) {
+    private _renderHourRow(row: ScheduleTableHourRowModel) {
+        const selectedCount = row.slotIds.filter((slotId) => this._selectedSet.has(slotId)).length;
+        const fullySelected = selectedCount === row.slotIds.length && row.slotIds.length > 0;
+        const partiallySelected = selectedCount > 0 && !fullySelected;
+        const current = row.runtimeSlot !== null;
+        const classes = `slot-row${current ? " current" : ""}${fullySelected ? " selected" : ""}${partiallySelected ? " partially-selected" : ""}`;
+        const timeButtonClasses = `button-reset slot-time-button${fullySelected ? " selected" : ""}${current ? " current" : ""}`;
+        const actionLabel = row.actionPills
+            .map((pill) => getScheduleActionLabel(pill.action, this.localize))
+            .join(", ");
+
+        return html`
+            <div class=${classes}>
+                <div class="slot-time-group">
+                    <button
+                        class="button-reset slot-disclosure-button"
+                        type="button"
+                        aria-expanded=${String(row.expanded)}
+                        aria-controls=${this._buildHourPanelId(row.hourKey)}
+                        aria-label=${this._buildHourToggleAriaLabel(row)}
+                        @click=${(event: MouseEvent) => this._handleHourExpansionClick(row.hourKey, event)}
+                    >
+                        ${row.expanded ? "−" : "+"}
+                    </button>
+                    <button
+                        class=${timeButtonClasses}
+                        type="button"
+                        ?disabled=${this.busy}
+                        aria-label=${`${this.localize("scheduling.actions.select_hour")} ${row.rangeLabel}`}
+                        aria-pressed=${fullySelected ? "true" : "false"}
+                        @click=${(event: MouseEvent) => this._handleTimeClick(row.slotIds[0], event, row.slotIds)}
+                    >
+                        ${this._renderTimeLabel(row.displayTimeLabel)}
+                    </button>
+                </div>
+                <div class="slot-primary">
+                    <button
+                        class="button-reset slot-action-button multiple-actions"
+                        type="button"
+                        ?disabled=${this.busy}
+                        aria-label=${`${this.localize("scheduling.actions.edit_hour")} ${row.rangeLabel}${actionLabel ? `. ${actionLabel}` : ""}`}
+                        @click=${() => this._handleActionClick(row.slotIds[0], row.slotIds)}
+                    >
+                        <span class="slot-action-pill-list">
+                            ${row.actionPills.map((pill) => html`
+                                <scheduling-action-chip
+                                    .action=${pill.action}
+                                    .localize=${this.localize}
+                                    .labelVariant=${"table"}
+                                    size="compact"
+                                ></scheduling-action-chip>
+                            `)}
+                        </span>
+                    </button>
+                    ${this._renderForecastGauges(row.forecast)}
+                </div>
+                ${row.runtimeSlot ? html`
+                    <div class="slot-runtime">${this._renderSlotRuntime(row.runtimeSlot)}</div>
+                ` : nothing}
+            </div>
+            ${row.expanded ? html`
+                <div id=${this._buildHourPanelId(row.hourKey)} class="slot-children">
+                    ${row.childRows.map((childRow) => this._renderSlotRow(childRow))}
+                </div>
+            ` : nothing}
+        `;
+    }
+
+    private _renderTimeLabel(label: ScheduleTableSlotRowModel["displayTimeLabel"]) {
+        return html`
+            <span class="slot-time-label">
+                ${label.leading
+                    ? html`
+                        <span class=${`slot-time-label-leading${label.hideLeading ? " hidden" : ""}`}>
+                            ${label.leading}
+                        </span>
+                    `
+                    : nothing}
+                <span>${label.primary}</span>
+                ${label.trailing
+                    ? html`
+                        <span class=${`slot-time-label-trailing${label.hideTrailing ? " hidden" : ""}`}>
+                            ${label.trailing}
+                        </span>
+                    `
+                    : nothing}
+            </span>
+        `;
+    }
+
+    private _renderForecastGauges(point: SlotForecastPoint | null) {
+        const forecast = this.tableModel.forecast;
+        if (
+            !forecast.batteryAvailable
+            && !forecast.solarAvailable
+            && !forecast.gridAvailable
+            && !forecast.priceAvailable
+        ) {
             return nothing;
         }
 
-        const point = map.points.get(slot.id);
         return html`
             <div class="slot-forecast">
                 ${this._renderGauge(
                     "battery",
-                    map.batteryAvailable,
+                    forecast.batteryAvailable,
                     point?.socPct ?? null,
                     100,
                 )}
                 ${this._renderGauge(
                     "solar",
-                    map.solarAvailable,
+                    forecast.solarAvailable,
                     point?.solarWh ?? null,
-                    map.solarMaxWh,
+                    forecast.solarMaxWh,
                 )}
-                ${this._renderGridGauge(point, map)}
-                ${this._renderPriceGauge(point, map)}
+                ${this._renderGridGauge(point, forecast)}
+                ${this._renderPriceGauge(point, forecast)}
             </div>
         `;
     }
@@ -646,23 +853,28 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _renderGridGauge(point: SlotForecastPoint | undefined, map: SlotForecastMap) {
-        if (!map.gridAvailable || point?.gridNetKwh === null || point?.gridNetKwh === undefined) {
+    private _renderGridGauge(
+        point: SlotForecastPoint | null,
+        forecast: ScheduleTableModel["forecast"],
+    ) {
+        if (!forecast.gridAvailable || point?.gridNetKwh === null || point?.gridNetKwh === undefined) {
             return html`
                 <div class="slot-forecast-gauge grid unavailable" aria-hidden="true">
                 </div>
             `;
         }
 
-        const isZero = _isZeroKwhDisplayValue(point.gridNetKwh);
-        const displayValue = isZero ? 0 : point.gridNetKwh;
-        const direction = displayValue > 0
-            ? "export"
-            : displayValue < 0
-            ? "import"
-            : null;
-        const widthPct = map.gridMaxAbsKwh > 0 && direction !== null
-            ? Math.min((Math.abs(displayValue) / map.gridMaxAbsKwh) * 50, 50)
+        const importValue = point.gridImportKwh ?? 0;
+        const exportValue = point.gridExportKwh ?? 0;
+        const hasImport = !_isZeroKwhDisplayValue(importValue);
+        const hasExport = !_isZeroKwhDisplayValue(exportValue);
+        const isZero = !hasImport && !hasExport && _isZeroKwhDisplayValue(point.gridNetKwh);
+        const displayValue = _isZeroKwhDisplayValue(point.gridNetKwh) ? 0 : point.gridNetKwh;
+        const importWidthPct = forecast.gridMaxAbsKwh > 0 && hasImport
+            ? Math.min((importValue / forecast.gridMaxAbsKwh) * 50, 50)
+            : 0;
+        const exportWidthPct = forecast.gridMaxAbsKwh > 0 && hasExport
+            ? Math.min((exportValue / forecast.gridMaxAbsKwh) * 50, 50)
             : 0;
         const classes = `slot-forecast-gauge grid${isZero ? " zero" : ""}`;
 
@@ -674,10 +886,17 @@ export class SchedulingSlotTable extends LitElement {
                 title=${this._buildGridGaugeTitle(point)}
             >
                 <span class="slot-forecast-gauge-center" aria-hidden="true"></span>
-                ${direction !== null && widthPct > 0 ? html`
+                ${importWidthPct > 0 ? html`
                     <span
-                        class="slot-forecast-gauge-fill ${direction}"
-                        style=${`width:${widthPct}%;`}
+                        class="slot-forecast-gauge-fill import"
+                        style=${`width:${importWidthPct}%;`}
+                        aria-hidden="true"
+                    ></span>
+                ` : nothing}
+                ${exportWidthPct > 0 ? html`
+                    <span
+                        class="slot-forecast-gauge-fill export"
+                        style=${`width:${exportWidthPct}%;`}
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
@@ -686,8 +905,11 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _renderPriceGauge(point: SlotForecastPoint | undefined, map: SlotForecastMap) {
-        if (!map.priceAvailable || !point || point.price === null) {
+    private _renderPriceGauge(
+        point: SlotForecastPoint | null,
+        forecast: ScheduleTableModel["forecast"],
+    ) {
+        if (!forecast.priceAvailable || !point || point.price === null) {
             return html`
                 <div class="slot-forecast-gauge price unavailable" aria-hidden="true">
                 </div>
@@ -701,16 +923,16 @@ export class SchedulingSlotTable extends LitElement {
             : displayValue > 0
             ? "positive"
             : null;
-        const widthPct = map.priceMaxAbs > 0 && direction !== null
-            ? Math.min((Math.abs(displayValue) / map.priceMaxAbs) * 50, 50)
+        const widthPct = forecast.priceMaxAbs > 0 && direction !== null
+            ? Math.min((Math.abs(displayValue) / forecast.priceMaxAbs) * 50, 50)
             : 0;
 
         return html`
             <div
                 class=${`slot-forecast-gauge price${isZero ? " zero" : ""}`}
                 role="img"
-                aria-label=${this._buildPriceGaugeTitle(displayValue, map.priceDisplayUnit)}
-                title=${this._buildPriceGaugeTitle(displayValue, map.priceDisplayUnit)}
+                aria-label=${this._buildPriceGaugeTitle(displayValue, forecast.priceDisplayUnit)}
+                title=${this._buildPriceGaugeTitle(displayValue, forecast.priceDisplayUnit)}
             >
                 <span class="slot-forecast-gauge-center" aria-hidden="true"></span>
                 ${direction !== null && widthPct > 0 ? html`
@@ -842,7 +1064,17 @@ export class SchedulingSlotTable extends LitElement {
         return unit ? `${formattedValue} ${unit}` : formattedValue;
     }
 
-    private _handleTimeClick(slotId: string, event: MouseEvent): void {
+    private _buildHourPanelId(hourKey: string): string {
+        return `schedule-hour-panel-${hourKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    }
+
+    private _buildHourToggleAriaLabel(row: ScheduleTableHourRowModel): string {
+        return `${this.localize(
+            row.expanded ? "scheduling.actions.collapse_hour" : "scheduling.actions.expand_hour",
+        )} ${row.rangeLabel}`;
+    }
+
+    private _handleTimeClick(slotId: string, event: MouseEvent, slotIds?: readonly string[]): void {
         if (this.busy) {
             return;
         }
@@ -850,11 +1082,15 @@ export class SchedulingSlotTable extends LitElement {
         this.dispatchEvent(new CustomEvent("toggle-schedule-slot-selection", {
             bubbles: true,
             composed: true,
-            detail: { slotId, shiftKey: event.shiftKey } satisfies ScheduleSlotToggleDetail,
+            detail: {
+                slotId,
+                slotIds: slotIds ? [...slotIds] : undefined,
+                shiftKey: event.shiftKey,
+            } satisfies ScheduleSlotToggleDetail,
         }));
     }
 
-    private _handleActionClick(slotId: string): void {
+    private _handleActionClick(slotId: string, slotIds?: readonly string[]): void {
         if (this.busy) {
             return;
         }
@@ -862,7 +1098,19 @@ export class SchedulingSlotTable extends LitElement {
         this.dispatchEvent(new CustomEvent("open-schedule-dialog", {
             bubbles: true,
             composed: true,
-            detail: { slotId } satisfies ScheduleDialogOpenDetail,
+            detail: {
+                slotId,
+                slotIds: slotIds ? [...slotIds] : undefined,
+            } satisfies ScheduleDialogOpenDetail,
+        }));
+    }
+
+    private _handleHourExpansionClick(hourKey: string, event: MouseEvent): void {
+        event.stopPropagation();
+        this.dispatchEvent(new CustomEvent("toggle-schedule-hour-expansion", {
+            bubbles: true,
+            composed: true,
+            detail: { hourKey } satisfies ScheduleHourToggleDetail,
         }));
     }
 }

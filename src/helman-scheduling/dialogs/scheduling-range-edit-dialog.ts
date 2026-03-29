@@ -84,7 +84,7 @@ export class SchedulingRangeEditDialog extends LitElement {
     @property({ attribute: false }) public dialogState: ScheduleDialogState | null = null;
     @property({ type: Boolean }) public open = false;
 
-    @state() private _actionKind: ScheduleAction["kind"] = "normal";
+    @state() private _actionKind: ScheduleAction["kind"] | null = null;
     @state() private _targetSocInput = "";
 
     connectedCallback(): void {
@@ -150,6 +150,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                             ${this._renderActionOption("stop_charging")}
                             ${this._renderActionOption("stop_discharging")}
                         </div>
+                        ${this._actionKind === null ? html`
+                            <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>
+                        ` : nothing}
                     </div>
 
                     <div class="field-help">
@@ -170,8 +173,8 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _applyDialogState(dialogState: ScheduleDialogState): void {
-        this._actionKind = dialogState.initialAction.kind;
-        this._targetSocInput = dialogState.initialAction.targetSoc?.toString() ?? "";
+        this._actionKind = dialogState.initialAction?.kind ?? null;
+        this._targetSocInput = dialogState.initialAction?.targetSoc?.toString() ?? "";
     }
 
     private _title(): string {
@@ -258,6 +261,10 @@ export class SchedulingRangeEditDialog extends LitElement {
             return false;
         }
 
+        if (this._actionKind === null) {
+            return false;
+        }
+
         if (!this._isTargetActionKind(this._actionKind)) {
             return true;
         }
@@ -323,6 +330,10 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _buildEditedAction(): ScheduleAction | null {
+        if (this._actionKind === null) {
+            return null;
+        }
+
         if (!this._isTargetActionKind(this._actionKind)) {
             return { kind: this._actionKind };
         }
@@ -358,7 +369,7 @@ export class SchedulingRangeEditDialog extends LitElement {
             return Number(this._targetSocInput);
         }
 
-        if (this._isTargetActionKind(this._actionKind) && this._targetSocInput.trim().length === 0) {
+        if (this._actionKind !== null && this._isTargetActionKind(this._actionKind) && this._targetSocInput.trim().length === 0) {
             return null;
         }
 

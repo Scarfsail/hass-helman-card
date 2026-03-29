@@ -23,7 +23,7 @@ export interface ScheduleSlot {
     isCurrent: boolean;
 }
 
-export interface ScheduleTableSectionModel {
+export interface ScheduleSlotDaySectionModel {
     dayKey: string;
     dayLabel: string;
     slots: ScheduleSlot[];
@@ -31,16 +31,18 @@ export interface ScheduleTableSectionModel {
 
 export interface ScheduleSlotToggleDetail {
     slotId: string;
+    slotIds?: string[];
     shiftKey: boolean;
 }
 
 export interface ScheduleDialogOpenDetail {
     slotId: string;
+    slotIds?: string[];
 }
 
 export interface ScheduleDialogState {
     selectedSlots: ScheduleSlot[];
-    initialAction: ScheduleAction;
+    initialAction: ScheduleAction | null;
 }
 
 export interface ScheduleDialogResult {
@@ -71,8 +73,12 @@ export interface NormalizedScheduleModel {
 
 export interface ScheduleSlotPatch extends Pick<ScheduleSlotDTO, "id" | "action"> {}
 
+export function getScheduleActionIdentityKey(action: ScheduleAction): string {
+    return `${action.kind}:${action.targetSoc ?? ""}`;
+}
+
 export function areScheduleActionsEqual(left: ScheduleAction, right: ScheduleAction): boolean {
-    return left.kind === right.kind && (left.targetSoc ?? null) === (right.targetSoc ?? null);
+    return getScheduleActionIdentityKey(left) === getScheduleActionIdentityKey(right);
 }
 
 export function isTargetScheduleAction(

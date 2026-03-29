@@ -13,7 +13,7 @@ import "./dialogs/scheduling-range-edit-dialog";
 import { getScheduleErrorLabel } from "./model/schedule-labels";
 import { normalizeSchedulePayload } from "./model/schedule-normalizer";
 import { buildScheduleSlotPatches } from "./model/schedule-patch-builder";
-import { buildScheduleTableSections } from "./model/schedule-table-builder";
+import { buildScheduleTableModel } from "./model/schedule-table-builder";
 import {
     buildSlotForecastMap,
     deriveScheduleForecastParams,
@@ -21,6 +21,11 @@ import {
     type SlotForecastMap,
 } from "./model/slot-forecast-model";
 import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-owner";
+import {
+    EMPTY_SCHEDULE_TABLE_MODEL,
+    type ScheduleHourToggleDetail,
+    type ScheduleTableModel,
+} from "./schedule-table-types";
 import type {
     NormalizedScheduleModel,
     ScheduleDialogOpenDetail,
@@ -29,8 +34,8 @@ import type {
     ScheduleOwnerSnapshot,
     ScheduleSlotPatch,
     ScheduleSlotToggleDetail,
-    ScheduleTableSectionModel,
 } from "./schedule-types";
+import { areScheduleActionsEqual } from "./schedule-types";
 import { schedulingSharedStyles } from "./styles/scheduling-shared-styles";
 
 const EMPTY_SCHEDULE_OWNER_SNAPSHOT: ScheduleOwnerSnapshot = {
@@ -87,7 +92,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _scheduleOwner?: SharedScheduleOwner;
     private _unsubscribeScheduleOwner?: () => void;
     private _normalizedSchedule: NormalizedScheduleModel = EMPTY_NORMALIZED_SCHEDULE;
-    private _tableSections: ScheduleTableSectionModel[] = [];
+    private _tableModel: ScheduleTableModel = EMPTY_SCHEDULE_TABLE_MODEL;
     private _forecastLoader: ForecastLoader | null = null;
     private _forecastLoaderGranularity: number | null = null;
     private _forecastLoaderDays: number | null = null;
@@ -102,6 +107,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _selectedSlotIds: string[] = [];
     @state() private _dialogState: ScheduleDialogState | null = null;
     @state() private _dialogOpen = false;
+    @state() private _expandedHourKeys: string[] = [];
 
     public set hass(value: HomeAssistant) {
         const previous = this._hass;
@@ -146,7 +152,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         super.willUpdate(changedProperties);
         if (!this._hass) {
             this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
-            this._tableSections = [];
+            this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
             this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
             return;
         }
@@ -159,13 +165,6 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 schedule: this._ownerSnapshot.schedule,
                 timeZone: this._hass.config.time_zone ?? "UTC",
                 locale: this._locale,
-            });
-            this._tableSections = buildScheduleTableSections({
-                slots: this._normalizedSchedule.slots,
-                locale: this._locale,
-                currentDayKey: this._normalizedSchedule.currentDayKey,
-                todayLabel: this._localize("scheduling.day.today"),
-                tomorrowLabel: this._localize("scheduling.day.tomorrow"),
             });
 
             const validSlotIds = new Set(this._normalizedSchedule.slots.map((slot) => slot.id));
@@ -186,6 +185,25 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_forecast") || changedProperties.has("_hass")) {
             this._slotForecastMap = buildSlotForecastMap(this._forecast, this._normalizedSchedule.slots);
         }
+
+        if (
+            changedProperties.has("_ownerSnapshot")
+            || changedProperties.has("_forecast")
+            || changedProperties.has("_hass")
+            || changedProperties.has("_expandedHourKeys")
+        ) {
+            this._tableModel = buildScheduleTableModel({
+                slots: this._normalizedSchedule.slots,
+                slotForecastMap: this._slotForecastMap,
+                expandedHourKeys: this._expandedHourKeys,
+                locale: this._locale,
+                timeZone: this._hass.config.time_zone ?? "UTC",
+                currentDayKey: this._normalizedSchedule.currentDayKey,
+                todayLabel: this._localize("scheduling.day.today"),
+                tomorrowLabel: this._localize("scheduling.day.tomorrow"),
+            });
+            this._pruneExpandedHourKeys();
+        }
     }
 
     render() {
@@ -199,6 +217,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 @refresh-schedule=${this._handleRefresh}
                 @toggle-schedule-execution=${this._handleToggleExecution}
                 @toggle-schedule-slot-selection=${this._handleToggleSlotSelection}
+                @toggle-schedule-hour-expansion=${this._handleToggleHourExpansion}
                 @open-schedule-dialog=${this._handleOpenDialog}
             >
                 <div class="card-content">
@@ -220,9 +239,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                         ? this._renderEmptyState()
                         : html`
                             <scheduling-slot-table
-                                .sections=${this._tableSections}
+                                .tableModel=${this._tableModel}
                                 .selectedSlotIds=${this._selectedSlotIds}
-                                .slotForecastMap=${this._slotForecastMap}
                                 .localize=${this._localize}
                                 .busy=${this._ownerSnapshot.writing || this._ownerSnapshot.togglingExecution}
                                 .executionEnabled=${this._ownerSnapshot.schedule?.executionEnabled ?? false}
@@ -295,7 +313,30 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private _handleToggleSlotSelection(event: CustomEvent<ScheduleSlotToggleDetail>): void {
         event.stopPropagation();
-        const { slotId, shiftKey } = event.detail;
+        const { slotId, slotIds, shiftKey } = event.detail;
+        const targetSlotIds = slotIds?.length ? slotIds : [slotId];
+
+        if (targetSlotIds.length > 1) {
+            const selectedIdSet = new Set(this._selectedSlotIds);
+            const allSelected = targetSlotIds.every((id) => selectedIdSet.has(id));
+            if (allSelected) {
+                for (const id of targetSlotIds) {
+                    selectedIdSet.delete(id);
+                }
+                this._selectedSlotIds = this._buildSelectedSlotIdsInScheduleOrder(selectedIdSet);
+                if (this._selectionAnchorSlotId === slotId) {
+                    this._selectionAnchorSlotId = null;
+                }
+                return;
+            }
+
+            for (const id of targetSlotIds) {
+                selectedIdSet.add(id);
+            }
+            this._selectedSlotIds = this._buildSelectedSlotIdsInScheduleOrder(selectedIdSet);
+            this._selectionAnchorSlotId = slotId;
+            return;
+        }
 
         if (shiftKey && this._selectionAnchorSlotId !== null) {
             const rangeSelection = this._selectSlotRange(this._selectionAnchorSlotId, slotId);
@@ -320,11 +361,21 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._selectionAnchorSlotId = slotId;
     }
 
+    private _handleToggleHourExpansion(event: CustomEvent<ScheduleHourToggleDetail>): void {
+        event.stopPropagation();
+        const { hourKey } = event.detail;
+        this._expandedHourKeys = this._expandedHourKeys.includes(hourKey)
+            ? this._expandedHourKeys.filter((value) => value !== hourKey)
+            : [...this._expandedHourKeys, hourKey];
+    }
+
     private _handleOpenDialog(event: CustomEvent<ScheduleDialogOpenDetail>): void {
         event.stopPropagation();
 
         const clickedSlotId = event.detail.slotId;
-        const nextSelectedSlotIds = this._resolveDialogSelectionIds(clickedSlotId);
+        const nextSelectedSlotIds = event.detail.slotIds?.length
+            ? this._buildSelectedSlotIdsInScheduleOrder(new Set(event.detail.slotIds))
+            : this._resolveDialogSelectionIds(clickedSlotId);
         const selectedSlots = this._getSelectedSlots(nextSelectedSlotIds);
         if (selectedSlots.length === 0) {
             if (nextSelectedSlotIds.length === 0) {
@@ -333,12 +384,9 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             return;
         }
 
-        const initialActionSlot = this._normalizedSchedule.slots.find((slot) => slot.id === clickedSlotId)
-            ?? selectedSlots[0];
-
         this._dialogState = {
             selectedSlots,
-            initialAction: initialActionSlot.action,
+            initialAction: this._resolveInitialDialogAction(selectedSlots),
         };
         this._dialogOpen = true;
     }
@@ -380,7 +428,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _resetScheduleState(): void {
         this._ownerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
         this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
-        this._tableSections = [];
+        this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
         this._selectedSlotIds = [];
         this._dialogState = null;
         this._dialogOpen = false;
@@ -392,6 +440,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
         this._pendingDialogPatches = null;
         this._selectionAnchorSlotId = null;
+        this._expandedHourKeys = [];
     }
 
     private _syncScheduleOwner(): void {
@@ -516,6 +565,35 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         }
 
         return selectedSlots.map((slot) => slot.id);
+    }
+
+    private _resolveInitialDialogAction(
+        selectedSlots: readonly ScheduleDialogState["selectedSlots"][number][],
+    ): ScheduleDialogState["initialAction"] {
+        const firstSlot = selectedSlots[0];
+        if (!firstSlot) {
+            return null;
+        }
+
+        return selectedSlots.every((slot) => areScheduleActionsEqual(slot.action, firstSlot.action))
+            ? firstSlot.action
+            : null;
+    }
+
+    private _pruneExpandedHourKeys(): void {
+        if (this._expandedHourKeys.length === 0) {
+            return;
+        }
+
+        const validHourKeys = new Set(
+            this._tableModel.sections
+                .flatMap((section) => section.rows)
+                .flatMap((row) => row.kind === "hour" ? [row.hourKey] : []),
+        );
+        const nextExpandedHourKeys = this._expandedHourKeys.filter((hourKey) => validHourKeys.has(hourKey));
+        if (nextExpandedHourKeys.length !== this._expandedHourKeys.length) {
+            this._expandedHourKeys = nextExpandedHourKeys;
+        }
     }
 
     private get _localize(): LocalizeFunction {

@@ -17,6 +17,21 @@ export interface ScheduleSlotLabels {
     rangeLabel: string;
 }
 
+export interface ScheduleLocalTimeParts {
+    dayKey: string;
+    hour: number;
+    minute: number;
+    offset: string;
+}
+
+export interface ScheduleCompactExpandedRangeLabel {
+    leading: string | null;
+    primary: string;
+    trailing: string | null;
+    hideLeading: boolean;
+    hideTrailing: boolean;
+}
+
 export interface ScheduleSlotBoundary {
     id: string;
     startMs: number;
@@ -167,6 +182,82 @@ export function formatScheduleTime(
     }
 
     return _getTimeFormatter(locale, timeZone).format(date);
+}
+
+export function getScheduleLocalTimeParts(
+    value: number | string | Date,
+    timeZone: string,
+): ScheduleLocalTimeParts | null {
+    const descriptor = _getLocalDateTimeDescriptor(
+        typeof value === "number" ? new Date(value) : value,
+        timeZone,
+    );
+    if (descriptor === null) {
+        return null;
+    }
+
+    return {
+        dayKey: descriptor.dayKey,
+        hour: descriptor.hour,
+        minute: descriptor.minute,
+        offset: descriptor.offset,
+    };
+}
+
+export function buildScheduleCompactExpandedRangeLabel({
+    startMs,
+    endMs,
+    locale,
+    timeZone,
+}: {
+    startMs: number;
+    endMs: number | null;
+    locale: string;
+    timeZone: string;
+}): ScheduleCompactExpandedRangeLabel {
+    const startLabel = formatScheduleTime(startMs, locale, timeZone);
+    if (endMs === null) {
+        return {
+            leading: null,
+            primary: startLabel,
+            trailing: null,
+            hideLeading: false,
+            hideTrailing: false,
+        };
+    }
+
+    const startLabelParts = _getTimeFormatter(locale, timeZone).formatToParts(new Date(startMs));
+    const minutePartIndex = startLabelParts.map((part) => part.type).lastIndexOf("minute");
+    const minutePart = minutePartIndex === -1 ? undefined : startLabelParts[minutePartIndex];
+    if (minutePartIndex === -1 || minutePart === undefined || minutePart.type !== "minute") {
+        return {
+            leading: null,
+            primary: getScheduleTimeRangeLabels({
+                startMs,
+                endMs,
+                locale,
+                timeZone,
+            }).rangeLabel,
+            trailing: null,
+            hideLeading: false,
+            hideTrailing: false,
+        };
+    }
+
+    return {
+        leading: startLabelParts
+            .slice(0, minutePartIndex + 1)
+            .slice(0, -1)
+            .map((part) => part.value)
+            .join("") || null,
+        primary: minutePart.value,
+        trailing: startLabelParts
+            .slice(minutePartIndex + 1)
+            .map((part) => part.value)
+            .join("") || null,
+        hideLeading: true,
+        hideTrailing: true,
+    };
 }
 
 function _getLocalDateTimeDescriptor(

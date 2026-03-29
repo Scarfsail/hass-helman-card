@@ -1,21 +1,36 @@
-import type { ScheduleSlot, ScheduleTableSectionModel } from "../schedule-types";
+import type { SlotForecastMap } from "./slot-forecast-model";
+import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
+import { buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
+import type { ScheduleTableModel, ScheduleTableSectionModel } from "../schedule-table-types";
+import type { ScheduleSlot } from "../schedule-types";
 
-export function buildScheduleTableSections({
+export function buildScheduleTableModel({
     slots,
+    slotForecastMap,
+    expandedHourKeys,
     locale,
+    timeZone,
     currentDayKey,
     todayLabel,
     tomorrowLabel,
 }: {
     slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+    expandedHourKeys: readonly string[];
     locale: string;
+    timeZone: string;
     currentDayKey: string | null;
     todayLabel: string;
     tomorrowLabel: string;
-}): ScheduleTableSectionModel[] {
-    const sections: ScheduleTableSectionModel[] = [];
-    let currentSection: ScheduleTableSectionModel | null = null;
+}): ScheduleTableModel {
+    const daySections: Array<{
+        dayKey: string;
+        dayLabel: string;
+        slots: ScheduleSlot[];
+    }> = [];
+    let currentSection: (typeof daySections)[number] | null = null;
+    const expandedHourKeySet = new Set(expandedHourKeys);
 
     for (const slot of slots) {
         if (currentSection === null || currentSection.dayKey !== slot.dayKey) {
@@ -30,11 +45,29 @@ export function buildScheduleTableSections({
                 }),
                 slots: [],
             };
-            sections.push(currentSection);
+            daySections.push(currentSection);
         }
 
         currentSection.slots.push(slot);
     }
 
-    return sections;
+    const sections: ScheduleTableSectionModel[] = daySections.map((section) => ({
+        dayKey: section.dayKey,
+        dayLabel: section.dayLabel,
+        rows: buildScheduleTableRows({
+            slots: section.slots,
+            slotForecastMap,
+            expandedHourKeys: expandedHourKeySet,
+            locale,
+            timeZone,
+        }),
+    }));
+
+    return {
+        sections,
+        forecast: buildScheduleTableForecastMeta({
+            slotForecastMap,
+            sections,
+        }),
+    };
 }
