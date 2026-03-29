@@ -110,10 +110,15 @@ export class SchedulingSlotTable extends LitElement {
                 grid-area: primary;
                 display: flex;
                 flex-wrap: wrap;
-                align-items: center;
+                align-items: stretch;
                 gap: 3px;
                 min-height: 24px;
                 min-width: 0;
+            }
+
+            .slot-primary .slot-action-button,
+            .slot-primary > .chip.now {
+                align-self: center;
             }
 
             .slot-primary .slot-action-button {
@@ -166,51 +171,86 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-forecast {
                 display: flex;
-                align-items: center;
+                align-items: stretch;
+                align-self: stretch;
+                flex: 0 1 auto;
                 gap: 4px;
                 margin-inline-start: auto;
                 min-width: 0;
             }
 
-            .forecast-gauge {
-                display: flex;
+            .slot-forecast-gauge {
+                box-sizing: border-box;
+                position: relative;
+                display: inline-flex;
                 align-items: center;
-                gap: 2px;
-                min-width: 0;
-            }
-
-            .forecast-bar-track {
-                width: 36px;
-                height: 3px;
-                border-radius: 2px;
-                background: color-mix(in srgb, var(--secondary-text-color) 20%, transparent);
                 overflow: hidden;
-                flex-shrink: 0;
-            }
-
-            .forecast-bar-fill {
-                height: 100%;
-                border-radius: 2px;
-            }
-
-            .forecast-gauge.battery .forecast-bar-fill {
-                background: var(--simple-card-source-battery, #22c55e);
-            }
-
-            .forecast-gauge.solar .forecast-bar-fill {
-                background: #f5b912;
-            }
-
-            .forecast-gauge.unavailable .forecast-bar-track {
-                opacity: 0.4;
-            }
-
-            .forecast-label {
-                font-size: 0.68rem;
-                font-weight: 600;
-                color: var(--secondary-text-color);
-                line-height: 1.1;
+                width: 60px;
+                min-width: 0;
+                min-height: 20px;
+                flex: 0 1 60px;
+                padding: 1px 4px 1px 5px;
+                border-radius: 4px;
+                font-size: 0.7rem;
+                font-weight: 700;
+                line-height: 1.2;
                 white-space: nowrap;
+            }
+
+            .slot-forecast-gauge > :not(.slot-forecast-gauge-fill) {
+                position: relative;
+                z-index: 1;
+            }
+
+            .slot-forecast-gauge-fill {
+                position: absolute;
+                inset: 0 auto 0 0;
+                z-index: 0;
+                border-radius: inherit;
+                pointer-events: none;
+            }
+
+            .slot-forecast-gauge-text {
+                display: block;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .slot-forecast-gauge.battery {
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, transparent),
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 10%, transparent)
+                );
+                color: color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 34%, var(--primary-text-color));
+                text-shadow:
+                    0 0 1px rgba(255, 255, 255, 0.55),
+                    0 1px 1px rgba(24, 44, 28, 0.12);
+            }
+
+            .slot-forecast-gauge.battery .slot-forecast-gauge-fill {
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 66%, white 8%),
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 44%, transparent)
+                );
+            }
+
+            .slot-forecast-gauge.solar {
+                background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
+                color: rgba(58, 46, 16, 0.98);
+                text-shadow:
+                    0 0 1px rgba(255, 248, 224, 0.85),
+                    0 1px 1px rgba(73, 57, 16, 0.18);
+            }
+
+            .slot-forecast-gauge.solar .slot-forecast-gauge-fill {
+                background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
+            }
+
+            .slot-forecast-gauge.unavailable {
+                opacity: 0.4;
             }
         `,
     ];
@@ -311,30 +351,33 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _renderGauge(
-        type: string,
+        type: "battery" | "solar",
         available: boolean,
         value: number | null,
         maxValue: number,
         label: string | null,
     ) {
-        if (!available) {
+        if (!available || value === null) {
             return html`
-                <div class="forecast-gauge ${type} unavailable">
-                    <div class="forecast-bar-track"></div>
+                <div class="slot-forecast-gauge ${type} unavailable" aria-hidden="true">
                 </div>
             `;
         }
 
-        const widthPct = value !== null && maxValue > 0
+        const widthPct = maxValue > 0
             ? Math.min((value / maxValue) * 100, 100)
             : 0;
 
         return html`
-            <div class="forecast-gauge ${type}">
-                <div class="forecast-bar-track">
-                    <div class="forecast-bar-fill" style="width:${widthPct}%"></div>
-                </div>
-                ${label !== null ? html`<span class="forecast-label">${label}</span>` : nothing}
+            <div class="slot-forecast-gauge ${type}">
+                ${widthPct > 0 ? html`
+                    <span
+                        class="slot-forecast-gauge-fill"
+                        style=${`width:${widthPct}%;`}
+                        aria-hidden="true"
+                    ></span>
+                ` : nothing}
+                ${label !== null ? html`<span class="slot-forecast-gauge-text">${label}</span>` : nothing}
             </div>
         `;
     }
