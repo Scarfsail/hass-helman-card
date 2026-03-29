@@ -1,6 +1,8 @@
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleAction } from "../schedule-types";
 
+export type ScheduleActionLabelVariant = "default" | "table";
+
 export function getScheduleActionKindLabel(
     actionKind: ScheduleAction["kind"],
     localize: LocalizeFunction,
@@ -19,19 +21,31 @@ export function getScheduleActionKindLabel(
     }
 }
 
-export function getScheduleActionLabel(action: ScheduleAction, localize: LocalizeFunction): string {
+export function getScheduleActionLabel(
+    action: ScheduleAction,
+    localize: LocalizeFunction,
+    variant: ScheduleActionLabelVariant = "default",
+): string {
     switch (action.kind) {
         case "normal":
-            return localize("scheduling.action.normal");
+            return localize(variant === "table" ? "scheduling.action_table.normal" : "scheduling.action.normal");
         case "charge_to_target_soc":
-            return `${localize("scheduling.action.charge_to_target_soc")} ${action.targetSoc ?? "?"} %`;
+            return variant === "table"
+                ? _formatCompactTargetSocLabel(localize("scheduling.action_table.charge_to_target_soc"), action.targetSoc)
+                : `${localize("scheduling.action.charge_to_target_soc")} ${action.targetSoc ?? "?"} %`;
         case "discharge_to_target_soc":
-            return `${localize("scheduling.action.discharge_to_target_soc")} ${action.targetSoc ?? "?"} %`;
+            return variant === "table"
+                ? _formatCompactTargetSocLabel(localize("scheduling.action_table.discharge_to_target_soc"), action.targetSoc)
+                : `${localize("scheduling.action.discharge_to_target_soc")} ${action.targetSoc ?? "?"} %`;
         case "stop_charging":
-            return localize("scheduling.action.stop_charging");
+            return localize(variant === "table" ? "scheduling.action_table.stop_charging" : "scheduling.action.stop_charging");
         case "stop_discharging":
-            return localize("scheduling.action.stop_discharging");
+            return localize(variant === "table" ? "scheduling.action_table.stop_discharging" : "scheduling.action.stop_discharging");
     }
+}
+
+function _formatCompactTargetSocLabel(label: string, targetSoc: number | null | undefined): string {
+    return `${label} ${targetSoc ?? "?"}%`;
 }
 
 export function getScheduleReasonLabel(

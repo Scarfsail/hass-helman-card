@@ -144,6 +144,13 @@
       "stop_charging": "Zastavit nabíjení",
       "stop_discharging": "Zastavit vybíjení"
     },
+    "action_table": {
+      "normal": "Normální",
+      "charge_to_target_soc": "Do",
+      "discharge_to_target_soc": "Do",
+      "stop_charging": "Nenabíjet",
+      "stop_discharging": "Nevybíjet"
+    },
     "action_kind": {
       "normal": "Normální režim",
       "charge_to_target_soc": "Nabíjet do cílového SoC",

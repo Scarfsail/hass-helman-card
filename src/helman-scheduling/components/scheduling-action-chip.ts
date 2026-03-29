@@ -3,6 +3,7 @@ import { customElement, property } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
+import type { ScheduleActionLabelVariant } from "../model/schedule-labels";
 import type { ScheduleAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
@@ -19,8 +20,11 @@ export class SchedulingActionChip extends LitElement {
 
             .chip {
                 box-sizing: border-box;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
+                overflow: hidden;
+                justify-content: flex-start;
             }
 
             .chip.compact {
@@ -70,6 +74,8 @@ export class SchedulingActionChip extends LitElement {
             }
 
             .chip-label {
+                flex: 1 1 auto;
+                min-width: 0;
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
@@ -78,6 +84,7 @@ export class SchedulingActionChip extends LitElement {
 
     @property({ attribute: false }) public action?: ScheduleAction;
     @property({ attribute: false }) public localize?: LocalizeFunction;
+    @property({ type: String }) public labelVariant: ScheduleActionLabelVariant = "default";
     @property({ type: String }) public size: "compact" | "regular" = "regular";
     @property({ type: String }) public surface: "scheduled" | "runtime" = "scheduled";
     @property({ type: String }) public runtimeState: "neutral" | "following" | "diverged" | "error" = "neutral";
@@ -87,7 +94,7 @@ export class SchedulingActionChip extends LitElement {
             return nothing;
         }
 
-        const presentation = getScheduleActionPresentation(this.action, this.localize);
+        const presentation = getScheduleActionPresentation(this.action, this.localize, this.labelVariant);
         const runtimeStateClass = this.surface === "runtime" ? ` runtime-${this.runtimeState}` : "";
         const classes = `chip action ${presentation.toneClass}${this.size === "compact" ? " compact" : ""}${this.surface === "runtime" ? " runtime-surface" : ""}${runtimeStateClass}`;
         return html`

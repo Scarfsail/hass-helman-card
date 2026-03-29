@@ -67,6 +67,11 @@ export class SchedulingSlotTable extends LitElement {
     static styles = [
         schedulingSharedStyles,
         css`
+            :host {
+                --schedule-table-action-chip-width: 96px;
+                --schedule-table-forecast-gap: 4px;
+            }
+
             .slot-table {
                 display: flex;
                 flex-direction: column;
@@ -97,14 +102,15 @@ export class SchedulingSlotTable extends LitElement {
             }
 
             .day-separator-columns {
-                display: flex;
+                display: grid;
+                grid-template-columns: var(--schedule-table-action-chip-width) repeat(4, minmax(0, 1fr));
                 align-items: center;
-                gap: 3px;
+                column-gap: var(--schedule-table-forecast-gap);
                 min-width: 0;
+                width: 100%;
             }
 
             .day-separator-action {
-                flex: 1 1 auto;
                 min-width: 0;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -116,34 +122,20 @@ export class SchedulingSlotTable extends LitElement {
             }
 
             .day-separator-forecast {
-                display: flex;
-                gap: 4px;
-                margin-inline-start: auto;
-                min-width: 0;
+                display: contents;
             }
 
             .day-separator-metric {
+                box-sizing: border-box;
                 display: inline-flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
+                width: 100%;
                 min-width: 0;
                 padding: 0 2px;
                 line-height: 1.05;
                 text-align: center;
-            }
-
-            .day-separator-metric.soc,
-            .day-separator-metric.solar {
-                width: 60px;
-            }
-
-            .day-separator-metric.grid {
-                width: 68px;
-            }
-
-            .day-separator-metric.price {
-                width: 96px;
             }
 
             .day-separator-title {
@@ -223,10 +215,10 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-primary {
                 grid-area: primary;
-                display: flex;
-                flex-wrap: nowrap;
+                display: grid;
+                grid-template-columns: var(--schedule-table-action-chip-width) repeat(4, minmax(0, 1fr));
                 align-items: stretch;
-                gap: 3px;
+                column-gap: var(--schedule-table-forecast-gap);
                 min-height: 24px;
                 min-width: 0;
                 overflow: hidden;
@@ -237,28 +229,36 @@ export class SchedulingSlotTable extends LitElement {
                 min-width: 0;
             }
 
-            .slot-primary .slot-action-button,
-            .slot-primary > .chip.now {
+            .slot-primary .slot-action-button {
                 align-self: center;
             }
 
             .slot-primary .slot-action-button {
                 display: inline-flex;
                 align-items: center;
-                flex: 1 1 auto;
-                min-width: 0;
+                flex: 0 0 var(--schedule-table-action-chip-width);
+                width: var(--schedule-table-action-chip-width);
+                min-width: var(--schedule-table-action-chip-width);
+                max-width: var(--schedule-table-action-chip-width);
                 overflow: hidden;
                 cursor: pointer;
                 border-radius: 999px;
             }
 
-            .slot-action-button scheduling-action-chip,
-            .slot-runtime scheduling-action-chip {
+            .slot-action-button scheduling-action-chip {
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
+                flex: 1 1 auto;
             }
 
-            .slot-primary > .chip.now,
+            .slot-runtime scheduling-action-chip {
+                width: var(--schedule-table-action-chip-width);
+                min-width: var(--schedule-table-action-chip-width);
+                max-width: var(--schedule-table-action-chip-width);
+                flex: 0 0 var(--schedule-table-action-chip-width);
+            }
+
             .slot-runtime > .chip,
             .slot-runtime > .muted {
                 flex: 0 1 auto;
@@ -266,11 +266,6 @@ export class SchedulingSlotTable extends LitElement {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-            }
-
-            .slot-runtime scheduling-action-chip {
-                flex: 0 1 auto;
-                max-width: 100%;
             }
 
             .slot-action-button:hover:not(:disabled) scheduling-action-chip {
@@ -282,7 +277,6 @@ export class SchedulingSlotTable extends LitElement {
                 cursor: default;
             }
 
-            .slot-primary .chip.now,
             .slot-runtime .chip {
                 min-height: 16px;
                 padding: 1px 4px;
@@ -307,15 +301,7 @@ export class SchedulingSlotTable extends LitElement {
             }
 
             .slot-forecast {
-                display: flex;
-                flex-wrap: nowrap;
-                align-items: stretch;
-                align-self: stretch;
-                flex: 0 1 auto;
-                gap: 4px;
-                margin-inline-start: auto;
-                min-width: 0;
-                overflow: hidden;
+                display: contents;
             }
 
             .slot-forecast-gauge {
@@ -324,10 +310,9 @@ export class SchedulingSlotTable extends LitElement {
                 display: inline-flex;
                 align-items: center;
                 overflow: hidden;
-                width: 60px;
+                width: 100%;
                 min-width: 0;
                 min-height: 20px;
-                flex: 0 1 60px;
                 padding: 1px 4px 1px 5px;
                 border-radius: 4px;
                 font-size: 0.7rem;
@@ -401,8 +386,6 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-forecast-gauge.grid {
                 justify-content: flex-end;
-                width: 68px;
-                flex-basis: 68px;
                 background: linear-gradient(
                     90deg,
                     color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent),
@@ -443,8 +426,6 @@ export class SchedulingSlotTable extends LitElement {
             }
 
             .slot-forecast-gauge.price {
-                width: 96px;
-                flex-basis: 96px;
                 justify-content: flex-end;
                 background: linear-gradient(
                     90deg,
@@ -584,10 +565,10 @@ export class SchedulingSlotTable extends LitElement {
                         <scheduling-action-chip
                             .action=${slot.action}
                             .localize=${this.localize}
+                            .labelVariant=${"table"}
                             size="compact"
                         ></scheduling-action-chip>
                     </button>
-                    ${slot.isCurrent ? html`<div class="chip now">${this.localize("scheduling.badge.now")}</div>` : nothing}
                     ${this._renderForecastGauges(slot)}
                 </div>
                 ${slot.isCurrent ? html`
@@ -792,6 +773,7 @@ export class SchedulingSlotTable extends LitElement {
             <scheduling-action-chip
                 .action=${action}
                 .localize=${this.localize}
+                .labelVariant=${"table"}
                 size="compact"
                 surface="runtime"
                 .runtimeState=${runtimeState}

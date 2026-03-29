@@ -1,6 +1,9 @@
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleAction } from "../schedule-types";
-import { getScheduleActionLabel } from "./schedule-labels";
+import {
+    getScheduleActionLabel,
+    type ScheduleActionLabelVariant,
+} from "./schedule-labels";
 
 type ScheduleActionTone = "neutral" | "charge" | "discharge" | "stop";
 type ScheduleActionToneClass = `action-tone-${ScheduleActionTone}`;
@@ -14,11 +17,12 @@ export interface ScheduleActionPresentation {
 export function getScheduleActionPresentation(
     action: ScheduleAction,
     localize: LocalizeFunction,
+    labelVariant: ScheduleActionLabelVariant = "default",
 ): ScheduleActionPresentation {
     const tone = _getScheduleActionTone(action.kind);
     return {
         icon: _getScheduleActionIcon(action.kind),
-        label: getScheduleActionLabel(action, localize),
+        label: getScheduleActionLabel(action, localize, labelVariant),
         toneClass: `action-tone-${tone}`,
     };
 }
