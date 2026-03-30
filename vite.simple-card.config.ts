@@ -9,10 +9,8 @@ export default defineConfig(({ mode }) => {
                 formats: ["es"],
                 fileName: () => `helman-simple-card-${isProduction ? "prod" : "dev"}.js`,
             },
+            codeSplitting: false,
             rollupOptions: {
-                output: {
-                    inlineDynamicImports: true,
-                },
                 external: []
             },
             emptyOutDir: false,

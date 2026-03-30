@@ -24,7 +24,7 @@ import type { GridPriceForecastDayModel } from "./shared/grid-price-forecast-det
 import type {
     HouseForecastDay,
     HouseForecastHour,
-    type ConsumerDayTotal,
+    ConsumerDayTotal,
 } from "./shared/house-forecast-detail-model";
 import {
     buildHouseDeferrableBreakdownRows,

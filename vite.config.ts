@@ -11,10 +11,8 @@ export default defineConfig(({ mode }) => {
                 formats: ["es"],
                 fileName: () => `helman-card-${isProduction ? "prod" : "dev"}.js`, // Update file name
             },
+            codeSplitting: false,
             rollupOptions: {
-                output: {
-                    inlineDynamicImports: true
-                },
                 external: []
             },
             emptyOutDir: false,

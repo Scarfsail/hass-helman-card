@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "lit": "3.3.2",
-    "dayjs": "1.11.19",
+    "dayjs": "1.11.20",
     "@mdi/js": "^7.4.47",
     "home-assistant-js-websocket": "9.6.0"
   },
   "devDependencies": {
-    "vite": "^7.0.0",
-    "typescript": "^5.7.2",
+    "vite": "^8.0.3",
+    "typescript": "^6.0.2",
     "ts-lit-plugin": "2.0.2",
     "@semantic-release/git": "^10.0.1",
     "semantic-release": "^25.0.2"
