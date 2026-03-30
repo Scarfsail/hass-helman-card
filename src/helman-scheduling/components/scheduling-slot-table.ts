@@ -493,11 +493,12 @@ export class SchedulingSlotTable extends LitElement {
                 justify-content: flex-end;
                 background: linear-gradient(
                     90deg,
-                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent),
-                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 8%, transparent),
-                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent)
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #141b25),
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 6%, #070b10),
+                    color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #141b25)
                 );
                 color: color-mix(in srgb, var(--primary-text-color) 92%, transparent);
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #232d39);
                 text-shadow:
                     0 0 1px rgba(255, 255, 255, 0.55),
                     0 1px 1px rgba(24, 32, 52, 0.1);

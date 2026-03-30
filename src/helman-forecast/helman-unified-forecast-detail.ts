@@ -112,6 +112,7 @@ const UNIFIED_FORECAST_DETAIL_PANEL_ID = "unified-forecast-detail-panel";
 const UNIFIED_HOUSE_BREAKDOWN_SUMMARY_ID = "unified-house-breakdown-summary";
 const UNIFIED_HOUSE_BREAKDOWN_ROWS_ID = "unified-house-breakdown-rows";
 const DEFAULT_OVERVIEW_CONFIG = getUnifiedForecastOverviewConfig("solar");
+const ZERO_KWH_DISPLAY_THRESHOLD = 0.05;
 const EMPTY_FORECAST_MODEL: UnifiedForecastModel = {
     days: [],
     visibleSections: {
@@ -147,9 +148,10 @@ export class HelmanUnifiedForecastDetail extends LitElement {
             .forecast-day-gauge.house {
                 background: linear-gradient(
                     90deg,
-                    color-mix(in srgb, var(--forecast-house-color) 18%, transparent),
-                    color-mix(in srgb, var(--forecast-house-color) 10%, transparent)
+                    color-mix(in srgb, var(--forecast-house-color) 16%, transparent),
+                    color-mix(in srgb, var(--forecast-house-color) 8%, transparent)
                 );
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--forecast-house-color) 18%, var(--divider-color));
             }
 
             .forecast-day-gauge.house .forecast-day-gauge-fill {
@@ -623,9 +625,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         solar: UnifiedSolarOverviewModel,
         isToday: boolean,
     ) {
+        const isZero = _isZeroEnergyDisplayValue(solar.totalKwh ?? solar.summaryKwh);
+
         return html`
             <div class="unified-day-section">
-                <div class="forecast-day-gauge solar">
+                <div class=${`forecast-day-gauge solar${isZero ? " zero" : ""}`}>
                     ${isToday && solar.totalGaugeFillPercent > solar.gaugeFillPercent ? html`
                         <span
                             class="forecast-day-gauge-fill muted"
@@ -640,9 +644,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                             aria-hidden="true"
                         ></span>
                     ` : nothing}
-                    ${isToday && solar.totalKwh !== null
+                    ${!isZero && isToday && solar.totalKwh !== null
                         ? this._renderSharedEnergyValue(solar.summaryKwh, solar.totalKwh)
-                        : this._renderEnergyValue(solar.summaryKwh)}
+                        : !isZero
+                        ? this._renderEnergyValue(solar.summaryKwh)
+                        : nothing}
                 </div>
             </div>
         `;
@@ -667,10 +673,11 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
     private _renderGridGauge(grid: UnifiedGridOverviewModel) {
         const title = this._getGridSummaryTitle(grid);
+        const isZero = _isZeroEnergyDisplayValue(grid.netDayKwh);
 
         return html`
             <div class="unified-day-section">
-                <div class="forecast-day-gauge grid ${grid.direction}" title=${title}>
+                <div class=${`forecast-day-gauge grid ${grid.direction}${isZero ? " zero" : ""}`} title=${title}>
                     <span class="forecast-day-gauge-center" aria-hidden="true"></span>
                     ${grid.direction === "import" && grid.gaugeFillPercent > 0 ? html`
                         <span
@@ -686,7 +693,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                             aria-hidden="true"
                         ></span>
                     ` : nothing}
-                    ${this._renderSignedEnergyValue(grid.netDayKwh)}
+                    ${!isZero ? this._renderSignedEnergyValue(grid.netDayKwh) : nothing}
                 </div>
             </div>
         `;
@@ -708,6 +715,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
     private _renderBatteryGauge(battery: UnifiedBatteryOverviewModel) {
         const title = `${this._localize("node_detail.battery_forecast.end_soc")}: ${this._formatSocWithUnit(battery.endSocPct)}. ${this._localize("node_detail.battery_forecast.soc_range")}: ${this._formatSocRange(battery.minSocPct, battery.maxSocPct)}`;
+        const hideLabel = battery.endSocPct <= 0;
 
         return html`
             <div class="unified-day-section">
@@ -719,8 +727,10 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                             aria-hidden="true"
                         ></span>
                     ` : nothing}
-                    <span class="forecast-day-gauge-primary">${this._formatSoc(battery.endSocPct)}</span>
-                    <span class="forecast-day-gauge-unit">%</span>
+                    ${!hideLabel ? html`
+                        <span class="forecast-day-gauge-primary">${this._formatSoc(battery.endSocPct)}</span>
+                        <span class="forecast-day-gauge-unit">%</span>
+                    ` : nothing}
                 </div>
             </div>
         `;
@@ -750,6 +760,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
 
     private _renderConsumptionGauge(house: UnifiedHouseOverviewModel) {
         const title = `${this._localize("node_detail.house_forecast.baseline")}: ${this._formatEnergy(house.baselineDayKwh)}`;
+        const hideLabel = _isZeroEnergyDisplayValue(house.baselineDayKwh);
 
         return html`
             <div class="unified-day-section">
@@ -761,7 +772,7 @@ export class HelmanUnifiedForecastDetail extends LitElement {
                             aria-hidden="true"
                         ></span>
                     ` : nothing}
-                    ${this._renderEnergyValue(house.baselineDayKwh)}
+                    ${!hideLabel ? this._renderEnergyValue(house.baselineDayKwh) : nothing}
                 </div>
             </div>
         `;
@@ -1546,4 +1557,8 @@ export class HelmanUnifiedForecastDetail extends LitElement {
         this._isForecastLoading = snapshot.loading;
         this._forecastLoadFailed = snapshot.loadFailed;
     }
+}
+
+function _isZeroEnergyDisplayValue(valueKwh: number): boolean {
+    return Math.abs(valueKwh) < ZERO_KWH_DISPLAY_THRESHOLD;
 }

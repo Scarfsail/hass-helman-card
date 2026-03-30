@@ -3,16 +3,8 @@ import { css } from "lit-element";
 export const forecastSharedStyles = css`
     :host {
         display: block;
-        --forecast-grid-import: color-mix(
-            in srgb,
-            var(--simple-card-source-grid, #38bdf8) 46%,
-            #1d4ed8 54%
-        );
-        --forecast-grid-export: color-mix(
-            in srgb,
-            var(--simple-card-grid-accent, #7dd3fc) 78%,
-            white 22%
-        );
+        --forecast-grid-import: #2563eb;
+        --forecast-grid-export: var(--simple-card-grid-accent, #7dd3fc);
         --forecast-house-color: #8b5cf6;
         --forecast-battery-soc-soft: color-mix(
             in srgb,
@@ -96,6 +88,7 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-day-gauge {
+        box-sizing: border-box;
         display: flex;
         flex-wrap: wrap;
         position: relative;
@@ -103,7 +96,8 @@ export const forecastSharedStyles = css`
         align-items: baseline;
         gap: 4px;
         min-width: 0;
-        padding-inline-start: 5px;
+        min-height: 20px;
+        padding: 1px 4px 1px 5px;
         border-radius: 4px;
         font-size: 0.96rem;
         font-weight: 700;
@@ -135,24 +129,38 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-day-gauge.solar {
-        background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
-        color: rgba(58, 46, 16, 0.98);
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 12%, #201f1c),
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 6%, #0f0f0e)
+        );
+        color: color-mix(in srgb, white 90%, var(--simple-card-source-solar, #facc15));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-solar, #facc15) 14%, #2d2b26);
     }
 
     .forecast-day-gauge.solar .forecast-day-gauge-fill {
-        background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 44%, #332c00),
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 32%, #1c1800)
+        );
     }
 
     .forecast-day-gauge.solar .forecast-day-gauge-fill.muted {
-        background: linear-gradient(90deg, rgba(233, 193, 91, 0.42), rgba(202, 158, 45, 0.3));
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 28%, #282200),
+            color-mix(in srgb, var(--simple-card-source-solar, #facc15) 20%, #151100)
+        );
     }
 
     .forecast-day-gauge.battery {
         background: linear-gradient(
             90deg,
-            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, transparent),
-            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 10%, transparent)
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 16%, transparent),
+            color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 8%, transparent)
         );
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, var(--divider-color));
     }
 
     .forecast-day-gauge.battery .forecast-day-gauge-fill {
@@ -167,10 +175,11 @@ export const forecastSharedStyles = css`
         justify-content: flex-end;
         background: linear-gradient(
             90deg,
-            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent),
-            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 8%, transparent),
-            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 18%, transparent)
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #141b25),
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 6%, #070b10),
+            color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #141b25)
         );
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-grid, #38bdf8) 13%, #232d39);
     }
 
     .forecast-day-gauge.grid .forecast-day-gauge-fill.import {
@@ -196,10 +205,8 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-day-gauge.solar .forecast-day-gauge-primary {
-        color: rgba(58, 46, 16, 0.98);
-        text-shadow:
-            0 0 1px rgba(255, 248, 224, 0.85),
-            0 1px 1px rgba(73, 57, 16, 0.18);
+        color: color-mix(in srgb, white 90%, var(--simple-card-source-solar, #facc15));
+        text-shadow: none;
     }
 
     .forecast-day-gauge.battery .forecast-day-gauge-primary,
@@ -219,11 +226,32 @@ export const forecastSharedStyles = css`
     }
 
     .forecast-day-gauge.solar .forecast-day-gauge-separator,
-    .forecast-day-gauge.solar .forecast-day-gauge-secondary {
-        color: rgba(88, 70, 24, 0.96);
-        text-shadow:
-            0 0 1px rgba(255, 248, 224, 0.78),
-            0 1px 1px rgba(73, 57, 16, 0.14);
+    .forecast-day-gauge.solar .forecast-day-gauge-secondary,
+    .forecast-day-gauge.solar .forecast-day-gauge-unit {
+        color: color-mix(in srgb, white 72%, var(--simple-card-source-solar, #facc15));
+        text-shadow: none;
+    }
+
+    .forecast-day-gauge.zero .forecast-day-gauge-primary,
+    .forecast-day-gauge.zero .forecast-day-gauge-secondary,
+    .forecast-day-gauge.zero .forecast-day-gauge-separator,
+    .forecast-day-gauge.zero .forecast-day-gauge-unit {
+        color: var(--secondary-text-color);
+        text-shadow: none;
+    }
+
+    .forecast-day-gauge.grid.zero,
+    .forecast-day-gauge.solar.zero {
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--secondary-text-color) 14%, #0f0f10),
+            color-mix(in srgb, var(--secondary-text-color) 8%, #040404)
+        );
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-text-color) 18%, #1b1b1c);
+    }
+
+    .forecast-day-gauge.zero .forecast-day-gauge-center {
+        background: color-mix(in srgb, var(--secondary-text-color) 32%, transparent);
     }
 
     .forecast-day-gauge-secondary {
