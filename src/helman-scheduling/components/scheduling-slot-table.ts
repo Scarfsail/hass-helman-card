@@ -452,10 +452,11 @@ export class SchedulingSlotTable extends LitElement {
             .slot-forecast-gauge.battery {
                 background: linear-gradient(
                     90deg,
-                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, transparent),
-                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 10%, transparent)
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 16%, transparent),
+                    color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 8%, transparent)
                 );
                 color: color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 34%, var(--primary-text-color));
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-battery, #22c55e) 20%, var(--divider-color));
                 text-shadow:
                     0 0 1px rgba(255, 255, 255, 0.55),
                     0 1px 1px rgba(24, 44, 28, 0.12);
@@ -470,15 +471,22 @@ export class SchedulingSlotTable extends LitElement {
             }
 
             .slot-forecast-gauge.solar {
-                background: linear-gradient(90deg, rgba(188, 180, 164, 0.34), rgba(160, 152, 138, 0.24));
-                color: rgba(58, 46, 16, 0.98);
-                text-shadow:
-                    0 0 1px rgba(255, 248, 224, 0.85),
-                    0 1px 1px rgba(73, 57, 16, 0.18);
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-source-solar, #facc15) 12%, #201f1c),
+                    color-mix(in srgb, var(--simple-card-source-solar, #facc15) 6%, #0f0f0e)
+                );
+                color: color-mix(in srgb, white 90%, var(--simple-card-source-solar, #facc15));
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--simple-card-source-solar, #facc15) 14%, #2d2b26);
+                text-shadow: none;
             }
 
             .slot-forecast-gauge.solar .slot-forecast-gauge-fill {
-                background: linear-gradient(90deg, rgba(255, 213, 59, 0.66), rgba(245, 185, 18, 0.44));
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--simple-card-source-solar, #facc15) 44%, #332c00),
+                    color-mix(in srgb, var(--simple-card-source-solar, #facc15) 32%, #1c1800)
+                );
             }
 
             .slot-forecast-gauge.grid {
@@ -531,6 +539,7 @@ export class SchedulingSlotTable extends LitElement {
                     color-mix(in srgb, var(--forecast-price-positive, #8d6e63) 12%, transparent)
                 );
                 color: color-mix(in srgb, var(--primary-text-color) 92%, transparent);
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--forecast-price-positive, #8d6e63) 18%, var(--divider-color));
                 text-shadow:
                     0 0 1px rgba(255, 255, 255, 0.55),
                     0 1px 1px rgba(36, 24, 20, 0.12);
@@ -569,6 +578,25 @@ export class SchedulingSlotTable extends LitElement {
                 background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent);
                 text-shadow: none;
                 box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-text-color) 16%, transparent);
+            }
+
+            .slot-forecast-gauge.solar.zero {
+                color: var(--secondary-text-color);
+            }
+
+            .slot-forecast-gauge.price.zero {
+                color: var(--secondary-text-color);
+            }
+
+            .slot-forecast-gauge.grid.zero,
+            .slot-forecast-gauge.price.zero,
+            .slot-forecast-gauge.solar.zero {
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, var(--secondary-text-color) 14%, #0f0f10),
+                    color-mix(in srgb, var(--secondary-text-color) 8%, #040404)
+                );
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-text-color) 18%, #1b1b1c);
             }
 
             .slot-forecast-gauge.zero .slot-forecast-gauge-center {
@@ -825,8 +853,11 @@ export class SchedulingSlotTable extends LitElement {
             `;
         }
 
-        const isZero = type === "solar" && _isZeroSolarDisplayValue(value);
-        const widthPct = maxValue > 0 && !isZero
+        const hideLabel = type === "battery"
+            ? value <= 0
+            : _isZeroSolarDisplayValue(value);
+        const isZero = type === "solar" && hideLabel;
+        const widthPct = maxValue > 0 && !hideLabel
             ? Math.min((value / maxValue) * 100, 100)
             : 0;
         const label = type === "battery"
@@ -848,7 +879,7 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                ${label !== null ? html`<span class="slot-forecast-gauge-text">${label}</span>` : nothing}
+                ${!hideLabel && label !== null ? html`<span class="slot-forecast-gauge-text">${label}</span>` : nothing}
             </div>
         `;
     }
@@ -900,7 +931,9 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                <span class="slot-forecast-gauge-text">${this._formatVisibleGridNet(displayValue)}</span>
+                ${!isZero ? html`
+                    <span class="slot-forecast-gauge-text">${this._formatVisibleGridNet(displayValue)}</span>
+                ` : nothing}
             </div>
         `;
     }
@@ -911,7 +944,7 @@ export class SchedulingSlotTable extends LitElement {
     ) {
         if (!forecast.priceAvailable || !point || point.price === null) {
             return html`
-                <div class="slot-forecast-gauge price unavailable" aria-hidden="true">
+                <div class="slot-forecast-gauge price zero" aria-hidden="true">
                 </div>
             `;
         }
@@ -942,7 +975,9 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                <span class="slot-forecast-gauge-text">${_formatVisiblePriceValue(displayValue)}</span>
+                ${!isZero ? html`
+                    <span class="slot-forecast-gauge-text">${_formatVisiblePriceValue(displayValue)}</span>
+                ` : nothing}
             </div>
         `;
     }
