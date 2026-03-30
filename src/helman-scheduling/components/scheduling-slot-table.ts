@@ -1,4 +1,4 @@
-import { LitElement, css, html } from "lit-element";
+import { LitElement, css, html, type PropertyValues } from "lit-element";
 import { customElement, property } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
@@ -623,7 +623,7 @@ export class SchedulingSlotTable extends LitElement {
     @property({ type: Boolean }) public busy = false;
     @property({ type: Boolean }) public executionEnabled = false;
 
-    willUpdate(changedProperties: Map<string, unknown>): void {
+    protected willUpdate(changedProperties: PropertyValues<this>): void {
         super.willUpdate(changedProperties);
         if (changedProperties.has("selectedSlotIds")) {
             this._selectedSet = new Set(this.selectedSlotIds);
@@ -737,7 +737,7 @@ export class SchedulingSlotTable extends LitElement {
                     <button
                         class="button-reset slot-disclosure-button"
                         type="button"
-                        aria-expanded=${String(row.expanded)}
+                        aria-expanded=${row.expanded ? "true" : "false"}
                         aria-controls=${this._buildHourPanelId(row.hourKey)}
                         aria-label=${this._buildHourToggleAriaLabel(row)}
                         @click=${(event: MouseEvent) => this._handleHourExpansionClick(row.hourKey, event)}

@@ -115,7 +115,7 @@ export class SchedulingCardHeader extends LitElement {
     }
 
     private _handleToggle(event: Event): void {
-        const target = event.currentTarget as { checked: boolean };
+        const target = event.currentTarget as unknown as { checked: boolean };
         this.dispatchEvent(new CustomEvent("toggle-schedule-execution", {
             bubbles: true,
             composed: true,

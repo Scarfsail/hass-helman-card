@@ -161,7 +161,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 </div>
 
                 <ha-dialog-footer slot="footer">
-                    <ha-button slot="secondaryAction" appearance="plain" @click=${this._handleCancel}>
+                    <ha-button slot="secondaryAction" .appearance=${"plain"} @click=${this._handleCancel}>
                         ${this.localize("scheduling.dialog.cancel")}
                     </ha-button>
                     <ha-button slot="primaryAction" ?disabled=${!this._canSubmit()} @click=${this._handleSubmit}>
