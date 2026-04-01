@@ -270,25 +270,48 @@ export interface ScheduleActionDTO {
     targetSoc?: number;
 }
 
-export type ScheduleRuntimeStatus = "applied" | "error";
 export type ScheduleRuntimeReason = "scheduled" | "target_soc_reached";
+export type RuntimeActionKind = "apply" | "slot_stop" | "noop";
+export type RuntimeOutcome = "success" | "failed" | "skipped";
 
-export interface ActiveSlotRuntimeDTO {
-    status: ScheduleRuntimeStatus;
+export interface ScheduleDomainsDTO {
+    inverter: ScheduleActionDTO;
+    appliances: Record<string, unknown>;
+}
+
+export interface InverterRuntimeDTO {
+    actionKind: RuntimeActionKind;
+    outcome: RuntimeOutcome;
     executedAction?: ScheduleActionDTO;
     reason?: ScheduleRuntimeReason;
     errorCode?: string;
+    message?: string;
+}
+
+export interface ApplianceRuntimeDTO {
+    actionKind: RuntimeActionKind;
+    outcome: RuntimeOutcome;
+    errorCode?: string;
+    message?: string;
+    updatedAt?: string;
+}
+
+export interface ScheduleRuntimeDTO {
+    activeSlotId: string;
+    appliances: Record<string, ApplianceRuntimeDTO>;
+    inverter?: InverterRuntimeDTO;
+    reconciledAt?: string;
 }
 
 export interface ScheduleSlotDTO {
     id: string;
-    action: ScheduleActionDTO;
-    runtime?: ActiveSlotRuntimeDTO;
+    domains: ScheduleDomainsDTO;
 }
 
 export interface SchedulePayload {
     executionEnabled: boolean;
     slots: ScheduleSlotDTO[];
+    runtime?: ScheduleRuntimeDTO;
 }
 
 export interface GetScheduleRequest {
@@ -312,4 +335,29 @@ export interface SetScheduleExecutionRequest {
 export interface SetScheduleExecutionResponse {
     success: true;
     executionEnabled: boolean;
+}
+
+export interface ApplianceMetadataDTO {
+    [key: string]: unknown;
+}
+
+export interface AppliancesPayload {
+    appliances: ApplianceMetadataDTO[];
+}
+
+export interface GetAppliancesRequest {
+    type: "helman/get_appliances";
+}
+
+export interface ApplianceProjectionDTO {
+    [key: string]: unknown;
+}
+
+export interface ApplianceProjectionsPayload {
+    generatedAt: string;
+    appliances: Record<string, ApplianceProjectionDTO>;
+}
+
+export interface GetApplianceProjectionsRequest {
+    type: "helman/get_appliance_projections";
 }

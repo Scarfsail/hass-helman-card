@@ -1,4 +1,7 @@
-import type { SchedulePayload } from "../../helman-api";
+import type {
+    InverterRuntimeDTO,
+    SchedulePayload,
+} from "../../helman-api";
 import type {
     NormalizedScheduleModel,
     ScheduleAction,
@@ -36,6 +39,8 @@ export function normalizeSchedulePayload({
     const slotBoundaries = resolveScheduleSlotBoundaries(schedule.slots.map((slot) => slot.id));
     const slotBoundariesByMs = new Map(slotBoundaries.map((slot) => [slot.startMs, slot]));
     const seenMs = new Set<number>();
+    const normalizedRuntime = _normalizeScheduleRuntime(schedule.runtime);
+    const runtimeSlotId = normalizedRuntime?.slotId ?? null;
     const normalizedSlots = schedule.slots
         .flatMap((slot) => {
             const startMs = getScheduleSlotStartMs(slot.id);
@@ -69,12 +74,14 @@ export function normalizeSchedulePayload({
     const resolvedCurrentSlotId = normalizedSlots.find((slot) =>
         slot.endMs !== null && slot.startMs <= nowMs && nowMs < slot.endMs
     )?.id
-        ?? normalizedSlots.find((slot) => slot.runtime !== null)?.id
+        ?? runtimeSlotId
         ?? null;
 
     const slots = normalizedSlots.map((slot) => ({
         ...slot,
-        runtime: slot.id === resolvedCurrentSlotId ? slot.runtime : null,
+        runtime: slot.id === runtimeSlotId && normalizedRuntime !== null
+            ? _cloneRuntime(normalizedRuntime.runtime)
+            : null,
         isCurrent: slot.id === resolvedCurrentSlotId,
     }));
 
@@ -119,8 +126,8 @@ function _normalizeSlot({
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,
         rangeLabel: labels.rangeLabel,
-        action: _cloneAction(slot.action),
-        runtime: _cloneRuntime(slot.runtime),
+        action: _cloneAction(slot.domains.inverter),
+        runtime: null,
     };
 }
 
@@ -130,13 +137,31 @@ function _cloneAction(action: ScheduleAction): ScheduleAction {
         : { kind: action.kind, targetSoc: action.targetSoc };
 }
 
-function _cloneRuntime(runtime: ScheduleRuntime | undefined): ScheduleRuntime | null {
-    if (runtime === undefined) {
+function _cloneRuntime(runtime: ScheduleRuntime): ScheduleRuntime {
+    return {
+        status: runtime.status,
+        reason: runtime.reason,
+        errorCode: runtime.errorCode,
+        executedAction: runtime.executedAction ? _cloneAction(runtime.executedAction) : undefined,
+    };
+}
+
+function _normalizeScheduleRuntime(
+    runtime: SchedulePayload["runtime"],
+): { slotId: string; runtime: ScheduleRuntime } | null {
+    if (runtime === undefined || runtime.inverter === undefined) {
         return null;
     }
 
     return {
-        status: runtime.status,
+        slotId: runtime.activeSlotId,
+        runtime: _normalizeInverterRuntime(runtime.inverter),
+    };
+}
+
+function _normalizeInverterRuntime(runtime: InverterRuntimeDTO): ScheduleRuntime {
+    return {
+        status: runtime.outcome === "failed" ? "error" : "applied",
         reason: runtime.reason,
         errorCode: runtime.errorCode,
         executedAction: runtime.executedAction ? _cloneAction(runtime.executedAction) : undefined,

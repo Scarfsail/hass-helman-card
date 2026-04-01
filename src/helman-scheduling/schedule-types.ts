@@ -1,13 +1,18 @@
 import type {
-    ActiveSlotRuntimeDTO,
     ScheduleActionDTO,
     SchedulePayload,
-    ScheduleSlotDTO,
+    ScheduleRuntimeReason,
 } from "../helman-api";
 
 export type ScheduleAction = ScheduleActionDTO;
 export type ScheduleActionKind = ScheduleAction["kind"];
-export type ScheduleRuntime = ActiveSlotRuntimeDTO;
+
+export interface ScheduleRuntime {
+    status: "applied" | "error";
+    executedAction?: ScheduleAction;
+    reason?: ScheduleRuntimeReason;
+    errorCode?: string;
+}
 
 export interface ScheduleSlot {
     id: string;
@@ -71,7 +76,10 @@ export interface NormalizedScheduleModel {
     currentDayKey: string | null;
 }
 
-export interface ScheduleSlotPatch extends Pick<ScheduleSlotDTO, "id" | "action"> {}
+export interface ScheduleSlotPatch {
+    id: string;
+    action: ScheduleAction;
+}
 
 export function getScheduleActionIdentityKey(action: ScheduleAction): string {
     return `${action.kind}:${action.targetSoc ?? ""}`;

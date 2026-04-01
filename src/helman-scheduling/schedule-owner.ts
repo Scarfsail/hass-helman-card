@@ -1,9 +1,6 @@
 import type { HomeAssistant } from "../../hass-frontend/src/types";
-import type {
-    SchedulePayload,
-    SetScheduleExecutionResponse,
-    SetScheduleResponse,
-} from "../helman-api";
+import type { SchedulePayload } from "../helman-api";
+import { getSharedHelmanStore, type HelmanStore } from "../helman/store";
 import { getNextScheduleBoundaryDelayMs } from "./model/schedule-time";
 import type {
     ScheduleOwnerError,
@@ -51,6 +48,7 @@ export function getSharedScheduleOwner(hass: HomeAssistant): SharedScheduleOwner
 
 class ScheduleOwnerImpl implements SharedScheduleOwner {
     private _hass: HomeAssistant;
+    private _helmanStore: HelmanStore;
     private _schedule: SchedulePayload | null = EMPTY_SCHEDULE_OWNER_SNAPSHOT.schedule;
     private _loading = EMPTY_SCHEDULE_OWNER_SNAPSHOT.loading;
     private _refreshing = EMPTY_SCHEDULE_OWNER_SNAPSHOT.refreshing;
@@ -66,12 +64,14 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
 
     constructor(hass: HomeAssistant) {
         this._hass = hass;
+        this._helmanStore = getSharedHelmanStore(hass);
     }
 
     public updateHass(hass: HomeAssistant): void {
         const previousTimeZone = _normalizeTimeZone(this._hass.config.time_zone);
         const nextTimeZone = _normalizeTimeZone(hass.config.time_zone);
         this._hass = hass;
+        this._helmanStore = getSharedHelmanStore(hass);
 
         if (this._listeners.size > 0 && previousTimeZone !== nextTimeZone) {
             this._scheduleNextBoundaryRefresh();
@@ -143,13 +143,7 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
 
         const mutation = (async () => {
             try {
-                await hass.connection.sendMessagePromise<SetScheduleResponse>({
-                    type: "helman/set_schedule",
-                    slots: patches.map((patch) => ({
-                        id: patch.id,
-                        action: _cloneAction(patch.action),
-                    })),
-                });
+                await this._helmanStore.applySchedulePatches(patches);
                 if (this._hass.connection !== connection) {
                     return;
                 }
@@ -196,10 +190,7 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
 
         const mutation = (async () => {
             try {
-                await hass.connection.sendMessagePromise<SetScheduleExecutionResponse>({
-                    type: "helman/set_schedule_execution",
-                    enabled,
-                });
+                await this._helmanStore.setScheduleExecution(enabled);
                 if (this._hass.connection !== connection) {
                     return;
                 }
@@ -269,9 +260,7 @@ class ScheduleOwnerImpl implements SharedScheduleOwner {
 
         const request = (async () => {
             try {
-                const schedule = await hass.connection.sendMessagePromise<SchedulePayload>({
-                    type: "helman/get_schedule",
-                });
+                const schedule = await this._helmanStore.getSchedule();
                 if (this._hass.connection !== connection) {
                     return;
                 }
@@ -342,12 +331,6 @@ function _normalizeTimeZone(rawTimeZone: string | null | undefined): string | nu
     return typeof rawTimeZone === "string" && rawTimeZone
         ? rawTimeZone
         : null;
-}
-
-function _cloneAction(patch: ScheduleSlotPatch["action"]): ScheduleSlotPatch["action"] {
-    return patch.targetSoc === undefined
-        ? { kind: patch.kind }
-        : { kind: patch.kind, targetSoc: patch.targetSoc };
 }
 
 function _normalizeOwnerError(error: unknown): ScheduleOwnerError {
