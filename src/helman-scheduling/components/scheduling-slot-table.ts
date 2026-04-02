@@ -74,7 +74,7 @@ export class SchedulingSlotTable extends LitElement {
         schedulingSharedStyles,
         css`
             :host {
-                --schedule-table-action-chip-width: 96px;
+                --schedule-table-action-chip-width: 32px;
                 --schedule-table-disclosure-width: 16px;
                 --schedule-table-forecast-gap: 4px;
             }
@@ -709,6 +709,7 @@ export class SchedulingSlotTable extends LitElement {
                             .localize=${this.localize}
                             .labelVariant=${"table"}
                             size="compact"
+                            ?iconOnly=${true}
                         ></scheduling-action-chip>
                     </button>
                     ${this._renderForecastGauges(row.forecast)}
@@ -770,6 +771,7 @@ export class SchedulingSlotTable extends LitElement {
                                     .localize=${this.localize}
                                     .labelVariant=${"table"}
                                     size="compact"
+                                    ?iconOnly=${true}
                                 ></scheduling-action-chip>
                             `)}
                         </span>
@@ -1035,6 +1037,7 @@ export class SchedulingSlotTable extends LitElement {
                 size="compact"
                 surface="runtime"
                 .runtimeState=${runtimeState}
+                ?iconOnly=${true}
             ></scheduling-action-chip>
         `;
     }

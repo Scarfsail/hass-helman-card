@@ -79,6 +79,12 @@ export class SchedulingActionChip extends LitElement {
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+
+            :host([icononly]) .chip {
+                justify-content: center;
+                padding-left: 4px;
+                padding-right: 4px;
+            }
         `,
     ];
 
@@ -88,6 +94,7 @@ export class SchedulingActionChip extends LitElement {
     @property({ type: String }) public size: "compact" | "regular" = "regular";
     @property({ type: String }) public surface: "scheduled" | "runtime" = "scheduled";
     @property({ type: String }) public runtimeState: "neutral" | "following" | "diverged" | "error" = "neutral";
+    @property({ type: Boolean }) public iconOnly = false;
 
     render() {
         if (!this.action || !this.localize) {
@@ -100,7 +107,7 @@ export class SchedulingActionChip extends LitElement {
         return html`
             <span class=${classes}>
                 <ha-icon class="chip-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
-                <span class="chip-label">${presentation.label}</span>
+                ${this.iconOnly ? nothing : html`<span class="chip-label">${presentation.label}</span>`}
             </span>
         `;
     }
