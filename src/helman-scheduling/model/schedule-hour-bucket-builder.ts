@@ -1,4 +1,6 @@
 import type { SlotForecastMap } from "./slot-forecast-model";
+import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
+import { getScheduleApplianceById } from "./schedule-appliance-metadata";
 import { aggregateScheduleHourForecast } from "./schedule-table-forecast";
 import {
     buildScheduleCompactExpandedRangeLabel,
@@ -7,13 +9,16 @@ import {
     type ScheduleLocalTimeParts,
 } from "./schedule-time";
 import type {
+    ScheduleTableActionCellModel,
     ScheduleTableActionPillModel,
+    ScheduleTableAppliancePillModel,
     ScheduleTableHourRowModel,
     ScheduleTableRowModel,
     ScheduleTableSlotRowModel,
 } from "../schedule-table-types";
 import {
     getScheduleActionIdentityKey,
+    getScheduleApplianceActionIdentityKey,
     type ScheduleSlot,
 } from "../schedule-types";
 
@@ -25,12 +30,14 @@ interface ScheduleHourBucket {
 
 export function buildScheduleTableRows({
     slots,
+    appliances,
     slotForecastMap,
     expandedHourKeys,
     locale,
     timeZone,
 }: {
     slots: readonly ScheduleSlot[];
+    appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: ReadonlySet<string>;
     locale: string;
@@ -42,6 +49,7 @@ export function buildScheduleTableRows({
         if (_isCollapsibleHourBucket(bucket, timeZone)) {
             rows.push(_buildHourRow({
                 bucket,
+                appliances,
                 slotForecastMap,
                 expanded: expandedHourKeys.has(bucket.hourKey),
                 locale,
@@ -53,6 +61,7 @@ export function buildScheduleTableRows({
         for (const slot of bucket.slots) {
             rows.push(_buildSlotRow({
                 slot,
+                appliances,
                 slotForecastMap,
                 locale,
                 timeZone,
@@ -209,12 +218,14 @@ function _addDayKey(dayKey: string, days: number): string {
 
 function _buildHourRow({
     bucket,
+    appliances,
     slotForecastMap,
     expanded,
     locale,
     timeZone,
 }: {
     bucket: ScheduleHourBucket;
+    appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     expanded: boolean;
     locale: string;
@@ -243,7 +254,7 @@ function _buildHourRow({
         },
         rangeLabel,
         slotIds: bucket.slots.map((slot) => slot.id),
-        actionPills: _buildDistinctActionPills(bucket.slots),
+        actionCell: _buildActionCell(bucket.slots, appliances),
         forecast: aggregateScheduleHourForecast({
             slots: bucket.slots,
             slotForecastMap,
@@ -255,6 +266,7 @@ function _buildHourRow({
         childRows: expanded
             ? bucket.slots.map((slot) => _buildSlotRow({
                 slot,
+                appliances,
                 slotForecastMap,
                 locale,
                 timeZone,
@@ -265,14 +277,14 @@ function _buildHourRow({
     };
 }
 
-function _buildDistinctActionPills(
+function _buildDistinctInverterPills(
     slots: readonly ScheduleSlot[],
 ): ScheduleTableActionPillModel[] {
     const actionPills: ScheduleTableActionPillModel[] = [];
     const seenKeys = new Set<string>();
 
     for (const slot of slots) {
-        const key = getScheduleActionIdentityKey(slot.action);
+        const key = getScheduleActionIdentityKey(slot.domains.inverter);
         if (seenKeys.has(key)) {
             continue;
         }
@@ -280,7 +292,7 @@ function _buildDistinctActionPills(
         seenKeys.add(key);
         actionPills.push({
             key,
-            action: slot.action,
+            action: slot.domains.inverter,
             firstSlotId: slot.id,
         });
     }
@@ -288,8 +300,66 @@ function _buildDistinctActionPills(
     return actionPills;
 }
 
+function _buildDistinctAppliancePills(
+    slots: readonly ScheduleSlot[],
+    appliances: readonly ScheduleApplianceMetadata[],
+): ScheduleTableAppliancePillModel[] {
+    const applianceOrder = new Map(
+        appliances.map((appliance) => [appliance.id, appliance.order] as const),
+    );
+    const actions = slots.flatMap((slot) =>
+        Object.entries(slot.domains.appliances).map(([applianceId, action]) => ({
+            slotId: slot.id,
+            applianceId,
+            action,
+            appliance: getScheduleApplianceById(appliances, applianceId),
+            order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
+        }))
+    ).sort((left, right) => {
+        if (left.order !== right.order) {
+            return left.order - right.order;
+        }
+        if (left.applianceId !== right.applianceId) {
+            return left.applianceId.localeCompare(right.applianceId);
+        }
+        return left.slotId.localeCompare(right.slotId);
+    });
+
+    const pills: ScheduleTableAppliancePillModel[] = [];
+    const seenKeys = new Set<string>();
+    for (const entry of actions) {
+        const key = `${entry.applianceId}:${getScheduleApplianceActionIdentityKey(entry.action)}`;
+        if (seenKeys.has(key)) {
+            continue;
+        }
+
+        seenKeys.add(key);
+        pills.push({
+            key,
+            applianceId: entry.applianceId,
+            applianceName: entry.appliance?.name ?? entry.applianceId,
+            applianceKind: entry.appliance?.kind ?? "unknown",
+            action: entry.action,
+            firstSlotId: entry.slotId,
+        });
+    }
+
+    return pills;
+}
+
+function _buildActionCell(
+    slots: readonly ScheduleSlot[],
+    appliances: readonly ScheduleApplianceMetadata[],
+): ScheduleTableActionCellModel {
+    return {
+        inverterPills: _buildDistinctInverterPills(slots),
+        appliancePills: _buildDistinctAppliancePills(slots, appliances),
+    };
+}
+
 function _buildSlotRow({
     slot,
+    appliances,
     slotForecastMap,
     locale,
     timeZone,
@@ -297,6 +367,7 @@ function _buildSlotRow({
     showRuntime,
 }: {
     slot: ScheduleSlot;
+    appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     locale: string;
     timeZone: string;
@@ -307,6 +378,7 @@ function _buildSlotRow({
         kind: "slot",
         rowId: variant === "raw" ? `slot:${slot.id}` : `hour-child:${slot.id}`,
         slot,
+        actionCell: _buildActionCell([slot], appliances),
         displayTimeLabel: variant === "raw"
             ? {
                 leading: null,

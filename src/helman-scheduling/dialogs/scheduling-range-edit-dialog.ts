@@ -3,22 +3,39 @@ import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import "../components/scheduling-action-option-card";
+import "./scheduling-ev-charger-editor";
+import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
+import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
+import type { ScheduleEvChargerActionChangeDetail } from "./scheduling-ev-charger-editor";
 import {
     formatScheduleSlotCount,
 } from "../model/schedule-labels";
 import type {
-    ScheduleAction,
+    ScheduleApplianceAction,
     ScheduleDialogResult,
     ScheduleDialogState,
 } from "../schedule-types";
-import { isTargetScheduleAction } from "../schedule-types";
+import {
+    areScheduleActionsEqual,
+    areScheduleApplianceActionsEqual,
+    cloneScheduleApplianceAction,
+    cloneScheduleDomains,
+    isTargetScheduleAction,
+    type ScheduleAction,
+} from "../schedule-types";
+import type {
+    ScheduleApplianceMetadata,
+    ScheduleEvChargerApplianceMetadata,
+} from "../model/schedule-appliance-metadata";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 const DIALOG_HISTORY_STATE_KEY = "__helmanSchedulingDialogId";
 const DEFAULT_CHARGE_TARGET_SOC = 100;
 const DEFAULT_DISCHARGE_TARGET_SOC = 15;
 let nextDialogHistoryEntryId = 0;
+
+type ScheduleDialogTabId = "inverter" | `appliance:${string}`;
 
 @customElement("scheduling-range-edit-dialog")
 export class SchedulingRangeEditDialog extends LitElement {
@@ -29,7 +46,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 display: flex;
                 flex-direction: column;
                 gap: 16px;
-                min-width: min(540px, calc(100vw - 48px));
+                min-width: min(560px, calc(100vw - 48px));
                 padding-top: 4px;
             }
 
@@ -45,10 +62,88 @@ export class SchedulingRangeEditDialog extends LitElement {
                 line-height: 1.35;
             }
 
-            .action-options {
+            .action-options,
+            .appliance-sections {
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
+            }
+
+            .dialog-tabs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .dialog-tab {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-width: 0;
+                padding: 8px 12px;
+                position: relative;
+                border-radius: 999px;
+                border: 1px solid var(--divider-color);
+                background: var(--card-background-color);
+                color: inherit;
+                cursor: pointer;
+                transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+            }
+
+            .dialog-tab:hover:not(:disabled) {
+                border-color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 32%, var(--divider-color));
+            }
+
+            .dialog-tab.configured {
+                --dialog-tab-accent: var(--schedule-action-tone-accent, var(--primary-color));
+                border-color: var(--schedule-action-tone-border, color-mix(in srgb, var(--dialog-tab-accent) 30%, var(--divider-color)));
+                background: var(--schedule-action-tone-bg, color-mix(in srgb, var(--dialog-tab-accent) 14%, transparent));
+                color: var(--schedule-action-tone-color, color-mix(in srgb, var(--dialog-tab-accent) 82%, var(--primary-text-color)));
+            }
+
+            .dialog-tab.active {
+                border-color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 48%, var(--divider-color));
+                background: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 18%, var(--card-background-color));
+                color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 88%, var(--primary-text-color));
+                box-shadow:
+                    inset 0 0 0 1px color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 22%, transparent),
+                    0 0 0 2px color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 24%, transparent);
+                font-weight: 700;
+            }
+
+            .dialog-tab.unconfigured {
+                color: var(--secondary-text-color);
+            }
+
+            .dialog-tab-icon {
+                flex: 0 0 auto;
+                --mdc-icon-size: 1rem;
+                color: var(--schedule-action-tone-icon, currentColor);
+            }
+
+            .dialog-tab-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 0.85rem;
+                font-weight: 600;
+            }
+
+            .dialog-panel {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .unsupported-appliance {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 12px;
+                border: 1px solid var(--divider-color);
+                border-radius: 12px;
+                background: var(--secondary-background-color);
             }
 
             @media (max-width: 600px) {
@@ -82,10 +177,17 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ attribute: false }) public dialogState: ScheduleDialogState | null = null;
+    @property({ attribute: false }) public appliances: ScheduleApplianceMetadata[] = [];
     @property({ type: Boolean }) public open = false;
 
     @state() private _actionKind: ScheduleAction["kind"] | null = null;
     @state() private _targetSocInput = "";
+    @state() private _activeTabId: ScheduleDialogTabId = "inverter";
+    @state() private _initialDomains: ScheduleDialogState["initialDomains"] = null;
+    @state() private _inverterEdited = false;
+    @state() private _draftApplianceActions: Record<string, ScheduleApplianceAction | null> = {};
+    @state() private _applianceValidity: Record<string, boolean> = {};
+    @state() private _editedApplianceIds: string[] = [];
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -141,18 +243,15 @@ export class SchedulingRangeEditDialog extends LitElement {
                         </div>
                     </div>
 
-                    <div class="field">
-                        <div class="field-label">${this.localize("scheduling.dialog.action")}</div>
-                        <div class="action-options">
-                            ${this._renderActionOption("normal")}
-                            ${this._renderActionOption("charge_to_target_soc")}
-                            ${this._renderActionOption("discharge_to_target_soc")}
-                            ${this._renderActionOption("stop_charging")}
-                            ${this._renderActionOption("stop_discharging")}
-                        </div>
-                        ${this._actionKind === null ? html`
-                            <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>
-                        ` : nothing}
+                    <div class="dialog-tabs" role="tablist" aria-label=${this.localize("scheduling.dialog.tabs")}>
+                        ${this._renderInverterTab()}
+                        ${this.appliances.map((appliance) => this._renderApplianceTab(appliance))}
+                    </div>
+
+                    <div class="dialog-panel">
+                        ${this._activeTabId === "inverter"
+                            ? this._renderInverterPanel()
+                            : this._renderActiveAppliancePanel()}
                     </div>
 
                     <div class="field-help">
@@ -173,8 +272,24 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _applyDialogState(dialogState: ScheduleDialogState): void {
-        this._actionKind = dialogState.initialAction?.kind ?? null;
-        this._targetSocInput = dialogState.initialAction?.targetSoc?.toString() ?? "";
+        const initialDomains = dialogState.initialDomains === null
+            ? null
+            : cloneScheduleDomains(dialogState.initialDomains);
+        this._initialDomains = initialDomains;
+        this._activeTabId = "inverter";
+        this._inverterEdited = false;
+        this._actionKind = initialDomains?.inverter.kind ?? null;
+        this._targetSocInput = initialDomains?.inverter.targetSoc?.toString() ?? "";
+        this._draftApplianceActions = Object.fromEntries(
+            Object.entries(initialDomains?.appliances ?? {}).map(([applianceId, action]) => [
+                applianceId,
+                cloneScheduleApplianceAction(action),
+            ]),
+        );
+        this._applianceValidity = Object.fromEntries(
+            Object.keys(this._draftApplianceActions).map((applianceId) => [applianceId, true]),
+        );
+        this._editedApplianceIds = [];
     }
 
     private _title(): string {
@@ -256,6 +371,113 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
+    private _renderInverterTab() {
+        const action = this._buildEditedAction() ?? { kind: "normal" as const };
+        const presentation = getScheduleActionPresentation(action, this.localize, "table");
+        const active = this._activeTabId === "inverter";
+        return html`
+            <button
+                class=${`dialog-tab configured ${presentation.toneClass}${active ? " active" : ""}`}
+                type="button"
+                role="tab"
+                aria-selected=${active ? "true" : "false"}
+                @click=${() => this._setActiveTab("inverter")}
+            >
+                <ha-icon class="dialog-tab-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
+                <span class="dialog-tab-label">${this.localize("scheduling.dialog.inverter")}</span>
+            </button>
+        `;
+    }
+
+    private _renderApplianceTab(appliance: ScheduleApplianceMetadata) {
+        const action = this._draftApplianceActions[appliance.id] ?? null;
+        const indicator = action === null
+            ? {
+                icon: this._getApplianceBaseIcon(appliance),
+                toneClass: "action-tone-neutral" as const,
+                configured: false,
+                title: this.localize("scheduling.dialog.tab.not_configured"),
+            }
+            : {
+                ...getScheduleApplianceActionPresentation({
+                    appliance,
+                    action,
+                    localize: this.localize,
+                }),
+                configured: true,
+                title: this.localize("scheduling.dialog.tab.configured"),
+            };
+        const activeTabId = this._buildApplianceTabId(appliance.id);
+        const active = this._activeTabId === activeTabId;
+        return html`
+            <button
+                class=${`dialog-tab ${indicator.configured ? "configured" : "unconfigured"} ${indicator.toneClass}${active ? " active" : ""}`}
+                type="button"
+                role="tab"
+                aria-selected=${active ? "true" : "false"}
+                title=${indicator.title}
+                @click=${() => this._setActiveTab(activeTabId)}
+            >
+                <ha-icon class="dialog-tab-icon" .icon=${indicator.icon} aria-hidden="true"></ha-icon>
+                <span class="dialog-tab-label">${appliance.name}</span>
+            </button>
+        `;
+    }
+
+    private _renderInverterPanel() {
+        return html`
+            <div class="field">
+                <div class="field-label">${this.localize("scheduling.dialog.inverter")}</div>
+                <div class="action-options">
+                    ${this._renderActionOption("normal")}
+                    ${this._renderActionOption("charge_to_target_soc")}
+                    ${this._renderActionOption("discharge_to_target_soc")}
+                    ${this._renderActionOption("stop_charging")}
+                    ${this._renderActionOption("stop_discharging")}
+                </div>
+                ${this._actionKind === null ? html`
+                    <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    private _renderActiveAppliancePanel() {
+        const applianceId = this._activeTabId.startsWith("appliance:")
+            ? this._activeTabId.slice("appliance:".length)
+            : null;
+        const appliance = applianceId === null
+            ? null
+            : this.appliances.find((candidate) => candidate.id === applianceId) ?? null;
+        if (appliance === null) {
+            return nothing;
+        }
+
+        return appliance.kind === "ev_charger"
+            ? this._renderEvChargerSection(appliance)
+            : this._renderUnsupportedApplianceSection(appliance);
+    }
+
+    private _renderEvChargerSection(appliance: ScheduleEvChargerApplianceMetadata) {
+        return html`
+            <scheduling-ev-charger-editor
+                .appliance=${appliance}
+                .localize=${this.localize}
+                .action=${this._draftApplianceActions[appliance.id] ?? null}
+                @schedule-ev-charger-action-change=${this._handleEvChargerActionChange}
+            ></scheduling-ev-charger-editor>
+        `;
+    }
+
+    private _renderUnsupportedApplianceSection(appliance: ScheduleApplianceMetadata) {
+        return html`
+            <div class="unsupported-appliance">
+                <div class="panel-title">${appliance.name}</div>
+                <div class="field-help">${this.localize("scheduling.dialog.appliance.unsupported_authoring")}</div>
+            </div>
+        `;
+    }
+
     private _canSubmit(): boolean {
         if (this._selectedSlotCount() === 0) {
             return false;
@@ -265,11 +487,17 @@ export class SchedulingRangeEditDialog extends LitElement {
             return false;
         }
 
+        if (Object.values(this._applianceValidity).some((valid) => !valid)) {
+            return false;
+        }
+
         if (!this._isTargetActionKind(this._actionKind)) {
             return true;
         }
 
-        return /^\d+$/.test(this._targetSocInput) && Number(this._targetSocInput) >= 0 && Number(this._targetSocInput) <= 100;
+        return /^\d+$/.test(this._targetSocInput)
+            && Number(this._targetSocInput) >= 0
+            && Number(this._targetSocInput) <= 100;
     }
 
     private _setActionKind(actionKind: ScheduleAction["kind"]): void {
@@ -279,20 +507,24 @@ export class SchedulingRangeEditDialog extends LitElement {
 
         this._actionKind = actionKind;
         if (!this._isTargetActionKind(actionKind)) {
+            this._updateInverterEditedState();
             return;
         }
 
         if (this._targetSocInput.trim().length > 0) {
+            this._updateInverterEditedState();
             return;
         }
 
         this._targetSocInput = actionKind === "charge_to_target_soc"
             ? String(DEFAULT_CHARGE_TARGET_SOC)
             : String(DEFAULT_DISCHARGE_TARGET_SOC);
+        this._updateInverterEditedState();
     }
 
     private _handleTargetSocInput(event: Event): void {
         this._targetSocInput = (event.currentTarget as HTMLInputElement).value;
+        this._updateInverterEditedState();
     }
 
     private _handleCancel(): void {
@@ -301,6 +533,21 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _handleActionOptionSelect(event: CustomEvent<ScheduleActionOptionSelectDetail>): void {
         this._setActionKind(event.detail.actionKind);
+    }
+
+    private _handleEvChargerActionChange(
+        event: CustomEvent<ScheduleEvChargerActionChangeDetail>,
+    ): void {
+        const { applianceId, action, valid } = event.detail;
+        this._applianceValidity = {
+            ...this._applianceValidity,
+            [applianceId]: valid,
+        };
+        this._draftApplianceActions = {
+            ...this._draftApplianceActions,
+            [applianceId]: action === null ? null : cloneScheduleApplianceAction(action),
+        };
+        this._editedApplianceIds = this._computeEditedApplianceIds(applianceId, action);
     }
 
     private _handleSubmit(): void {
@@ -321,12 +568,32 @@ export class SchedulingRangeEditDialog extends LitElement {
             return null;
         }
 
-        const action = this._buildEditedAction();
-        if (action === null) {
+        const domains = this._buildEditedDomains();
+        if (domains === null) {
             return null;
         }
 
-        return { action };
+        return {
+            domains,
+            editedInverter: this._inverterEdited,
+            editedApplianceIds: [...this._editedApplianceIds],
+        };
+    }
+
+    private _buildEditedDomains() {
+        const inverter = this._buildEditedAction();
+        if (inverter === null) {
+            return null;
+        }
+
+        return {
+            inverter,
+            appliances: Object.fromEntries(
+                Object.entries(this._draftApplianceActions).flatMap(([applianceId, action]) =>
+                    action === null ? [] : [[applianceId, cloneScheduleApplianceAction(action)]]
+                ),
+            ),
+        };
     }
 
     private _buildEditedAction(): ScheduleAction | null {
@@ -386,6 +653,50 @@ export class SchedulingRangeEditDialog extends LitElement {
         actionKind: ScheduleAction["kind"],
     ): actionKind is "charge_to_target_soc" | "discharge_to_target_soc" {
         return isTargetScheduleAction({ kind: actionKind });
+    }
+
+    private _setActiveTab(tabId: ScheduleDialogTabId): void {
+        this._activeTabId = tabId;
+    }
+
+    private _buildApplianceTabId(applianceId: string): `appliance:${string}` {
+        return `appliance:${applianceId}`;
+    }
+
+    private _getApplianceBaseIcon(appliance: ScheduleApplianceMetadata): string {
+        switch (appliance.kind) {
+            case "ev_charger":
+                return "mdi:car-electric";
+            default:
+                return "mdi:flash-outline";
+        }
+    }
+
+    private _updateInverterEditedState(): void {
+        const currentAction = this._buildEditedAction();
+        const initialAction = this._initialDomains?.inverter ?? null;
+        this._inverterEdited = currentAction === null || initialAction === null
+            ? currentAction !== initialAction
+            : !areScheduleActionsEqual(currentAction, initialAction);
+    }
+
+    private _computeEditedApplianceIds(
+        applianceId: string,
+        nextAction: ScheduleApplianceAction | null,
+    ): string[] {
+        const initialAction = this._initialDomains?.appliances[applianceId] ?? null;
+        const isEdited = nextAction === null || initialAction === null
+            ? nextAction !== initialAction
+            : !areScheduleApplianceActionsEqual(nextAction, initialAction);
+
+        const nextEditedIds = new Set(this._editedApplianceIds);
+        if (isEdited) {
+            nextEditedIds.add(applianceId);
+        } else {
+            nextEditedIds.delete(applianceId);
+        }
+
+        return [...nextEditedIds];
     }
 
     private _closeDialogElement(): void {

@@ -1,35 +1,60 @@
 import type {
-    ScheduleAction,
+    ScheduleDomains,
     ScheduleDialogResult,
     ScheduleSlot,
     ScheduleSlotPatch,
 } from "../schedule-types";
-import { areScheduleActionsEqual } from "../schedule-types";
+import {
+    areScheduleDomainsEqual,
+    cloneScheduleApplianceAction,
+    cloneScheduleDomains,
+} from "../schedule-types";
 
 export function buildScheduleSlotPatches({
     selectedSlots,
-    action,
+    result,
 }: {
     selectedSlots: readonly ScheduleSlot[];
-    action: ScheduleAction;
+    result: ScheduleDialogResult;
 }): ScheduleSlotPatch[] {
     const patches: ScheduleSlotPatch[] = [];
     for (const slot of selectedSlots) {
-        if (areScheduleActionsEqual(slot.action, action)) {
+        const nextDomains = _buildNextDomains(slot, result);
+        if (areScheduleDomainsEqual(slot.domains, nextDomains)) {
             continue;
         }
 
         patches.push({
             id: slot.id,
-            action: _cloneAction(action),
+            domains: nextDomains,
         });
     }
 
     return patches;
 }
 
-function _cloneAction(action: ScheduleDialogResult["action"]): ScheduleDialogResult["action"] {
-    return action.targetSoc === undefined
-        ? { kind: action.kind }
-        : { kind: action.kind, targetSoc: action.targetSoc };
+function _buildNextDomains(
+    slot: ScheduleSlot,
+    result: ScheduleDialogResult,
+): ScheduleDomains {
+    const nextDomains = cloneScheduleDomains(slot.domains);
+    if (result.editedInverter) {
+        nextDomains.inverter = _cloneDomains(result.domains).inverter;
+    }
+
+    for (const applianceId of result.editedApplianceIds) {
+        const action = result.domains.appliances[applianceId];
+        if (action === undefined) {
+            delete nextDomains.appliances[applianceId];
+            continue;
+        }
+
+        nextDomains.appliances[applianceId] = cloneScheduleApplianceAction(action);
+    }
+
+    return nextDomains;
+}
+
+function _cloneDomains(domains: ScheduleDialogResult["domains"]): ScheduleDialogResult["domains"] {
+    return cloneScheduleDomains(domains);
 }

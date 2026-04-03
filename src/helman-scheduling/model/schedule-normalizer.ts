@@ -4,9 +4,12 @@ import type {
 } from "../../helman-api";
 import type {
     NormalizedScheduleModel,
-    ScheduleAction,
     ScheduleRuntime,
     ScheduleSlot,
+} from "../schedule-types";
+import {
+    cloneScheduleDomains,
+    cloneScheduleInverterAction,
 } from "../schedule-types";
 import {
     getScheduleDayKey,
@@ -126,15 +129,9 @@ function _normalizeSlot({
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,
         rangeLabel: labels.rangeLabel,
-        action: _cloneAction(slot.domains.inverter),
+        domains: cloneScheduleDomains(slot.domains),
         runtime: null,
     };
-}
-
-function _cloneAction(action: ScheduleAction): ScheduleAction {
-    return action.targetSoc === undefined
-        ? { kind: action.kind }
-        : { kind: action.kind, targetSoc: action.targetSoc };
 }
 
 function _cloneRuntime(runtime: ScheduleRuntime): ScheduleRuntime {
@@ -142,7 +139,9 @@ function _cloneRuntime(runtime: ScheduleRuntime): ScheduleRuntime {
         status: runtime.status,
         reason: runtime.reason,
         errorCode: runtime.errorCode,
-        executedAction: runtime.executedAction ? _cloneAction(runtime.executedAction) : undefined,
+        executedAction: runtime.executedAction
+            ? cloneScheduleInverterAction(runtime.executedAction)
+            : undefined,
     };
 }
 
@@ -164,6 +163,8 @@ function _normalizeInverterRuntime(runtime: InverterRuntimeDTO): ScheduleRuntime
         status: runtime.outcome === "failed" ? "error" : "applied",
         reason: runtime.reason,
         errorCode: runtime.errorCode,
-        executedAction: runtime.executedAction ? _cloneAction(runtime.executedAction) : undefined,
+        executedAction: runtime.executedAction
+            ? cloneScheduleInverterAction(runtime.executedAction)
+            : undefined,
     };
 }

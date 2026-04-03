@@ -1,4 +1,5 @@
 import type { SlotForecastMap } from "./slot-forecast-model";
+import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
 import { buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
@@ -7,6 +8,7 @@ import type { ScheduleSlot } from "../schedule-types";
 
 export function buildScheduleTableModel({
     slots,
+    appliances,
     slotForecastMap,
     expandedHourKeys,
     locale,
@@ -16,6 +18,7 @@ export function buildScheduleTableModel({
     tomorrowLabel,
 }: {
     slots: readonly ScheduleSlot[];
+    appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: readonly string[];
     locale: string;
@@ -56,6 +59,7 @@ export function buildScheduleTableModel({
         dayLabel: section.dayLabel,
         rows: buildScheduleTableRows({
             slots: section.slots,
+            appliances,
             slotForecastMap,
             expandedHourKeys: expandedHourKeySet,
             locale,
@@ -69,5 +73,6 @@ export function buildScheduleTableModel({
             slotForecastMap,
             sections,
         }),
+        applianceLaneEnabled: slots.some((slot) => Object.keys(slot.domains.appliances).length > 0),
     };
 }

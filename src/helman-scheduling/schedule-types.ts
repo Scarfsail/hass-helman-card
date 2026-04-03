@@ -1,15 +1,20 @@
 import type {
+    ScheduleApplianceActionDTO,
     ScheduleActionDTO,
+    ScheduleDomainsDTO,
     SchedulePayload,
     ScheduleRuntimeReason,
 } from "../helman-api";
 
-export type ScheduleAction = ScheduleActionDTO;
-export type ScheduleActionKind = ScheduleAction["kind"];
+export type ScheduleInverterAction = ScheduleActionDTO;
+export type ScheduleAction = ScheduleInverterAction;
+export type ScheduleActionKind = ScheduleInverterAction["kind"];
+export type ScheduleApplianceAction = ScheduleApplianceActionDTO;
+export type ScheduleDomains = ScheduleDomainsDTO;
 
 export interface ScheduleRuntime {
     status: "applied" | "error";
-    executedAction?: ScheduleAction;
+    executedAction?: ScheduleInverterAction;
     reason?: ScheduleRuntimeReason;
     errorCode?: string;
 }
@@ -23,7 +28,7 @@ export interface ScheduleSlot {
     timeLabel: string;
     endLabel: string | null;
     rangeLabel: string;
-    action: ScheduleAction;
+    domains: ScheduleDomains;
     runtime: ScheduleRuntime | null;
     isCurrent: boolean;
 }
@@ -47,11 +52,13 @@ export interface ScheduleDialogOpenDetail {
 
 export interface ScheduleDialogState {
     selectedSlots: ScheduleSlot[];
-    initialAction: ScheduleAction | null;
+    initialDomains: ScheduleDomains | null;
 }
 
 export interface ScheduleDialogResult {
-    action: ScheduleAction;
+    domains: ScheduleDomains;
+    editedInverter: boolean;
+    editedApplianceIds: string[];
 }
 
 export interface ScheduleOwnerError {
@@ -78,19 +85,93 @@ export interface NormalizedScheduleModel {
 
 export interface ScheduleSlotPatch {
     id: string;
-    action: ScheduleAction;
+    domains: ScheduleDomains;
 }
 
-export function getScheduleActionIdentityKey(action: ScheduleAction): string {
+export function cloneScheduleInverterAction(action: ScheduleInverterAction): ScheduleInverterAction {
+    return action.targetSoc === undefined
+        ? { kind: action.kind }
+        : { kind: action.kind, targetSoc: action.targetSoc };
+}
+
+export function cloneScheduleApplianceAction(
+    action: ScheduleApplianceAction,
+): ScheduleApplianceAction {
+    return { ...action };
+}
+
+export function cloneScheduleDomains(domains: ScheduleDomains): ScheduleDomains {
+    return {
+        inverter: cloneScheduleInverterAction(domains.inverter),
+        appliances: Object.fromEntries(
+            Object.entries(domains.appliances).map(([applianceId, action]) => [
+                applianceId,
+                cloneScheduleApplianceAction(action),
+            ]),
+        ),
+    };
+}
+
+export function getScheduleActionIdentityKey(action: ScheduleInverterAction): string {
     return `${action.kind}:${action.targetSoc ?? ""}`;
 }
 
-export function areScheduleActionsEqual(left: ScheduleAction, right: ScheduleAction): boolean {
+export function getScheduleApplianceActionIdentityKey(
+    action: ScheduleApplianceAction,
+): string {
+    return Object.entries(action)
+        .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+        .map(([key, value]) => `${key}:${String(value)}`)
+        .join("|");
+}
+
+export function areScheduleActionsEqual(
+    left: ScheduleInverterAction,
+    right: ScheduleInverterAction,
+): boolean {
     return getScheduleActionIdentityKey(left) === getScheduleActionIdentityKey(right);
 }
 
+export function areScheduleApplianceActionsEqual(
+    left: ScheduleApplianceAction,
+    right: ScheduleApplianceAction,
+): boolean {
+    return getScheduleApplianceActionIdentityKey(left)
+        === getScheduleApplianceActionIdentityKey(right);
+}
+
+export function areScheduleDomainsEqual(
+    left: ScheduleDomains,
+    right: ScheduleDomains,
+): boolean {
+    if (!areScheduleActionsEqual(left.inverter, right.inverter)) {
+        return false;
+    }
+
+    const leftIds = Object.keys(left.appliances).sort();
+    const rightIds = Object.keys(right.appliances).sort();
+    if (leftIds.length !== rightIds.length) {
+        return false;
+    }
+
+    for (let index = 0; index < leftIds.length; index += 1) {
+        const applianceId = leftIds[index];
+        if (applianceId !== rightIds[index]) {
+            return false;
+        }
+
+        const leftAction = left.appliances[applianceId];
+        const rightAction = right.appliances[applianceId];
+        if (!leftAction || !rightAction || !areScheduleApplianceActionsEqual(leftAction, rightAction)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export function isTargetScheduleAction(
-    action: ScheduleAction,
-): action is ScheduleAction & Required<Pick<ScheduleAction, "targetSoc">> {
+    action: ScheduleInverterAction,
+): action is ScheduleInverterAction & Required<Pick<ScheduleInverterAction, "targetSoc">> {
     return action.kind === "charge_to_target_soc" || action.kind === "discharge_to_target_soc";
 }

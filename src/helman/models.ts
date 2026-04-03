@@ -3,6 +3,7 @@ import type {
     ApplianceProjectionDTO,
     AppliancesPayload,
     ApplianceProjectionsPayload,
+    ScheduleApplianceActionDTO,
     ScheduleActionDTO,
     ScheduleDomainsDTO,
     SchedulePayload,
@@ -18,7 +19,7 @@ export type HelmanApplianceProjection = ApplianceProjectionDTO;
 
 export interface HelmanSchedulePatch {
     id: string;
-    action: HelmanScheduleAction;
+    domains: ScheduleDomainsDTO;
 }
 
 export function cloneHelmanScheduleAction(action: HelmanScheduleAction): HelmanScheduleAction {
@@ -27,30 +28,34 @@ export function cloneHelmanScheduleAction(action: HelmanScheduleAction): HelmanS
         : { kind: action.kind, targetSoc: action.targetSoc };
 }
 
-export function buildInverterOnlyScheduleDomains(
-    action: HelmanScheduleAction,
-): ScheduleDomainsDTO {
+export function cloneHelmanScheduleApplianceAction(
+    action: ScheduleApplianceActionDTO,
+): ScheduleApplianceActionDTO {
+    return { ...action };
+}
+
+export function cloneScheduleDomainsDTO(domains: ScheduleDomainsDTO): ScheduleDomainsDTO {
     return {
-        inverter: cloneHelmanScheduleAction(action),
-        appliances: {},
+        inverter: cloneHelmanScheduleAction(domains.inverter),
+        appliances: Object.fromEntries(
+            Object.entries(domains.appliances).map(([applianceId, action]) => [
+                applianceId,
+                cloneHelmanScheduleApplianceAction(action),
+            ]),
+        ),
     };
 }
 
-export function buildInverterOnlyScheduleSlot(
-    patch: HelmanSchedulePatch,
-): ScheduleSlotDTO {
+export function buildScheduleSlotDTO(patch: HelmanSchedulePatch): ScheduleSlotDTO {
     return {
         id: patch.id,
-        domains: buildInverterOnlyScheduleDomains(patch.action),
+        domains: cloneScheduleDomainsDTO(patch.domains),
     };
 }
 
 export function cloneScheduleSlotDTO(slot: ScheduleSlotDTO): ScheduleSlotDTO {
     return {
         id: slot.id,
-        domains: {
-            inverter: cloneHelmanScheduleAction(slot.domains.inverter),
-            appliances: { ...slot.domains.appliances },
-        },
+        domains: cloneScheduleDomainsDTO(slot.domains),
     };
 }

@@ -8,7 +8,7 @@ import type {
 } from "../helman-api";
 import { HelmanClient } from "./client";
 import {
-    buildInverterOnlyScheduleSlot,
+    buildScheduleSlotDTO,
     type HelmanSchedulePatch,
 } from "./models";
 
@@ -55,7 +55,7 @@ class HelmanStoreImpl implements HelmanStore {
         patches: readonly HelmanSchedulePatch[],
     ): Promise<SetScheduleResponse> {
         return this._client.setSchedule(
-            patches.map((patch) => buildInverterOnlyScheduleSlot(patch)),
+            patches.map((patch) => buildScheduleSlotDTO(patch)),
         );
     }
 

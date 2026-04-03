@@ -270,13 +270,24 @@ export interface ScheduleActionDTO {
     targetSoc?: number;
 }
 
+export type EvChargerUseMode = "Fast" | "ECO";
+
+export interface ScheduleEvChargerActionDTO {
+    charge: boolean;
+    vehicleId?: string;
+    useMode?: EvChargerUseMode;
+    ecoGear?: string;
+}
+
+export type ScheduleApplianceActionDTO = ScheduleEvChargerActionDTO;
+
 export type ScheduleRuntimeReason = "scheduled" | "target_soc_reached";
 export type RuntimeActionKind = "apply" | "slot_stop" | "noop";
 export type RuntimeOutcome = "success" | "failed" | "skipped";
 
 export interface ScheduleDomainsDTO {
     inverter: ScheduleActionDTO;
-    appliances: Record<string, unknown>;
+    appliances: Record<string, ScheduleApplianceActionDTO>;
 }
 
 export interface InverterRuntimeDTO {
@@ -337,9 +348,65 @@ export interface SetScheduleExecutionResponse {
     executionEnabled: boolean;
 }
 
-export interface ApplianceMetadataDTO {
+export interface EntityReferenceDTO {
+    entityId: string;
+}
+
+export interface ApplianceScheduleCapabilitiesDTO {
+    chargeToggle: boolean;
+    useModes: EvChargerUseMode[];
+    ecoGears: string[];
+    requiresVehicleSelection: boolean;
+}
+
+export interface ApplianceVehicleTelemetryDTO {
+    socEntityId: string;
+    chargeLimitEntityId?: string;
+}
+
+export interface ApplianceVehicleMetadataDTO {
+    batteryCapacityKwh: number;
+    maxChargingPowerKw: number;
+}
+
+export interface ApplianceVehicleDTO {
+    id: string;
+    name: string;
+    telemetry: ApplianceVehicleTelemetryDTO;
+    metadata: ApplianceVehicleMetadataDTO;
+}
+
+export interface EvChargerMetadataDTO {
+    maxChargingPowerKw: number;
+    scheduleCapabilities: ApplianceScheduleCapabilitiesDTO;
+}
+
+export interface ApplianceControlsDTO {
+    charge: EntityReferenceDTO;
+    useMode: EntityReferenceDTO;
+    ecoGear: EntityReferenceDTO;
+}
+
+export interface ApplianceMetadataDTOBase {
+    id: string;
+    name: string;
+    kind: string;
+}
+
+export interface EvChargerApplianceMetadataDTO extends ApplianceMetadataDTOBase {
+    kind: "ev_charger";
+    metadata: EvChargerMetadataDTO;
+    controls: ApplianceControlsDTO;
+    vehicles: ApplianceVehicleDTO[];
+}
+
+export interface UnknownApplianceMetadataDTO extends ApplianceMetadataDTOBase {
     [key: string]: unknown;
 }
+
+export type ApplianceMetadataDTO =
+    | EvChargerApplianceMetadataDTO
+    | UnknownApplianceMetadataDTO;
 
 export interface AppliancesPayload {
     appliances: ApplianceMetadataDTO[];

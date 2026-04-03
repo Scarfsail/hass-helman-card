@@ -158,6 +158,20 @@
       "stop_charging": "Zakázat nabíjení",
       "stop_discharging": "Zakázat vybíjení"
     },
+    "appliance": {
+      "action": {
+        "generic": "Naplánováno"
+      },
+      "ev": {
+        "action": {
+          "no_charge": "Nenabíjet"
+        },
+        "mode": {
+          "fast": "Fast",
+          "eco": "ECO"
+        }
+      }
+    },
     "reason": {
       "scheduled": "Podle plánu",
       "target_soc_reached": "Cílové SoC dosaženo"
@@ -208,7 +222,26 @@
       "interval": "Interval",
       "selection": "Výběr",
       "action": "Akce",
+      "inverter": "Střídač",
+      "appliances": "Spotřebiče",
+      "tabs": "Karty editoru rozvrhu",
+      "tab": {
+        "configured": "Akce je nastavená",
+        "not_configured": "Akce není nastavená"
+      },
       "choose_action": "Vyberte akci, která se má použít na vybrané sloty.",
+      "appliance": {
+        "no_action": "Bez akce",
+        "no_charge": "Nenabíjet",
+        "charge": "Nabíjet",
+        "vehicle": "Vozidlo",
+        "mode": "Režim",
+        "eco_gear": "ECO stupeň",
+        "unsupported_authoring": "Autorování pro tento typ spotřebiče zatím není v plánování dostupné."
+      },
+      "appliance_kind": {
+        "ev_charger": "EV nabíječka"
+      },
       "target_soc": "Cílové SoC",
       "affects_prefix": "Ovlivní",
       "cancel": "Zrušit",
@@ -225,6 +258,7 @@
       "invalid_action": "Vybraná akce není platná.",
       "not_configured": "Plánování není správně nakonfigurované.",
       "execution_unavailable": "Provádění plánu není momentálně dostupné.",
+      "appliances_unavailable": "Metadata spotřebičů se nepodařilo načíst.",
       "unknown": "Nepodařilo se načíst nebo upravit rozvrh.",
       "showing_last_good": "Zobrazuji poslední známý rozvrh."
     }

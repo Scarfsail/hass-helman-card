@@ -1,5 +1,9 @@
 import type { SlotForecastPoint } from "./model/slot-forecast-model";
-import type { ScheduleAction, ScheduleSlot } from "./schedule-types";
+import type {
+    ScheduleAction,
+    ScheduleApplianceAction,
+    ScheduleSlot,
+} from "./schedule-types";
 
 export interface ScheduleTableTimeLabel {
     leading: string | null;
@@ -37,10 +41,25 @@ export interface ScheduleTableActionPillModel {
     firstSlotId: string;
 }
 
+export interface ScheduleTableAppliancePillModel {
+    key: string;
+    applianceId: string;
+    applianceName: string;
+    applianceKind: string;
+    action: ScheduleApplianceAction;
+    firstSlotId: string;
+}
+
+export interface ScheduleTableActionCellModel {
+    inverterPills: ScheduleTableActionPillModel[];
+    appliancePills: ScheduleTableAppliancePillModel[];
+}
+
 export interface ScheduleTableSlotRowModel {
     kind: "slot";
     rowId: string;
     slot: ScheduleSlot;
+    actionCell: ScheduleTableActionCellModel;
     displayTimeLabel: ScheduleTableTimeLabel;
     rangeLabel: string;
     forecast: SlotForecastPoint | null;
@@ -56,7 +75,7 @@ export interface ScheduleTableHourRowModel {
     displayTimeLabel: ScheduleTableTimeLabel;
     rangeLabel: string;
     slotIds: string[];
-    actionPills: ScheduleTableActionPillModel[];
+    actionCell: ScheduleTableActionCellModel;
     forecast: SlotForecastPoint | null;
     expanded: boolean;
     runtimeSlot: ScheduleSlot | null;
@@ -76,11 +95,13 @@ export interface ScheduleTableSectionModel {
 export interface ScheduleTableModel {
     sections: ScheduleTableSectionModel[];
     forecast: ScheduleTableForecastMeta;
+    applianceLaneEnabled: boolean;
 }
 
 export const EMPTY_SCHEDULE_TABLE_MODEL: ScheduleTableModel = {
     sections: [],
     forecast: EMPTY_SCHEDULE_TABLE_FORECAST_META,
+    applianceLaneEnabled: false,
 };
 
 export interface ScheduleHourToggleDetail {
