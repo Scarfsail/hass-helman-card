@@ -35,13 +35,32 @@ export const EMPTY_SCHEDULE_TABLE_FORECAST_META: ScheduleTableForecastMeta = {
     priceMaxAbs: 0,
 };
 
-export interface ScheduleTableActionPillModel {
+export type ScheduleTableColumnKey =
+    | "time"
+    | "action"
+    | "soc"
+    | "solar"
+    | "grid"
+    | "price";
+
+export const SCHEDULE_TABLE_COLUMNS: readonly ScheduleTableColumnKey[] = [
+    "time",
+    "action",
+    "soc",
+    "solar",
+    "grid",
+    "price",
+];
+
+export interface ScheduleTableInverterActionItemModel {
+    kind: "inverter";
     key: string;
     action: ScheduleAction;
     firstSlotId: string;
 }
 
-export interface ScheduleTableAppliancePillModel {
+export interface ScheduleTableApplianceActionItemModel {
+    kind: "appliance";
     key: string;
     applianceId: string;
     applianceName: string;
@@ -50,9 +69,12 @@ export interface ScheduleTableAppliancePillModel {
     firstSlotId: string;
 }
 
+export type ScheduleTableActionItemModel =
+    | ScheduleTableInverterActionItemModel
+    | ScheduleTableApplianceActionItemModel;
+
 export interface ScheduleTableActionCellModel {
-    inverterPills: ScheduleTableActionPillModel[];
-    appliancePills: ScheduleTableAppliancePillModel[];
+    items: ScheduleTableActionItemModel[];
 }
 
 export interface ScheduleTableSlotRowModel {
@@ -63,8 +85,9 @@ export interface ScheduleTableSlotRowModel {
     displayTimeLabel: ScheduleTableTimeLabel;
     rangeLabel: string;
     forecast: SlotForecastPoint | null;
+    isCurrent: boolean;
     variant: "raw" | "hour-child";
-    showRuntime: boolean;
+    parentHourKey: string | null;
 }
 
 export interface ScheduleTableHourRowModel {
@@ -77,14 +100,22 @@ export interface ScheduleTableHourRowModel {
     slotIds: string[];
     actionCell: ScheduleTableActionCellModel;
     forecast: SlotForecastPoint | null;
+    isCurrent: boolean;
     expanded: boolean;
-    runtimeSlot: ScheduleSlot | null;
-    childRows: ScheduleTableSlotRowModel[];
+}
+
+export interface ScheduleTableDetailRowModel {
+    kind: "detail";
+    rowId: string;
+    ownerRowId: string;
+    slot: ScheduleSlot;
+    variant: "raw" | "hour" | "hour-child";
 }
 
 export type ScheduleTableRowModel =
     | ScheduleTableSlotRowModel
-    | ScheduleTableHourRowModel;
+    | ScheduleTableHourRowModel
+    | ScheduleTableDetailRowModel;
 
 export interface ScheduleTableSectionModel {
     dayKey: string;
@@ -93,15 +124,15 @@ export interface ScheduleTableSectionModel {
 }
 
 export interface ScheduleTableModel {
+    columns: readonly ScheduleTableColumnKey[];
     sections: ScheduleTableSectionModel[];
     forecast: ScheduleTableForecastMeta;
-    applianceLaneEnabled: boolean;
 }
 
 export const EMPTY_SCHEDULE_TABLE_MODEL: ScheduleTableModel = {
+    columns: SCHEDULE_TABLE_COLUMNS,
     sections: [],
     forecast: EMPTY_SCHEDULE_TABLE_FORECAST_META,
-    applianceLaneEnabled: false,
 };
 
 export interface ScheduleHourToggleDetail {

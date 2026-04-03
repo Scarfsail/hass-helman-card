@@ -209,6 +209,7 @@
       "export": "Export"
     },
     "table": {
+      "time_label": "Čas",
       "action_label": "Akce",
       "soc_label": "SoC",
       "solar_label": "Solár",

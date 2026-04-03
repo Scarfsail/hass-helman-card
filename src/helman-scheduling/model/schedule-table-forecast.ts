@@ -101,11 +101,7 @@ export function buildScheduleTableForecastMeta({
 
     for (const section of sections) {
         for (const row of section.rows) {
-            if (row.kind === "hour") {
-                scanPoint(row.forecast);
-                for (const childRow of row.childRows) {
-                    scanPoint(childRow.forecast);
-                }
+            if (row.kind === "detail") {
                 continue;
             }
 

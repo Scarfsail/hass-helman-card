@@ -10,8 +10,8 @@ import {
 } from "./schedule-time";
 import type {
     ScheduleTableActionCellModel,
-    ScheduleTableActionPillModel,
-    ScheduleTableAppliancePillModel,
+    ScheduleTableActionItemModel,
+    ScheduleTableDetailRowModel,
     ScheduleTableHourRowModel,
     ScheduleTableRowModel,
     ScheduleTableSlotRowModel,
@@ -47,27 +47,67 @@ export function buildScheduleTableRows({
 
     for (const bucket of _buildHourBuckets(slots, timeZone)) {
         if (_isCollapsibleHourBucket(bucket, timeZone)) {
-            rows.push(_buildHourRow({
+            const hourRow = _buildHourRow({
                 bucket,
                 appliances,
                 slotForecastMap,
                 expanded: expandedHourKeys.has(bucket.hourKey),
                 locale,
                 timeZone,
-            }));
+            });
+            rows.push(hourRow);
+
+            if (hourRow.expanded) {
+                for (const slot of bucket.slots) {
+                    const childRow = _buildSlotRow({
+                        slot,
+                        appliances,
+                        slotForecastMap,
+                        locale,
+                        timeZone,
+                        variant: "hour-child",
+                        parentHourKey: bucket.hourKey,
+                    });
+                    rows.push(childRow);
+                    if (slot.isCurrent) {
+                        rows.push(_buildDetailRow({
+                            ownerRowId: childRow.rowId,
+                            slot,
+                            variant: "hour-child",
+                        }));
+                    }
+                }
+            } else {
+                const currentSlot = bucket.slots.find((slot) => slot.isCurrent);
+                if (currentSlot) {
+                    rows.push(_buildDetailRow({
+                        ownerRowId: hourRow.rowId,
+                        slot: currentSlot,
+                        variant: "hour",
+                    }));
+                }
+            }
             continue;
         }
 
         for (const slot of bucket.slots) {
-            rows.push(_buildSlotRow({
+            const slotRow = _buildSlotRow({
                 slot,
                 appliances,
                 slotForecastMap,
                 locale,
                 timeZone,
                 variant: "raw",
-                showRuntime: slot.isCurrent,
-            }));
+                parentHourKey: null,
+            });
+            rows.push(slotRow);
+            if (slot.isCurrent) {
+                rows.push(_buildDetailRow({
+                    ownerRowId: slotRow.rowId,
+                    slot,
+                    variant: "raw",
+                }));
+            }
         }
     }
 
@@ -259,28 +299,15 @@ function _buildHourRow({
             slots: bucket.slots,
             slotForecastMap,
         }),
+        isCurrent: !expanded && bucket.slots.some((slot) => slot.isCurrent),
         expanded,
-        runtimeSlot: expanded
-            ? null
-            : bucket.slots.find((slot) => slot.isCurrent) ?? null,
-        childRows: expanded
-            ? bucket.slots.map((slot) => _buildSlotRow({
-                slot,
-                appliances,
-                slotForecastMap,
-                locale,
-                timeZone,
-                variant: "hour-child",
-                showRuntime: slot.isCurrent,
-            }))
-            : [],
     };
 }
 
-function _buildDistinctInverterPills(
+function _buildDistinctInverterItems(
     slots: readonly ScheduleSlot[],
-): ScheduleTableActionPillModel[] {
-    const actionPills: ScheduleTableActionPillModel[] = [];
+): ScheduleTableActionItemModel[] {
+    const actionItems: ScheduleTableActionItemModel[] = [];
     const seenKeys = new Set<string>();
 
     for (const slot of slots) {
@@ -290,20 +317,21 @@ function _buildDistinctInverterPills(
         }
 
         seenKeys.add(key);
-        actionPills.push({
+        actionItems.push({
+            kind: "inverter",
             key,
             action: slot.domains.inverter,
             firstSlotId: slot.id,
         });
     }
 
-    return actionPills;
+    return actionItems;
 }
 
-function _buildDistinctAppliancePills(
+function _buildDistinctApplianceItems(
     slots: readonly ScheduleSlot[],
     appliances: readonly ScheduleApplianceMetadata[],
-): ScheduleTableAppliancePillModel[] {
+): ScheduleTableActionItemModel[] {
     const applianceOrder = new Map(
         appliances.map((appliance) => [appliance.id, appliance.order] as const),
     );
@@ -325,7 +353,7 @@ function _buildDistinctAppliancePills(
         return left.slotId.localeCompare(right.slotId);
     });
 
-    const pills: ScheduleTableAppliancePillModel[] = [];
+    const items: ScheduleTableActionItemModel[] = [];
     const seenKeys = new Set<string>();
     for (const entry of actions) {
         const key = `${entry.applianceId}:${getScheduleApplianceActionIdentityKey(entry.action)}`;
@@ -334,7 +362,8 @@ function _buildDistinctAppliancePills(
         }
 
         seenKeys.add(key);
-        pills.push({
+        items.push({
+            kind: "appliance",
             key,
             applianceId: entry.applianceId,
             applianceName: entry.appliance?.name ?? entry.applianceId,
@@ -344,7 +373,7 @@ function _buildDistinctAppliancePills(
         });
     }
 
-    return pills;
+    return items;
 }
 
 function _buildActionCell(
@@ -352,8 +381,10 @@ function _buildActionCell(
     appliances: readonly ScheduleApplianceMetadata[],
 ): ScheduleTableActionCellModel {
     return {
-        inverterPills: _buildDistinctInverterPills(slots),
-        appliancePills: _buildDistinctAppliancePills(slots, appliances),
+        items: [
+            ..._buildDistinctInverterItems(slots),
+            ..._buildDistinctApplianceItems(slots, appliances),
+        ],
     };
 }
 
@@ -364,7 +395,7 @@ function _buildSlotRow({
     locale,
     timeZone,
     variant,
-    showRuntime,
+    parentHourKey,
 }: {
     slot: ScheduleSlot;
     appliances: readonly ScheduleApplianceMetadata[];
@@ -372,7 +403,7 @@ function _buildSlotRow({
     locale: string;
     timeZone: string;
     variant: "raw" | "hour-child";
-    showRuntime: boolean;
+    parentHourKey: string | null;
 }): ScheduleTableSlotRowModel {
     return {
         kind: "slot",
@@ -395,8 +426,27 @@ function _buildSlotRow({
             }),
         rangeLabel: slot.rangeLabel,
         forecast: slotForecastMap.points.get(slot.id) ?? null,
+        isCurrent: slot.isCurrent,
         variant,
-        showRuntime,
+        parentHourKey,
+    };
+}
+
+function _buildDetailRow({
+    ownerRowId,
+    slot,
+    variant,
+}: {
+    ownerRowId: string;
+    slot: ScheduleSlot;
+    variant: ScheduleTableDetailRowModel["variant"];
+}): ScheduleTableDetailRowModel {
+    return {
+        kind: "detail",
+        rowId: `detail:${ownerRowId}`,
+        ownerRowId,
+        slot,
+        variant,
     };
 }
 
@@ -404,6 +454,7 @@ function _disambiguateRepeatedHourRows(
     rows: readonly ScheduleTableRowModel[],
 ): ScheduleTableRowModel[] {
     const repeatedRangeLabels = new Set<string>();
+    const repeatedHourKeys = new Set<string>();
     const rangeLabelCounts = new Map<string, number>();
 
     for (const row of rows) {
@@ -420,33 +471,49 @@ function _disambiguateRepeatedHourRows(
         }
     }
 
+    for (const row of rows) {
+        if (row.kind === "hour" && repeatedRangeLabels.has(row.rangeLabel)) {
+            repeatedHourKeys.add(row.hourKey);
+        }
+    }
+
     if (repeatedRangeLabels.size === 0) {
         return [...rows];
     }
 
     return rows.map((row) => {
-        if (row.kind !== "hour" || !repeatedRangeLabels.has(row.rangeLabel)) {
-            return row;
+        if (row.kind === "hour" && repeatedRangeLabels.has(row.rangeLabel)) {
+            const offsetLabel = _extractHourOffsetLabel(row.hourKey);
+            return {
+                ...row,
+                displayTimeLabel: {
+                    ...row.displayTimeLabel,
+                    trailing: `${row.displayTimeLabel.trailing ?? ""} (${offsetLabel})`,
+                    hideTrailing: false,
+                },
+                rangeLabel: `${row.rangeLabel} (${offsetLabel})`,
+            };
         }
 
-        const offsetLabel = _extractHourOffsetLabel(row.hourKey);
-        return {
-            ...row,
-            displayTimeLabel: {
-                ...row.displayTimeLabel,
-                trailing: `${row.displayTimeLabel.trailing ?? ""} (${offsetLabel})`,
-                hideTrailing: false,
-            },
-            rangeLabel: `${row.rangeLabel} (${offsetLabel})`,
-            childRows: row.childRows.map((childRow) => ({
-                ...childRow,
+        if (
+            row.kind === "slot"
+            && row.variant === "hour-child"
+            && row.parentHourKey !== null
+            && repeatedHourKeys.has(row.parentHourKey)
+        ) {
+            const offsetLabel = _extractHourOffsetLabel(row.parentHourKey);
+            return {
+                ...row,
                 displayTimeLabel: {
-                    ...childRow.displayTimeLabel,
-                    trailing: `${childRow.displayTimeLabel.trailing ?? ""} (${offsetLabel})`,
+                    ...row.displayTimeLabel,
+                    trailing: `${row.displayTimeLabel.trailing ?? ""} (${offsetLabel})`,
                     hideTrailing: true,
                 },
-            })),
-        };
+                rangeLabel: `${row.rangeLabel} (${offsetLabel})`,
+            };
+        }
+
+        return row;
     });
 }
 

@@ -3,7 +3,11 @@ import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
 import { buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
-import type { ScheduleTableModel, ScheduleTableSectionModel } from "../schedule-table-types";
+import {
+    SCHEDULE_TABLE_COLUMNS,
+    type ScheduleTableModel,
+    type ScheduleTableSectionModel,
+} from "../schedule-table-types";
 import type { ScheduleSlot } from "../schedule-types";
 
 export function buildScheduleTableModel({
@@ -68,11 +72,11 @@ export function buildScheduleTableModel({
     }));
 
     return {
+        columns: SCHEDULE_TABLE_COLUMNS,
         sections,
         forecast: buildScheduleTableForecastMeta({
             slotForecastMap,
             sections,
         }),
-        applianceLaneEnabled: slots.some((slot) => Object.keys(slot.domains.appliances).length > 0),
     };
 }
