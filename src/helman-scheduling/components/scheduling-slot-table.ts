@@ -1041,7 +1041,7 @@ export class SchedulingSlotTable extends LitElement {
         return html`
             <div class="table-shell">
                 <table class="schedule-table">
-                    <caption class="sr-only">${this.localize("scheduling.title_default")}</caption>
+                    <caption class="sr-only">${this.localize("scheduling.table.caption")}</caption>
                     <colgroup>
                         ${this.tableModel.columns.map((column) => html`
                             <col class=${`col-${column}`}></col>

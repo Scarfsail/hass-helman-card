@@ -15,6 +15,10 @@ import {
     normalizeScheduleApplianceMetadata,
     type ScheduleApplianceMetadata,
 } from "./model/schedule-appliance-metadata";
+import {
+    buildScheduleHeaderModel,
+    type ScheduleHeaderModel,
+} from "./model/schedule-header-model";
 import { getScheduleErrorLabel } from "./model/schedule-labels";
 import { normalizeSchedulePayload } from "./model/schedule-normalizer";
 import { buildScheduleSlotPatches } from "./model/schedule-patch-builder";
@@ -157,6 +161,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._config = {
             transparent_background: false,
             default_expanded_days: 1,
+            show_header: true,
             ...config,
             default_expanded_days: this._normalizeDefaultExpandedDays(config.default_expanded_days),
         };
@@ -271,17 +276,11 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 @open-schedule-dialog=${this._handleOpenDialog}
             >
                 <div class="card-content">
-                    <scheduling-card-header
-                        .title=${this._config.title || this._localize("scheduling.title_default")}
-                        .executionEnabled=${this._ownerSnapshot.schedule?.executionEnabled ?? false}
-                        .loading=${this._ownerSnapshot.loading}
-                        .refreshing=${this._ownerSnapshot.refreshing}
-                        .togglingExecution=${this._ownerSnapshot.togglingExecution}
-                        .updatedAt=${this._ownerSnapshot.updatedAt}
-                        .localize=${this._localize}
-                        .locale=${this._locale}
-                        .timeZone=${this._hass.config.time_zone ?? "UTC"}
-                    ></scheduling-card-header>
+                    ${this._config.show_header ? html`
+                        <scheduling-card-header
+                            .model=${this._buildHeaderModel()}
+                        ></scheduling-card-header>
+                    ` : nothing}
 
                     ${this._renderInlineError()}
                     ${this._renderApplianceError()}
@@ -794,6 +793,15 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         }
 
         return Math.max(0, Math.floor(value));
+    }
+
+    private _buildHeaderModel(): ScheduleHeaderModel {
+        return buildScheduleHeaderModel({
+            snapshot: this._ownerSnapshot,
+            localize: this._localize,
+            locale: this._locale,
+            timeZone: this._hass?.config.time_zone ?? "UTC",
+        });
     }
 
     private get _localize(): LocalizeFunction {

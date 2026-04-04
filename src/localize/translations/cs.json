@@ -119,16 +119,16 @@
     }
   },
   "scheduling": {
-    "title_default": "Helman Scheduling",
     "empty": "Rozvrh není k dispozici.",
     "execution": {
-      "toggle": "Provádění",
-      "enabled": "Provádění zapnuto",
-      "disabled": "Provádění vypnuto"
+      "toggle": "Vykonávat akce"
     },
     "status": {
       "refreshing": "Obnovuje se…",
       "updated": "Aktualizováno"
+    },
+    "table": {
+      "caption": "Tabulka plánu"
     },
     "day": {
       "today": "Dnes",
