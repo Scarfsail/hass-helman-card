@@ -1,15 +1,19 @@
 import type {
+    ApplianceRuntimeDTO,
     InverterRuntimeDTO,
     SchedulePayload,
 } from "../../helman-api";
 import type {
     NormalizedScheduleModel,
+    ScheduleApplianceRuntime,
+    ScheduleInverterRuntime,
     ScheduleRuntime,
     ScheduleSlot,
 } from "../schedule-types";
 import {
-    cloneScheduleDomains,
     cloneScheduleInverterAction,
+    cloneScheduleRuntime,
+    cloneScheduleDomains,
 } from "../schedule-types";
 import {
     getScheduleDayKey,
@@ -75,7 +79,7 @@ export function normalizeSchedulePayload({
         }));
 
     const resolvedCurrentSlotId = normalizedSlots.find((slot) =>
-        slot.endMs !== null && slot.startMs <= nowMs && nowMs < slot.endMs
+        slot.startMs <= nowMs && (slot.endMs === null || nowMs < slot.endMs)
     )?.id
         ?? runtimeSlotId
         ?? null;
@@ -83,7 +87,7 @@ export function normalizeSchedulePayload({
     const slots = normalizedSlots.map((slot) => ({
         ...slot,
         runtime: slot.id === runtimeSlotId && normalizedRuntime !== null
-            ? _cloneRuntime(normalizedRuntime.runtime)
+            ? cloneScheduleRuntime(normalizedRuntime.runtime)
             : null,
         isCurrent: slot.id === resolvedCurrentSlotId,
     }));
@@ -134,37 +138,49 @@ function _normalizeSlot({
     };
 }
 
-function _cloneRuntime(runtime: ScheduleRuntime): ScheduleRuntime {
-    return {
-        status: runtime.status,
-        reason: runtime.reason,
-        errorCode: runtime.errorCode,
-        executedAction: runtime.executedAction
-            ? cloneScheduleInverterAction(runtime.executedAction)
-            : undefined,
-    };
-}
-
 function _normalizeScheduleRuntime(
     runtime: SchedulePayload["runtime"],
 ): { slotId: string; runtime: ScheduleRuntime } | null {
-    if (runtime === undefined || runtime.inverter === undefined) {
+    if (runtime === undefined) {
         return null;
     }
 
     return {
         slotId: runtime.activeSlotId,
-        runtime: _normalizeInverterRuntime(runtime.inverter),
+        runtime: {
+            inverter: runtime.inverter
+                ? _normalizeInverterRuntime(runtime.inverter)
+                : null,
+            appliances: Object.fromEntries(
+                Object.entries(runtime.appliances).map(([applianceId, applianceRuntime]) => [
+                    applianceId,
+                    _normalizeApplianceRuntime(applianceRuntime),
+                ]),
+            ),
+            reconciledAt: runtime.reconciledAt,
+        },
     };
 }
 
-function _normalizeInverterRuntime(runtime: InverterRuntimeDTO): ScheduleRuntime {
+function _normalizeInverterRuntime(runtime: InverterRuntimeDTO): ScheduleInverterRuntime {
     return {
-        status: runtime.outcome === "failed" ? "error" : "applied",
+        actionKind: runtime.actionKind,
+        outcome: runtime.outcome,
         reason: runtime.reason,
         errorCode: runtime.errorCode,
+        message: runtime.message,
         executedAction: runtime.executedAction
             ? cloneScheduleInverterAction(runtime.executedAction)
             : undefined,
+    };
+}
+
+function _normalizeApplianceRuntime(runtime: ApplianceRuntimeDTO): ScheduleApplianceRuntime {
+    return {
+        actionKind: runtime.actionKind,
+        outcome: runtime.outcome,
+        errorCode: runtime.errorCode,
+        message: runtime.message,
+        updatedAt: runtime.updatedAt,
     };
 }

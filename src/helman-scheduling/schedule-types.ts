@@ -1,4 +1,6 @@
 import type {
+    RuntimeActionKind,
+    RuntimeOutcome,
     ScheduleApplianceActionDTO,
     ScheduleActionDTO,
     ScheduleDomainsDTO,
@@ -12,11 +14,27 @@ export type ScheduleActionKind = ScheduleInverterAction["kind"];
 export type ScheduleApplianceAction = ScheduleApplianceActionDTO;
 export type ScheduleDomains = ScheduleDomainsDTO;
 
-export interface ScheduleRuntime {
-    status: "applied" | "error";
+export interface ScheduleInverterRuntime {
+    actionKind: RuntimeActionKind;
+    outcome: RuntimeOutcome;
     executedAction?: ScheduleInverterAction;
     reason?: ScheduleRuntimeReason;
     errorCode?: string;
+    message?: string;
+}
+
+export interface ScheduleApplianceRuntime {
+    actionKind: RuntimeActionKind;
+    outcome: RuntimeOutcome;
+    errorCode?: string;
+    message?: string;
+    updatedAt?: string;
+}
+
+export interface ScheduleRuntime {
+    inverter: ScheduleInverterRuntime | null;
+    appliances: Record<string, ScheduleApplianceRuntime>;
+    reconciledAt?: string;
 }
 
 export interface ScheduleSlot {
@@ -109,6 +127,48 @@ export function cloneScheduleDomains(domains: ScheduleDomains): ScheduleDomains 
                 cloneScheduleApplianceAction(action),
             ]),
         ),
+    };
+}
+
+export function cloneScheduleInverterRuntime(
+    runtime: ScheduleInverterRuntime,
+): ScheduleInverterRuntime {
+    return {
+        actionKind: runtime.actionKind,
+        outcome: runtime.outcome,
+        executedAction: runtime.executedAction
+            ? cloneScheduleInverterAction(runtime.executedAction)
+            : undefined,
+        reason: runtime.reason,
+        errorCode: runtime.errorCode,
+        message: runtime.message,
+    };
+}
+
+export function cloneScheduleApplianceRuntime(
+    runtime: ScheduleApplianceRuntime,
+): ScheduleApplianceRuntime {
+    return {
+        actionKind: runtime.actionKind,
+        outcome: runtime.outcome,
+        errorCode: runtime.errorCode,
+        message: runtime.message,
+        updatedAt: runtime.updatedAt,
+    };
+}
+
+export function cloneScheduleRuntime(runtime: ScheduleRuntime): ScheduleRuntime {
+    return {
+        inverter: runtime.inverter
+            ? cloneScheduleInverterRuntime(runtime.inverter)
+            : null,
+        appliances: Object.fromEntries(
+            Object.entries(runtime.appliances).map(([applianceId, applianceRuntime]) => [
+                applianceId,
+                cloneScheduleApplianceRuntime(applianceRuntime),
+            ]),
+        ),
+        reconciledAt: runtime.reconciledAt,
     };
 }
 

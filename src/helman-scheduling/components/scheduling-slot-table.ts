@@ -4,12 +4,13 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import "./scheduling-action-chip";
 import "./scheduling-appliance-chip";
+import type { ScheduleApplianceMetadata } from "../model/schedule-appliance-metadata";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
+import { getScheduleActionLabel } from "../model/schedule-labels";
 import {
-    getScheduleActionLabel,
-    getScheduleErrorLabel,
-    getScheduleReasonLabel,
-} from "../model/schedule-labels";
+    buildScheduleRuntimeComplianceModel,
+    type ScheduleRuntimeComplianceState,
+} from "../model/schedule-runtime-compliance";
 import type { SlotForecastPoint } from "../model/slot-forecast-model";
 import {
     EMPTY_SCHEDULE_TABLE_MODEL,
@@ -30,7 +31,6 @@ import type {
     ScheduleSlot,
     ScheduleSlotToggleDetail,
 } from "../schedule-types";
-import { areScheduleActionsEqual } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 const ZERO_KWH_DISPLAY_THRESHOLD = 0.05;
@@ -622,19 +622,20 @@ export class SchedulingSlotTable extends LitElement {
 
             .slot-runtime {
                 display: flex;
-                flex-wrap: wrap;
+                flex-direction: column;
                 gap: 4px;
-                align-items: center;
+                align-items: flex-start;
                 min-width: 0;
             }
 
-            .slot-runtime scheduling-action-chip {
-                flex: 0 0 auto;
+            .slot-runtime-summary,
+            .slot-runtime-details {
+                width: 100%;
+                min-width: 0;
             }
 
             .slot-runtime > .chip,
             .slot-runtime > .muted {
-                flex: 0 1 auto;
                 max-width: 100%;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -651,6 +652,43 @@ export class SchedulingSlotTable extends LitElement {
             .slot-runtime .muted {
                 font-size: 0.78rem;
                 line-height: 1.1;
+            }
+
+            .slot-runtime-summary .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                max-width: 100%;
+            }
+
+            .slot-runtime-summary-icon {
+                flex: 0 0 auto;
+                --mdc-icon-size: 0.9rem;
+            }
+
+            .slot-runtime-summary-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .slot-runtime-details {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+
+            .slot-runtime-line {
+                color: var(--secondary-text-color);
+                font-size: 0.78rem;
+                line-height: 1.2;
+                white-space: normal;
+            }
+
+            .slot-runtime-line-actor {
+                color: var(--primary-text-color);
+                font-weight: 600;
             }
 
             .slot-forecast-gauge {
@@ -932,6 +970,7 @@ export class SchedulingSlotTable extends LitElement {
     private _selectedSet: ReadonlySet<string> = new Set();
 
     @property({ attribute: false }) public tableModel: ScheduleTableModel = EMPTY_SCHEDULE_TABLE_MODEL;
+    @property({ attribute: false }) public appliances: ScheduleApplianceMetadata[] = [];
     @property({ attribute: false }) public selectedSlotIds: string[] = [];
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: Boolean }) public busy = false;
@@ -1563,75 +1602,49 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _renderSlotRuntime(slot: ScheduleSlot) {
-        if (!this.executionEnabled) {
-            return html`<div class="chip disabled">${this.localize("scheduling.now.execution_disabled")}</div>`;
-        }
-
-        if (slot.runtime === null) {
-            return html`<div class="muted">${this.localize("scheduling.now.runtime_unavailable")}</div>`;
-        }
-
-        const reasonLabel = getScheduleReasonLabel(slot.runtime.reason, this.localize);
-        const runtimeState = this._getRuntimeState(slot);
-        const reasonChipClass = runtimeState === "following"
-            ? "chip success"
-            : runtimeState === "error"
-            ? "chip error"
-            : "chip reason";
-        if (slot.runtime.status === "error") {
-            return html`
-                <div class="chip error">
-                    ${getScheduleErrorLabel({
-                        code: slot.runtime.errorCode,
-                        fallbackMessage: this.localize("scheduling.runtime.error"),
-                        localize: this.localize,
-                    })}
+        const compliance = buildScheduleRuntimeComplianceModel({
+            slot,
+            appliances: this.appliances,
+            executionEnabled: this.executionEnabled,
+            localize: this.localize,
+        });
+        const summaryChipClass = this._getRuntimeSummaryChipClass(compliance.state);
+        return html`
+            <div class="slot-runtime-summary">
+                <div class=${summaryChipClass}>
+                    <ha-icon
+                        class="slot-runtime-summary-icon"
+                        .icon=${compliance.icon}
+                        aria-hidden="true"
+                    ></ha-icon>
+                    <span class="slot-runtime-summary-label">${compliance.summaryLabel}</span>
                 </div>
-                ${slot.runtime.executedAction ? html`
-                    ${this._renderRuntimeActionChip(slot.runtime.executedAction, runtimeState)}
-                ` : nothing}
-                ${reasonLabel ? html`<div class=${reasonChipClass}>${reasonLabel}</div>` : nothing}
-            `;
-        }
-
-        return html`
-            ${slot.runtime.executedAction
-                ? this._renderRuntimeActionChip(slot.runtime.executedAction, runtimeState)
-                : html`<div class=${runtimeState === "following" ? "chip success" : "chip runtime"}>${this.localize("scheduling.runtime.applied")}</div>`}
-            ${reasonLabel ? html`<div class=${reasonChipClass}>${reasonLabel}</div>` : nothing}
+            </div>
+            ${compliance.issues.length > 0 ? html`
+                <div class="slot-runtime-details">
+                    ${compliance.issues.map((issue) => html`
+                        <div class="slot-runtime-line">
+                            <span class="slot-runtime-line-actor">${issue.actorLabel}:</span>
+                            ${issue.actualLabel}
+                            ${issue.reasonLabel ? html` &mdash; ${issue.reasonLabel}` : nothing}
+                        </div>
+                    `)}
+                </div>
+            ` : nothing}
         `;
     }
 
-    private _renderRuntimeActionChip(
-        action: ScheduleSlot["domains"]["inverter"],
-        runtimeState: "following" | "diverged" | "error",
-    ) {
-        return html`
-            <scheduling-action-chip
-                .action=${action}
-                .localize=${this.localize}
-                .labelVariant=${"table"}
-                size="compact"
-                surface="runtime"
-                .runtimeState=${runtimeState}
-                ?iconOnly=${true}
-            ></scheduling-action-chip>
-        `;
-    }
-
-    private _getRuntimeState(slot: ScheduleSlot): "following" | "diverged" | "error" {
-        const runtime = slot.runtime;
-        if (runtime === null || runtime.status === "error") {
-            return runtime?.status === "error" ? "error" : "diverged";
+    private _getRuntimeSummaryChipClass(state: ScheduleRuntimeComplianceState): string {
+        switch (state) {
+            case "on_plan":
+                return "chip success";
+            case "off_plan":
+                return "chip warning";
+            case "execution_disabled":
+                return "chip disabled";
+            case "runtime_unavailable":
+                return "chip runtime";
         }
-
-        if (runtime.executedAction) {
-            return areScheduleActionsEqual(slot.domains.inverter, runtime.executedAction)
-                ? "following"
-                : "diverged";
-        }
-
-        return runtime.reason === "scheduled" ? "following" : "diverged";
     }
 
     private _buildActionCellLabel(actionCell: ScheduleTableActionCellModel): string {

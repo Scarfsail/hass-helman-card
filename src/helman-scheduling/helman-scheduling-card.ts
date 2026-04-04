@@ -253,6 +253,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                         : html`
                             <scheduling-slot-table
                                 .tableModel=${this._tableModel}
+                                .appliances=${this._appliances}
                                 .selectedSlotIds=${this._selectedSlotIds}
                                 .localize=${this._localize}
                                 .busy=${this._ownerSnapshot.writing || this._ownerSnapshot.togglingExecution}

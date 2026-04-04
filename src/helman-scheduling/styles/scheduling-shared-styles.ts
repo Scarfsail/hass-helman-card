@@ -100,7 +100,8 @@ export const schedulingSharedStyles = css`
         color: color-mix(in srgb, var(--success-color, #2e7d32) 82%, var(--primary-text-color));
     }
 
-    .chip.reason {
+    .chip.reason,
+    .chip.warning {
         background: color-mix(in srgb, var(--warning-color, #c27c0e) 18%, transparent);
         color: var(--primary-text-color);
     }

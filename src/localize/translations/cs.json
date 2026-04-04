@@ -196,8 +196,24 @@
       "scheduled": "Naplánováno",
       "running": "Běží",
       "reason": "Důvod",
+      "compliance_ok": "Podle plánu",
+      "compliance_off": "Mimo plán",
       "execution_disabled": "Provádění je vypnuté",
-      "runtime_unavailable": "Stav běhu není k dispozici."
+      "runtime_unavailable": "Stav běhu není k dispozici.",
+      "actor": {
+        "inverter": "Střídač"
+      },
+      "actual": {
+        "applied": "Použito",
+        "failed": "Selhalo",
+        "no_change": "Beze změny",
+        "stopped": "Zastaveno",
+        "status_unavailable": "Stav není k dispozici"
+      },
+      "detail": {
+        "expected": "Očekáváno",
+        "no_scheduled_action": "Bez naplánované akce"
+      }
     },
     "forecast": {
       "battery_label": "Baterie",
