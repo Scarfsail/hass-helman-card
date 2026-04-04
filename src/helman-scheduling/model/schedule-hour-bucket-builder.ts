@@ -19,13 +19,15 @@ import type {
 import {
     getScheduleActionIdentityKey,
     getScheduleApplianceActionIdentityKey,
+    isScheduleBackedDisplaySlot,
+    type ScheduleDisplaySlot,
     type ScheduleSlot,
 } from "../schedule-types";
 
 interface ScheduleHourBucket {
     hourKey: string;
     dayKey: string;
-    slots: ScheduleSlot[];
+    slots: ScheduleDisplaySlot[];
 }
 
 export function buildScheduleTableRows({
@@ -36,7 +38,7 @@ export function buildScheduleTableRows({
     locale,
     timeZone,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: ReadonlySet<string>;
@@ -69,20 +71,20 @@ export function buildScheduleTableRows({
                         parentHourKey: bucket.hourKey,
                     });
                     rows.push(childRow);
-                    if (slot.isCurrent) {
+                    if (slot.isCurrent && isScheduleBackedDisplaySlot(slot)) {
                         rows.push(_buildDetailRow({
                             ownerRowId: childRow.rowId,
-                            slot,
+                            slot: slot.scheduleSlot,
                             variant: "hour-child",
                         }));
                     }
                 }
             } else {
-                const currentSlot = bucket.slots.find((slot) => slot.isCurrent);
-                if (currentSlot) {
+                const currentSlot = bucket.slots.find((slot) => slot.isCurrent && isScheduleBackedDisplaySlot(slot));
+                if (currentSlot && isScheduleBackedDisplaySlot(currentSlot)) {
                     rows.push(_buildDetailRow({
                         ownerRowId: hourRow.rowId,
-                        slot: currentSlot,
+                        slot: currentSlot.scheduleSlot,
                         variant: "hour",
                     }));
                 }
@@ -101,10 +103,10 @@ export function buildScheduleTableRows({
                 parentHourKey: null,
             });
             rows.push(slotRow);
-            if (slot.isCurrent) {
+            if (slot.isCurrent && isScheduleBackedDisplaySlot(slot)) {
                 rows.push(_buildDetailRow({
                     ownerRowId: slotRow.rowId,
-                    slot,
+                    slot: slot.scheduleSlot,
                     variant: "raw",
                 }));
             }
@@ -119,7 +121,7 @@ export function collectScheduleHourForecasts({
     slotForecastMap,
     timeZone,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
     timeZone: string;
 }): SlotForecastPoint[] {
@@ -135,7 +137,7 @@ export function collectScheduleHourForecasts({
 }
 
 function _buildHourBuckets(
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
     timeZone: string,
 ): ScheduleHourBucket[] {
     const buckets: ScheduleHourBucket[] = [];
@@ -190,6 +192,10 @@ function _isCollapsibleHourBucket(
         return false;
     }
 
+    if (!bucket.slots.every((slot) => slot.source === bucket.slots[0].source)) {
+        return false;
+    }
+
     const firstSlot = bucket.slots[0];
     const lastSlot = bucket.slots[bucket.slots.length - 1];
     if (lastSlot.endMs === null) {
@@ -213,7 +219,7 @@ function _isCollapsibleHourBucket(
     return _isImmediateNextLocalHour(firstParts, lastEndParts);
 }
 
-function _hasContiguousCoverage(slots: readonly ScheduleSlot[]): boolean {
+function _hasContiguousCoverage(slots: readonly ScheduleDisplaySlot[]): boolean {
     for (let index = 0; index < slots.length; index += 1) {
         const slot = slots[index];
         if (slot.endMs === null) {
@@ -230,7 +236,7 @@ function _hasContiguousCoverage(slots: readonly ScheduleSlot[]): boolean {
 }
 
 function _hasStableLocalOffset(
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
     timeZone: string,
     expectedOffset: string,
 ): boolean {
@@ -313,7 +319,9 @@ function _buildHourRow({
             hideTrailing: false,
         },
         rangeLabel,
-        slotIds: bucket.slots.map((slot) => slot.id),
+        slotIds: bucket.slots
+            .filter(isScheduleBackedDisplaySlot)
+            .map((slot) => slot.scheduleSlot.id),
         actionCell: _buildActionCell(bucket.slots, appliances),
         forecast: aggregateScheduleHourForecast({
             slots: bucket.slots,
@@ -325,13 +333,17 @@ function _buildHourRow({
 }
 
 function _buildDistinctInverterItems(
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
 ): ScheduleTableActionItemModel[] {
     const actionItems: ScheduleTableActionItemModel[] = [];
     const seenKeys = new Set<string>();
 
     for (const slot of slots) {
-        const key = getScheduleActionIdentityKey(slot.domains.inverter);
+        if (!isScheduleBackedDisplaySlot(slot)) {
+            continue;
+        }
+
+        const key = getScheduleActionIdentityKey(slot.scheduleSlot.domains.inverter);
         if (seenKeys.has(key)) {
             continue;
         }
@@ -340,8 +352,8 @@ function _buildDistinctInverterItems(
         actionItems.push({
             kind: "inverter",
             key,
-            action: slot.domains.inverter,
-            firstSlotId: slot.id,
+            action: slot.scheduleSlot.domains.inverter,
+            firstSlotId: slot.scheduleSlot.id,
         });
     }
 
@@ -349,21 +361,25 @@ function _buildDistinctInverterItems(
 }
 
 function _buildDistinctApplianceItems(
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
 ): ScheduleTableActionItemModel[] {
     const applianceOrder = new Map(
         appliances.map((appliance) => [appliance.id, appliance.order] as const),
     );
-    const actions = slots.flatMap((slot) =>
-        Object.entries(slot.domains.appliances).map(([applianceId, action]) => ({
-            slotId: slot.id,
+    const actions = slots.flatMap((slot) => {
+        if (!isScheduleBackedDisplaySlot(slot)) {
+            return [];
+        }
+
+        return Object.entries(slot.scheduleSlot.domains.appliances).map(([applianceId, action]) => ({
+            slotId: slot.scheduleSlot.id,
             applianceId,
             action,
             appliance: getScheduleApplianceById(appliances, applianceId),
             order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
-        }))
-    ).sort((left, right) => {
+        }));
+    }).sort((left, right) => {
         if (left.order !== right.order) {
             return left.order - right.order;
         }
@@ -397,14 +413,16 @@ function _buildDistinctApplianceItems(
 }
 
 function _buildActionCell(
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
 ): ScheduleTableActionCellModel {
+    const scheduleBackedSlots = slots.filter(isScheduleBackedDisplaySlot);
     return {
         items: [
-            ..._buildDistinctInverterItems(slots),
-            ..._buildDistinctApplianceItems(slots, appliances),
+            ..._buildDistinctInverterItems(scheduleBackedSlots),
+            ..._buildDistinctApplianceItems(scheduleBackedSlots, appliances),
         ],
+        interactive: scheduleBackedSlots.length > 0,
     };
 }
 
@@ -417,7 +435,7 @@ function _buildSlotRow({
     variant,
     parentHourKey,
 }: {
-    slot: ScheduleSlot;
+    slot: ScheduleDisplaySlot;
     appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     locale: string;
@@ -430,6 +448,7 @@ function _buildSlotRow({
         rowId: variant === "raw" ? `slot:${slot.id}` : `hour-child:${slot.id}`,
         slot,
         actionCell: _buildActionCell([slot], appliances),
+        interactiveSlotId: isScheduleBackedDisplaySlot(slot) ? slot.scheduleSlot.id : null,
         displayTimeLabel: variant === "raw"
             ? {
                 leading: null,

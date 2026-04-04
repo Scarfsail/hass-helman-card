@@ -16,6 +16,7 @@ import {
     cloneScheduleDomains,
 } from "../schedule-types";
 import {
+    deriveScheduleGranularityMinutes,
     getScheduleDayKey,
     getScheduleSlotDayKey,
     getScheduleSlotStartMs,
@@ -39,10 +40,13 @@ export function normalizeSchedulePayload({
             slots: [],
             currentSlotId: null,
             currentDayKey: null,
+            granularityMinutes: null,
         };
     }
 
     const nowMs = now.getTime();
+    const granularityMinutes = deriveScheduleGranularityMinutes(schedule.slots.map((slot) => slot.id));
+    const slotDurationMs = granularityMinutes !== null ? granularityMinutes * 60_000 : null;
     const slotBoundaries = resolveScheduleSlotBoundaries(schedule.slots.map((slot) => slot.id));
     const slotBoundariesByMs = new Map(slotBoundaries.map((slot) => [slot.startMs, slot]));
     const seenMs = new Set<number>();
@@ -68,6 +72,7 @@ export function normalizeSchedulePayload({
             return [_normalizeSlot({
                 slot,
                 boundary,
+                slotDurationMs,
                 timeZone,
                 locale,
             })];
@@ -100,17 +105,20 @@ export function normalizeSchedulePayload({
         slots,
         currentSlotId: currentSlot?.id ?? null,
         currentDayKey: getScheduleDayKey(now, timeZone),
+        granularityMinutes,
     };
 }
 
 function _normalizeSlot({
     slot,
     boundary,
+    slotDurationMs,
     timeZone,
     locale,
 }: {
     slot: SchedulePayload["slots"][number];
     boundary: { startMs: number; endMs: number | null };
+    slotDurationMs: number | null;
     timeZone: string;
     locale: string;
 }): Omit<ScheduleSlot, "index" | "isCurrent"> {
@@ -121,14 +129,14 @@ function _normalizeSlot({
 
     const labels = getScheduleTimeRangeLabels({
         startMs: boundary.startMs,
-        endMs: boundary.endMs,
+        endMs: slotDurationMs !== null ? boundary.startMs + slotDurationMs : boundary.endMs,
         locale,
         timeZone,
     });
     return {
         id: slot.id,
         startMs: boundary.startMs,
-        endMs: boundary.endMs,
+        endMs: slotDurationMs !== null ? boundary.startMs + slotDurationMs : boundary.endMs,
         dayKey,
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,

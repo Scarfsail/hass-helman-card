@@ -1,4 +1,5 @@
 import type {
+    ForecastGranularity,
     RuntimeActionKind,
     RuntimeOutcome,
     ScheduleApplianceActionDTO,
@@ -51,6 +52,36 @@ export interface ScheduleSlot {
     isCurrent: boolean;
 }
 
+export interface ScheduleDisplaySlotBase {
+    id: string;
+    startMs: number;
+    endMs: number | null;
+    dayKey: string;
+    timeLabel: string;
+    endLabel: string | null;
+    rangeLabel: string;
+    isCurrent: boolean;
+}
+
+export interface ScheduleBackedDisplaySlot extends ScheduleDisplaySlotBase {
+    source: "schedule";
+    scheduleSlot: ScheduleSlot;
+}
+
+export interface ScheduleForecastOnlyDisplaySlot extends ScheduleDisplaySlotBase {
+    source: "forecast_only";
+    scheduleSlot: null;
+}
+
+export type ScheduleDisplaySlot =
+    | ScheduleBackedDisplaySlot
+    | ScheduleForecastOnlyDisplaySlot;
+
+export interface ScheduleTimelineModel {
+    slots: ScheduleDisplaySlot[];
+    currentSlotId: string | null;
+}
+
 export interface ScheduleSlotDaySectionModel {
     dayKey: string;
     dayLabel: string;
@@ -99,6 +130,7 @@ export interface NormalizedScheduleModel {
     slots: ScheduleSlot[];
     currentSlotId: string | null;
     currentDayKey: string | null;
+    granularityMinutes: ForecastGranularity | null;
 }
 
 export interface ScheduleSlotPatch {
@@ -170,6 +202,12 @@ export function cloneScheduleRuntime(runtime: ScheduleRuntime): ScheduleRuntime 
         ),
         reconciledAt: runtime.reconciledAt,
     };
+}
+
+export function isScheduleBackedDisplaySlot(
+    slot: ScheduleDisplaySlot,
+): slot is ScheduleBackedDisplaySlot {
+    return slot.source === "schedule";
 }
 
 export function getScheduleActionIdentityKey(action: ScheduleInverterAction): string {

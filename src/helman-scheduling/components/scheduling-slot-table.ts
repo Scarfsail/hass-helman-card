@@ -565,6 +565,11 @@ export class SchedulingSlotTable extends LitElement {
                 color: var(--primary-color);
             }
 
+            .time-button.current {
+                background: color-mix(in srgb, var(--primary-color) 10%, var(--card-background-color));
+                color: var(--primary-color);
+            }
+
             .time-button.current.selected {
                 background: color-mix(in srgb, var(--primary-color) 24%, var(--card-background-color));
             }
@@ -1337,7 +1342,7 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _renderSlotRow(row: ScheduleTableSlotRowModel) {
-        const selected = this._selectedSet.has(row.slot.id);
+        const selected = row.interactiveSlotId !== null && this._selectedSet.has(row.interactiveSlotId);
         const classes = `schedule-row slot-row${row.isCurrent ? " current" : ""}${selected ? " selected" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
         const timeButtonClasses = `button-reset time-button${selected ? " selected" : ""}${row.isCurrent ? " current" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
 
@@ -1351,16 +1356,16 @@ export class SchedulingSlotTable extends LitElement {
                         <button
                             class=${timeButtonClasses}
                             type="button"
-                            ?disabled=${this.busy}
+                            ?disabled=${this.busy || row.interactiveSlotId === null}
                             aria-label=${`${this.localize("scheduling.actions.select_slot")} ${row.rangeLabel}`}
                             aria-pressed=${selected ? "true" : "false"}
-                            @click=${(event: MouseEvent) => this._handleTimeClick(row.slot.id, event)}
+                            @click=${(event: MouseEvent) => this._handleTimeClick(row.interactiveSlotId!, event)}
                         >
                             ${this._renderTimeLabel(row.displayTimeLabel)}
                         </button>
                     </div>
                 </th>
-                ${this._renderActionCell(row.actionCell, row.rangeLabel, row.slot.id)}
+                ${this._renderActionCell(row.actionCell, row.rangeLabel, row.interactiveSlotId)}
                 ${this._renderForecastCells(row.forecast)}
             </tr>
         `;
@@ -1389,7 +1394,7 @@ export class SchedulingSlotTable extends LitElement {
                         <button
                             class=${timeButtonClasses}
                             type="button"
-                            ?disabled=${this.busy}
+                            ?disabled=${this.busy || row.slotIds.length === 0}
                             aria-label=${`${this.localize("scheduling.actions.select_hour")} ${row.rangeLabel}`}
                             aria-pressed=${fullySelected ? "true" : "false"}
                             @click=${(event: MouseEvent) => this._handleTimeClick(row.slotIds[0], event, row.slotIds)}
@@ -1398,7 +1403,7 @@ export class SchedulingSlotTable extends LitElement {
                         </button>
                     </div>
                 </th>
-                ${this._renderActionCell(row.actionCell, row.rangeLabel, row.slotIds[0], row.slotIds)}
+                ${this._renderActionCell(row.actionCell, row.rangeLabel, row.slotIds[0] ?? null, row.slotIds)}
                 ${this._renderForecastCells(row.forecast)}
             </tr>
         `;
@@ -1418,7 +1423,7 @@ export class SchedulingSlotTable extends LitElement {
     private _renderActionCell(
         actionCell: ScheduleTableActionCellModel,
         rangeLabel: string,
-        slotId: string,
+        slotId: string | null,
         slotIds?: readonly string[],
     ) {
         const actionLabel = this._buildActionCellLabel(actionCell);
@@ -1431,7 +1436,7 @@ export class SchedulingSlotTable extends LitElement {
                 <button
                     class="button-reset action-button"
                     type="button"
-                    ?disabled=${this.busy}
+                    ?disabled=${this.busy || !actionCell.interactive || slotId === null}
                     aria-label=${ariaLabel}
                     @click=${() => this._handleActionClick(slotId, slotIds)}
                 >
@@ -1839,8 +1844,8 @@ export class SchedulingSlotTable extends LitElement {
         }));
     }
 
-    private _handleActionClick(slotId: string, slotIds?: readonly string[]): void {
-        if (this.busy) {
+    private _handleActionClick(slotId: string | null, slotIds?: readonly string[]): void {
+        if (this.busy || slotId === null) {
             return;
         }
 

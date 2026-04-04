@@ -8,7 +8,7 @@ import {
     type ScheduleTableModel,
     type ScheduleTableSectionModel,
 } from "../schedule-table-types";
-import type { ScheduleSlot } from "../schedule-types";
+import type { ScheduleDisplaySlot } from "../schedule-types";
 
 export function buildScheduleTableModel({
     slots,
@@ -21,7 +21,7 @@ export function buildScheduleTableModel({
     todayLabel,
     tomorrowLabel,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: readonly string[];
@@ -34,7 +34,7 @@ export function buildScheduleTableModel({
     const daySections: Array<{
         dayKey: string;
         dayLabel: string;
-        slots: ScheduleSlot[];
+        slots: ScheduleDisplaySlot[];
     }> = [];
     let currentSection: (typeof daySections)[number] | null = null;
     const expandedHourKeySet = new Set(expandedHourKeys);

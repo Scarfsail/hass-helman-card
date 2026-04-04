@@ -1,5 +1,8 @@
+import type { ForecastGranularity } from "../../helman-api";
+
 const LOCAL_DATE_TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 const TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+const VALID_SCHEDULE_GRANULARITIES = new Set<number>([15, 30, 60]);
 
 interface LocalDateTimeDescriptor {
     year: string;
@@ -53,6 +56,30 @@ export function getScheduleDayKey(value: Date | string, timeZone: string): strin
 
 export function getScheduleSlotDayKey(slotId: string, timeZone: string): string | null {
     return getScheduleDayKey(slotId, timeZone);
+}
+
+export function deriveScheduleGranularityMinutes(
+    slotIds: readonly string[],
+): ForecastGranularity | null {
+    const sortedStarts = [...new Set(
+        slotIds
+            .map((slotId) => getScheduleSlotStartMs(slotId))
+            .filter((startMs): startMs is number => startMs !== null),
+    )].sort((left, right) => left - right);
+
+    let granularityMinutes: number | null = null;
+    for (let index = 1; index < sortedStarts.length; index += 1) {
+        const durationMinutes = (sortedStarts[index] - sortedStarts[index - 1]) / 60_000;
+        if (!(durationMinutes > 0) || !VALID_SCHEDULE_GRANULARITIES.has(durationMinutes)) {
+            continue;
+        }
+
+        granularityMinutes = granularityMinutes === null
+            ? durationMinutes
+            : Math.min(granularityMinutes, durationMinutes);
+    }
+
+    return granularityMinutes === null ? null : granularityMinutes as ForecastGranularity;
 }
 
 export function resolveScheduleSlotBoundaries(slotIds: readonly string[]): ScheduleSlotBoundary[] {

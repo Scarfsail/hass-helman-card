@@ -24,7 +24,7 @@ export class ForecastLoader {
 
     constructor(
         private readonly _granularity: ForecastGranularity,
-        private readonly _forecastDays: number,
+        private readonly _forecastDays?: number | null,
     ) {}
 
     load(hass: HomeAssistant): Promise<ForecastPayload> {
@@ -46,8 +46,10 @@ export class ForecastLoader {
         const requestMessage: GetForecastRequest = {
             type: "helman/get_forecast",
             granularity: this._granularity,
-            forecast_days: this._forecastDays,
         };
+        if (this._forecastDays !== null && this._forecastDays !== undefined) {
+            requestMessage.forecast_days = this._forecastDays;
+        }
         const request = hass.connection.sendMessagePromise<ForecastPayload>(requestMessage).then((payload) => {
             this._payload = payload;
             this._payloadHourKey = requestHourKey;

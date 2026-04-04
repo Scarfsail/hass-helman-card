@@ -19,6 +19,7 @@ import { getScheduleErrorLabel } from "./model/schedule-labels";
 import { normalizeSchedulePayload } from "./model/schedule-normalizer";
 import { buildScheduleSlotPatches } from "./model/schedule-patch-builder";
 import { buildScheduleTableModel } from "./model/schedule-table-builder";
+import { buildScheduleTimelineModel } from "./model/schedule-timeline-builder";
 import {
     buildSlotForecastMap,
     deriveScheduleForecastParams,
@@ -40,6 +41,7 @@ import type {
     ScheduleOwnerSnapshot,
     ScheduleSlotPatch,
     ScheduleSlotToggleDetail,
+    ScheduleTimelineModel,
 } from "./schedule-types";
 import { cloneScheduleDomains } from "./schedule-types";
 import { schedulingSharedStyles } from "./styles/scheduling-shared-styles";
@@ -59,6 +61,12 @@ const EMPTY_NORMALIZED_SCHEDULE: NormalizedScheduleModel = {
     slots: [],
     currentSlotId: null,
     currentDayKey: null,
+    granularityMinutes: null,
+};
+
+const EMPTY_SCHEDULE_TIMELINE: ScheduleTimelineModel = {
+    slots: [],
+    currentSlotId: null,
 };
 
 @customElement("helman-scheduling-card")
@@ -97,7 +105,9 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _localizeFn?: LocalizeFunction;
     private _scheduleOwner?: SharedScheduleOwner;
     private _unsubscribeScheduleOwner?: () => void;
+    private _timelineBoundaryTimer: number | null = null;
     private _normalizedSchedule: NormalizedScheduleModel = EMPTY_NORMALIZED_SCHEDULE;
+    private _timelineModel: ScheduleTimelineModel = EMPTY_SCHEDULE_TIMELINE;
     private _tableModel: ScheduleTableModel = EMPTY_SCHEDULE_TABLE_MODEL;
     private _forecastLoader: ForecastLoader | null = null;
     private _forecastLoaderGranularity: number | null = null;
@@ -118,6 +128,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _dialogOpen = false;
     @state() private _dayExpansionOverrides: Record<string, boolean> = {};
     @state() private _expandedHourKeys: string[] = [];
+    @state() private _nowMs = Date.now();
 
     public set hass(value: HomeAssistant) {
         const previous = this._hass;
@@ -159,6 +170,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
+        this._clearTimelineBoundaryTick();
         this._detachScheduleOwner();
     }
 
@@ -166,12 +178,13 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         super.willUpdate(changedProperties);
         if (!this._hass) {
             this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
+            this._timelineModel = EMPTY_SCHEDULE_TIMELINE;
             this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
             this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
             return;
         }
 
-        if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_hass")) {
+        if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_hass") || changedProperties.has("_nowMs")) {
             const previousOwnerSnapshot = changedProperties.get("_ownerSnapshot") as ScheduleOwnerSnapshot | undefined;
             const scheduleChanged = changedProperties.has("_ownerSnapshot")
                 && previousOwnerSnapshot?.schedule !== this._ownerSnapshot.schedule;
@@ -179,6 +192,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 schedule: this._ownerSnapshot.schedule,
                 timeZone: this._hass.config.time_zone ?? "UTC",
                 locale: this._locale,
+                now: new Date(this._nowMs),
             });
 
             const validSlotIds = new Set(this._normalizedSchedule.slots.map((slot) => slot.id));
@@ -194,11 +208,23 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 this._dialogOpen = false;
                 this._pendingDialogPatches = null;
             }
-            this._pruneDayExpansionOverrides(this._collectScheduleDayKeys());
         }
 
-        if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_forecast") || changedProperties.has("_hass")) {
-            this._slotForecastMap = buildSlotForecastMap(this._forecast, this._normalizedSchedule.slots);
+        if (
+            changedProperties.has("_ownerSnapshot")
+            || changedProperties.has("_forecast")
+            || changedProperties.has("_hass")
+            || changedProperties.has("_nowMs")
+        ) {
+            this._timelineModel = buildScheduleTimelineModel({
+                normalizedSchedule: this._normalizedSchedule,
+                forecast: this._forecast,
+                locale: this._locale,
+                timeZone: this._hass.config.time_zone ?? "UTC",
+                now: new Date(this._nowMs),
+            });
+            this._slotForecastMap = buildSlotForecastMap(this._forecast, this._timelineModel.slots);
+            this._pruneDayExpansionOverrides(this._collectTimelineDayKeys());
         }
 
         if (
@@ -207,9 +233,10 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             || changedProperties.has("_hass")
             || changedProperties.has("_appliances")
             || changedProperties.has("_expandedHourKeys")
+            || changedProperties.has("_nowMs")
         ) {
             this._tableModel = buildScheduleTableModel({
-                slots: this._normalizedSchedule.slots,
+                slots: this._timelineModel.slots,
                 appliances: this._appliances,
                 slotForecastMap: this._slotForecastMap,
                 expandedHourKeys: this._expandedHourKeys,
@@ -221,6 +248,11 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             });
             this._pruneExpandedHourKeys();
         }
+    }
+
+    updated(): void {
+        super.updated();
+        this._scheduleTimelineBoundaryTick();
     }
 
     render() {
@@ -406,7 +438,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private _handleToggleDayExpansion(event: CustomEvent<ScheduleDayToggleDetail>): void {
         event.stopPropagation();
-        const dayKeys = this._collectScheduleDayKeys();
+        const dayKeys = this._collectTimelineDayKeys();
         if (!dayKeys.includes(event.detail.dayKey)) {
             return;
         }
@@ -478,6 +510,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _resetScheduleState(): void {
         this._ownerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
         this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
+        this._timelineModel = EMPTY_SCHEDULE_TIMELINE;
         this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
         this._selectedSlotIds = [];
         this._dialogState = null;
@@ -495,6 +528,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._dayExpansionOverrides = {};
         this._expandedHourKeys = [];
         this._appliancesRequested = false;
+        this._nowMs = Date.now();
+        this._clearTimelineBoundaryTick();
     }
 
     private _syncScheduleOwner(): void {
@@ -574,10 +609,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         }
 
         const generation = ++this._forecastLoadGeneration;
-        const params = deriveScheduleForecastParams(
-            schedule.slots,
-            hass.config.time_zone ?? "UTC",
-        );
+        const params = deriveScheduleForecastParams(schedule.slots);
         if (params === null) {
             this._forecast = null;
             this._forecastLoader = null;
@@ -589,14 +621,16 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         const paramsChanged = (
             this._forecastLoader === null
             || this._forecastLoaderGranularity !== params.granularity
-            || this._forecastLoaderDays !== params.forecastDays
+            || this._forecastLoaderDays !== (params.forecastDays ?? null)
         );
         if (options.resetExistingForecast || paramsChanged) {
             this._forecast = null;
         }
-        this._forecastLoader = new ForecastLoader(params.granularity, params.forecastDays);
+        if (this._forecastLoader === null || paramsChanged) {
+            this._forecastLoader = new ForecastLoader(params.granularity, params.forecastDays ?? null);
+        }
         this._forecastLoaderGranularity = params.granularity;
-        this._forecastLoaderDays = params.forecastDays;
+        this._forecastLoaderDays = params.forecastDays ?? null;
 
         try {
             const forecast = await this._forecastLoader.load(hass);
@@ -661,10 +695,10 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         return cloneScheduleDomains(firstSlot.domains);
     }
 
-    private _collectScheduleDayKeys(): string[] {
+    private _collectTimelineDayKeys(): string[] {
         const dayKeys: string[] = [];
         const seenDayKeys = new Set<string>();
-        for (const slot of this._normalizedSchedule.slots) {
+        for (const slot of this._timelineModel.slots) {
             if (seenDayKeys.has(slot.dayKey)) {
                 continue;
             }
@@ -677,7 +711,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     }
 
     private _buildExpandedDayKeys(): string[] {
-        const dayKeys = this._collectScheduleDayKeys();
+        const dayKeys = this._collectTimelineDayKeys();
         const defaultExpandedDayKeys = this._resolveDefaultExpandedDayKeys(dayKeys);
         return dayKeys.filter((dayKey) => this._isDayExpanded(dayKey, defaultExpandedDayKeys));
     }
@@ -719,6 +753,39 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         if (nextExpandedHourKeys.length !== this._expandedHourKeys.length) {
             this._expandedHourKeys = nextExpandedHourKeys;
         }
+    }
+
+    private _scheduleTimelineBoundaryTick(): void {
+        this._clearTimelineBoundaryTick();
+        const delay = this._resolveNextTimelineBoundaryDelayMs();
+        if (delay === null || typeof window === "undefined") {
+            return;
+        }
+
+        this._timelineBoundaryTimer = window.setTimeout(() => {
+            this._nowMs = Date.now();
+        }, delay);
+    }
+
+    private _clearTimelineBoundaryTick(): void {
+        if (this._timelineBoundaryTimer === null || typeof window === "undefined") {
+            return;
+        }
+
+        window.clearTimeout(this._timelineBoundaryTimer);
+        this._timelineBoundaryTimer = null;
+    }
+
+    private _resolveNextTimelineBoundaryDelayMs(): number | null {
+        const boundaryMs = [...new Set(this._timelineModel.slots.flatMap((slot) =>
+            slot.endMs === null ? [slot.startMs] : [slot.startMs, slot.endMs]
+        ))].sort((left, right) => left - right);
+        const nextBoundaryMs = boundaryMs.find((value) => value > this._nowMs);
+        if (nextBoundaryMs === undefined) {
+            return null;
+        }
+
+        return Math.max(nextBoundaryMs - this._nowMs, 50);
     }
 
     private _normalizeDefaultExpandedDays(value: unknown): number {

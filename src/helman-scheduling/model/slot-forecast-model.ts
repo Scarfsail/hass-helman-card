@@ -7,8 +7,8 @@ import type {
     ScheduleSlotDTO,
     SolarForecastDTO,
 } from "../../helman-api";
-import type { ScheduleSlot } from "../schedule-types";
-import { getScheduleDayKey, resolveScheduleSlotBoundaries } from "./schedule-time";
+import type { ScheduleDisplaySlot } from "../schedule-types";
+import { deriveScheduleGranularityMinutes } from "./schedule-time";
 
 export interface SlotForecastPoint {
     socPct: number | null;
@@ -45,49 +45,26 @@ export const EMPTY_SLOT_FORECAST_MAP: SlotForecastMap = {
 
 export interface ScheduleForecastParams {
     granularity: ForecastGranularity;
-    forecastDays: number;
+    forecastDays?: number;
 }
 
 const FORECAST_AVAILABLE_STATUSES = new Set(["available", "partial"]);
-const VALID_GRANULARITIES = new Set<number>([15, 30, 60]);
 export function deriveScheduleForecastParams(
     slotDtos: readonly ScheduleSlotDTO[],
-    timeZone: string,
 ): ScheduleForecastParams | null {
-    let slotBoundaries: ReturnType<typeof resolveScheduleSlotBoundaries>;
-    try {
-        slotBoundaries = resolveScheduleSlotBoundaries(slotDtos.map((slot) => slot.id));
-    } catch {
+    const granularity = deriveScheduleGranularityMinutes(slotDtos.map((slot) => slot.id));
+    if (granularity === null) {
         return null;
     }
-
-    if (slotBoundaries.length < 2) {
-        return null;
-    }
-
-    const firstMs = slotBoundaries[0].startMs;
-    const secondMs = slotBoundaries[1].startMs;
-    const slotDurationMinutes = (secondMs - firstMs) / 60_000;
-    if (!VALID_GRANULARITIES.has(slotDurationMinutes)) {
-        return null;
-    }
-
-    const coveredDayKeys = new Set(
-        slotBoundaries
-            .map((slot) => getScheduleDayKey(new Date(slot.startMs), timeZone))
-            .filter((dayKey): dayKey is string => dayKey !== null),
-    );
-    const forecastDays = Math.max(1, coveredDayKeys.size);
 
     return {
-        granularity: slotDurationMinutes as ForecastGranularity,
-        forecastDays,
+        granularity,
     };
 }
 
 export function buildSlotForecastMap(
     forecast: ForecastPayload | null,
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
 ): SlotForecastMap {
     if (forecast === null || slots.length === 0) {
         return EMPTY_SLOT_FORECAST_MAP;
@@ -192,7 +169,7 @@ function _buildSolarTimeline(solar: SolarForecastDTO): Map<number, number> {
 
 function _buildGridProjection(
     grid: GridForecastDTO,
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
 ): {
     points: Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>;
     maxAbsKwh: number;
@@ -248,7 +225,7 @@ function _buildGridProjection(
 
 function _buildPriceProjection(
     grid: GridForecastDTO,
-    slots: readonly ScheduleSlot[],
+    slots: readonly ScheduleDisplaySlot[],
 ): {
     points: Map<string, Pick<SlotForecastPoint, "price">>;
     maxAbs: number;
@@ -299,7 +276,7 @@ function _buildForecastPointTimeline(points: readonly ForecastPointDTO[]): Map<n
     return timeline;
 }
 
-function _getDefaultSlotDurationMs(slots: readonly ScheduleSlot[]): number {
+function _getDefaultSlotDurationMs(slots: readonly ScheduleDisplaySlot[]): number {
     for (let index = 1; index < slots.length; index += 1) {
         const durationMs = slots[index].startMs - slots[index - 1].startMs;
         if (durationMs > 0) {

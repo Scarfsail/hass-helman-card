@@ -2,6 +2,7 @@ import type { SlotForecastPoint } from "./model/slot-forecast-model";
 import type {
     ScheduleAction,
     ScheduleApplianceAction,
+    ScheduleDisplaySlot,
     ScheduleSlot,
 } from "./schedule-types";
 
@@ -93,13 +94,15 @@ export type ScheduleTableActionItemModel =
 
 export interface ScheduleTableActionCellModel {
     items: ScheduleTableActionItemModel[];
+    interactive: boolean;
 }
 
 export interface ScheduleTableSlotRowModel {
     kind: "slot";
     rowId: string;
-    slot: ScheduleSlot;
+    slot: ScheduleDisplaySlot;
     actionCell: ScheduleTableActionCellModel;
+    interactiveSlotId: string | null;
     displayTimeLabel: ScheduleTableTimeLabel;
     rangeLabel: string;
     forecast: SlotForecastPoint | null;

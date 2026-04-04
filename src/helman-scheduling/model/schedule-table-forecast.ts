@@ -5,7 +5,7 @@ import type {
     ScheduleTableForecastMeta,
     ScheduleTableSectionModel,
 } from "../schedule-table-types";
-import type { ScheduleSlot } from "../schedule-types";
+import type { ScheduleDisplaySlot } from "../schedule-types";
 
 const ZERO_PRICE_RANGE_THRESHOLD = 0.05;
 
@@ -13,7 +13,7 @@ export function aggregateScheduleHourForecast({
     slots,
     slotForecastMap,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
 }): SlotForecastPoint | null {
     const aggregate = _aggregateScheduleForecast({ slots, slotForecastMap });
@@ -46,7 +46,7 @@ export function aggregateScheduleDayForecast({
     slots,
     slotForecastMap,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
 }): ScheduleTableDayAggregateModel | null {
     const aggregate = _aggregateScheduleForecast({ slots, slotForecastMap });
@@ -80,7 +80,7 @@ function _aggregateScheduleDayBatteryRange({
     slots,
     slotForecastMap,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
 }): { hasData: boolean; minSocPct: number | null; maxSocPct: number | null } {
     let minSocPct: number | null = null;
@@ -111,7 +111,7 @@ export function buildScheduleTableForecastMeta({
 }: {
     slotForecastMap: SlotForecastMap;
     sections: readonly ScheduleTableSectionModel[];
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     timeZone: string;
 }): ScheduleTableForecastMeta {
     const rowScale = {
@@ -201,7 +201,7 @@ function _aggregateScheduleDayPriceRange({
     slots,
     slotForecastMap,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
 }): Pick<
     ScheduleTableDayAggregateModel,
@@ -246,7 +246,7 @@ function _aggregateScheduleForecast({
     slots,
     slotForecastMap,
 }: {
-    slots: readonly ScheduleSlot[];
+    slots: readonly ScheduleDisplaySlot[];
     slotForecastMap: SlotForecastMap;
 }): {
     socPct: number | null;
