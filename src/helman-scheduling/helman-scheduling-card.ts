@@ -20,15 +20,25 @@ import {
     type ScheduleHeaderModel,
 } from "./model/schedule-header-model";
 import { getScheduleErrorLabel } from "./model/schedule-labels";
-import { normalizeSchedulePayload } from "./model/schedule-normalizer";
+import {
+    applyNormalizedScheduleCurrentState,
+    buildNormalizedScheduleStructure,
+} from "./model/schedule-normalizer";
 import { buildScheduleSlotPatches } from "./model/schedule-patch-builder";
 import { buildScheduleTableModel } from "./model/schedule-table-builder";
-import { buildScheduleTimelineModel } from "./model/schedule-timeline-builder";
 import {
-    buildSlotForecastMap,
+    applyScheduleTimelineCurrentState,
+    buildScheduleTimelineStructure,
+} from "./model/schedule-timeline-builder";
+import {
+    buildSlotForecastProjection,
     deriveScheduleForecastParams,
     EMPTY_SLOT_FORECAST_MAP,
+    EMPTY_SLOT_FORECAST_PROJECTION,
+    getSlotForecastProjectionKey,
+    materializeSlotForecastMap,
     type SlotForecastMap,
+    type SlotForecastProjection,
 } from "./model/slot-forecast-model";
 import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-owner";
 import {
@@ -117,6 +127,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _forecastLoaderGranularity: number | null = null;
     private _forecastLoaderDays: number | null = null;
     private _forecastLoadGeneration = 0;
+    private _slotForecastProjection: SlotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
+    private _slotForecastProjectionKey = "";
     private _slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
     private _pendingDialogPatches: ScheduleSlotPatch[] | null = null;
     private _selectionAnchorSlotId: string | null = null;
@@ -184,20 +196,25 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         if (!this._hass) {
             this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
             this._timelineModel = EMPTY_SCHEDULE_TIMELINE;
+            this._slotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
+            this._slotForecastProjectionKey = "";
             this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
             this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
             return;
         }
 
-        if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_hass") || changedProperties.has("_nowMs")) {
-            const previousOwnerSnapshot = changedProperties.get("_ownerSnapshot") as ScheduleOwnerSnapshot | undefined;
-            const scheduleChanged = changedProperties.has("_ownerSnapshot")
-                && previousOwnerSnapshot?.schedule !== this._ownerSnapshot.schedule;
-            this._normalizedSchedule = normalizeSchedulePayload({
+        const previousOwnerSnapshot = changedProperties.get("_ownerSnapshot") as ScheduleOwnerSnapshot | undefined;
+        const scheduleChanged = changedProperties.has("_ownerSnapshot")
+            && previousOwnerSnapshot?.schedule !== this._ownerSnapshot.schedule;
+        const forecastChanged = changedProperties.has("_forecast")
+            && changedProperties.get("_forecast") !== this._forecast;
+        const nowChanged = changedProperties.has("_nowMs");
+
+        if (scheduleChanged) {
+            this._normalizedSchedule = buildNormalizedScheduleStructure({
                 schedule: this._ownerSnapshot.schedule,
                 timeZone: this._hass.config.time_zone ?? "UTC",
                 locale: this._locale,
-                now: new Date(this._nowMs),
             });
 
             const validSlotIds = new Set(this._normalizedSchedule.slots.map((slot) => slot.id));
@@ -215,31 +232,47 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             }
         }
 
-        if (
-            changedProperties.has("_ownerSnapshot")
-            || changedProperties.has("_forecast")
-            || changedProperties.has("_hass")
-            || changedProperties.has("_nowMs")
-        ) {
-            this._timelineModel = buildScheduleTimelineModel({
+        if (scheduleChanged || nowChanged) {
+            this._normalizedSchedule = applyNormalizedScheduleCurrentState(
+                this._normalizedSchedule,
+                this._hass.config.time_zone ?? "UTC",
+                new Date(this._nowMs),
+            );
+        }
+
+        let slotTopologyChanged = false;
+        if (scheduleChanged || forecastChanged) {
+            this._timelineModel = buildScheduleTimelineStructure({
                 normalizedSchedule: this._normalizedSchedule,
                 forecast: this._forecast,
                 locale: this._locale,
                 timeZone: this._hass.config.time_zone ?? "UTC",
-                now: new Date(this._nowMs),
             });
-            this._slotForecastMap = buildSlotForecastMap(this._forecast, this._timelineModel.slots);
+            const nextProjectionKey = getSlotForecastProjectionKey(this._timelineModel.slots);
+            slotTopologyChanged = nextProjectionKey !== this._slotForecastProjectionKey;
+            this._slotForecastProjectionKey = nextProjectionKey;
+        }
+
+        if (scheduleChanged || forecastChanged || nowChanged) {
+            this._timelineModel = applyScheduleTimelineCurrentState(
+                this._timelineModel,
+                new Date(this._nowMs),
+            );
+        }
+
+        if (scheduleChanged || forecastChanged) {
             this._pruneDayExpansionOverrides(this._collectTimelineDayKeys());
         }
 
-        if (
-            changedProperties.has("_ownerSnapshot")
-            || changedProperties.has("_forecast")
-            || changedProperties.has("_hass")
-            || changedProperties.has("_appliances")
-            || changedProperties.has("_expandedHourKeys")
-            || changedProperties.has("_nowMs")
-        ) {
+        if (forecastChanged || slotTopologyChanged) {
+            this._slotForecastProjection = buildSlotForecastProjection(this._forecast, this._timelineModel.slots);
+        }
+
+        if (forecastChanged || slotTopologyChanged || nowChanged) {
+            this._slotForecastMap = materializeSlotForecastMap(this._slotForecastProjection, this._timelineModel.slots);
+        }
+
+        if (scheduleChanged || forecastChanged || changedProperties.has("_appliances") || changedProperties.has("_expandedHourKeys") || nowChanged) {
             this._tableModel = buildScheduleTableModel({
                 slots: this._timelineModel.slots,
                 appliances: this._appliances,
@@ -521,6 +554,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._forecastLoaderGranularity = null;
         this._forecastLoaderDays = null;
         this._forecastLoadGeneration = 0;
+        this._slotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
+        this._slotForecastProjectionKey = "";
         this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
         this._pendingDialogPatches = null;
         this._selectionAnchorSlotId = null;

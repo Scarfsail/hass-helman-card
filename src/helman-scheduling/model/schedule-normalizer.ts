@@ -35,6 +35,26 @@ export function normalizeSchedulePayload({
     locale: string;
     now?: Date;
 }): NormalizedScheduleModel {
+    return applyNormalizedScheduleCurrentState(
+        buildNormalizedScheduleStructure({
+            schedule,
+            timeZone,
+            locale,
+        }),
+        timeZone,
+        now,
+    );
+}
+
+export function buildNormalizedScheduleStructure({
+    schedule,
+    timeZone,
+    locale,
+}: {
+    schedule: SchedulePayload | null;
+    timeZone: string;
+    locale: string;
+}): NormalizedScheduleModel {
     if (schedule === null) {
         return {
             slots: [],
@@ -44,7 +64,6 @@ export function normalizeSchedulePayload({
         };
     }
 
-    const nowMs = now.getTime();
     const granularityMinutes = deriveScheduleGranularityMinutes(schedule.slots.map((slot) => slot.id));
     const slotDurationMs = granularityMinutes !== null ? granularityMinutes * 60_000 : null;
     const slotBoundaries = resolveScheduleSlotBoundaries(schedule.slots.map((slot) => slot.id));
@@ -81,31 +100,63 @@ export function normalizeSchedulePayload({
         .map((slot, index) => ({
             ...slot,
             index,
+            isCurrent: false,
         }));
 
-    const resolvedCurrentSlotId = normalizedSlots.find((slot) =>
+    return {
+        slots: normalizedSlots.map((slot) => ({
+            ...slot,
+            runtime: slot.id === runtimeSlotId && normalizedRuntime !== null
+                ? cloneScheduleRuntime(normalizedRuntime.runtime)
+                : null,
+        })),
+        currentSlotId: runtimeSlotId,
+        currentDayKey: null,
+        granularityMinutes,
+    };
+}
+
+export function applyNormalizedScheduleCurrentState(
+    model: NormalizedScheduleModel,
+    timeZone: string,
+    now: Date = new Date(),
+): NormalizedScheduleModel {
+    if (model.slots.length === 0) {
+        return model.currentSlotId === null && model.currentDayKey === null
+            ? model
+            : {
+                ...model,
+                currentSlotId: null,
+                currentDayKey: null,
+            };
+    }
+
+    const nowMs = now.getTime();
+    const runtimeSlotId = model.slots.find((slot) => slot.runtime !== null)?.id ?? null;
+    const currentSlotId = model.slots.find((slot) =>
         slot.startMs <= nowMs && (slot.endMs === null || nowMs < slot.endMs)
     )?.id
         ?? runtimeSlotId
         ?? null;
+    const currentDayKey = getScheduleDayKey(now, timeZone);
 
-    const slots = normalizedSlots.map((slot) => ({
-        ...slot,
-        runtime: slot.id === runtimeSlotId && normalizedRuntime !== null
-            ? cloneScheduleRuntime(normalizedRuntime.runtime)
-            : null,
-        isCurrent: slot.id === resolvedCurrentSlotId,
-    }));
-
-    const currentSlot = resolvedCurrentSlotId !== null
-        ? slots.find((slot) => slot.id === resolvedCurrentSlotId) ?? null
-        : null;
+    if (model.currentSlotId === currentSlotId && model.currentDayKey === currentDayKey) {
+        return model;
+    }
 
     return {
-        slots,
-        currentSlotId: currentSlot?.id ?? null,
-        currentDayKey: getScheduleDayKey(now, timeZone),
-        granularityMinutes,
+        ...model,
+        slots: model.slots.map((slot) => {
+            const isCurrent = slot.id === currentSlotId;
+            return slot.isCurrent === isCurrent
+                ? slot
+                : {
+                    ...slot,
+                    isCurrent,
+                };
+        }),
+        currentSlotId,
+        currentDayKey,
     };
 }
 

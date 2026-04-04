@@ -19,6 +19,28 @@ export function buildScheduleTimelineModel({
     timeZone: string;
     now?: Date;
 }): ScheduleTimelineModel {
+    return applyScheduleTimelineCurrentState(
+        buildScheduleTimelineStructure({
+            normalizedSchedule,
+            forecast,
+            locale,
+            timeZone,
+        }),
+        now,
+    );
+}
+
+export function buildScheduleTimelineStructure({
+    normalizedSchedule,
+    forecast,
+    locale,
+    timeZone,
+}: {
+    normalizedSchedule: NormalizedScheduleModel;
+    forecast: ForecastPayload | null;
+    locale: string;
+    timeZone: string;
+}): ScheduleTimelineModel {
     const scheduleSlots = normalizedSchedule.slots;
     if (scheduleSlots.length === 0) {
         return {
@@ -35,15 +57,15 @@ export function buildScheduleTimelineModel({
             startMs: slot.startMs,
             endMs: slot.endMs,
             dayKey: slot.dayKey,
-            timeLabel: slot.timeLabel,
-            endLabel: slot.endLabel,
-            rangeLabel: slot.rangeLabel,
-            isCurrent: slot.isCurrent,
-            scheduleSlot: slot,
-        }));
+                timeLabel: slot.timeLabel,
+                endLabel: slot.endLabel,
+                rangeLabel: slot.rangeLabel,
+                isCurrent: false,
+                scheduleSlot: slot,
+            }));
         return {
             slots,
-            currentSlotId: slots.find((slot) => slot.isCurrent)?.id ?? null,
+            currentSlotId: null,
         };
     }
 
@@ -56,7 +78,6 @@ export function buildScheduleTimelineModel({
     );
     const forecastEndMs = _resolveForecastTimelineEndMs(forecast, slotDurationMs);
     const timelineEndMs = Math.max(lastScheduleEndMs, forecastEndMs ?? lastScheduleEndMs);
-    const nowMs = now.getTime();
 
     const slots: ScheduleDisplaySlot[] = [];
     for (let startMs = firstStartMs; startMs < timelineEndMs; startMs += slotDurationMs) {
@@ -72,7 +93,7 @@ export function buildScheduleTimelineModel({
                 timeLabel: scheduleSlot.timeLabel,
                 endLabel: scheduleSlot.endLabel,
                 rangeLabel: scheduleSlot.rangeLabel,
-                isCurrent: scheduleSlot.isCurrent,
+                isCurrent: false,
                 scheduleSlot,
             });
             continue;
@@ -98,14 +119,48 @@ export function buildScheduleTimelineModel({
             timeLabel: labels.timeLabel,
             endLabel: labels.endLabel,
             rangeLabel: labels.rangeLabel,
-            isCurrent: _isCurrentSlot(startMs, endMs, nowMs),
+            isCurrent: false,
             scheduleSlot: null,
         });
     }
 
     return {
         slots,
-        currentSlotId: slots.find((slot) => slot.isCurrent)?.id ?? null,
+        currentSlotId: null,
+    };
+}
+
+export function applyScheduleTimelineCurrentState(
+    model: ScheduleTimelineModel,
+    now: Date = new Date(),
+): ScheduleTimelineModel {
+    if (model.slots.length === 0) {
+        return model.currentSlotId === null
+            ? model
+            : {
+                ...model,
+                currentSlotId: null,
+            };
+    }
+
+    const nowMs = now.getTime();
+    const currentSlotId = model.slots.find((slot) => _isCurrentSlot(slot.startMs, slot.endMs, nowMs))?.id ?? null;
+    if (model.currentSlotId === currentSlotId) {
+        return model;
+    }
+
+    return {
+        ...model,
+        slots: model.slots.map((slot) => {
+            const isCurrent = slot.id === currentSlotId;
+            return slot.isCurrent === isCurrent
+                ? slot
+                : {
+                    ...slot,
+                    isCurrent,
+                };
+        }),
+        currentSlotId,
     };
 }
 
@@ -121,7 +176,6 @@ function _resolveForecastTimelineEndMs(
         _parseTimestamp(forecast.grid.coverageUntil),
         _parseTimestamp(forecast.battery_capacity.coverageUntil),
         ...forecast.solar.points.map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
-        ...forecast.grid.importPricePoints.map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
         ...forecast.grid.exportPricePoints.map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
         ...forecast.grid.series.map((point) => _parseTimestamp(point.timestamp, point.durationHours * 3_600_000)),
         ...forecast.battery_capacity.series.map((point) => _parseTimestamp(point.timestamp, point.durationHours * 3_600_000)),

@@ -31,6 +31,20 @@ export interface SlotForecastMap {
     priceDisplayUnit: string | null;
 }
 
+export interface SlotForecastProjection {
+    points: ReadonlyMap<string, SlotForecastPoint>;
+    solarMaxWh: number;
+    gridMaxAbsKwh: number;
+    priceMaxAbs: number;
+    batteryAvailable: boolean;
+    solarAvailable: boolean;
+    gridAvailable: boolean;
+    priceAvailable: boolean;
+    priceDisplayUnit: string | null;
+    currentBatterySoc: number | null;
+    currentPrice: number | null;
+}
+
 export const EMPTY_SLOT_FORECAST_MAP: SlotForecastMap = {
     points: new Map(),
     solarMaxWh: 0,
@@ -41,6 +55,20 @@ export const EMPTY_SLOT_FORECAST_MAP: SlotForecastMap = {
     gridAvailable: false,
     priceAvailable: false,
     priceDisplayUnit: null,
+};
+
+export const EMPTY_SLOT_FORECAST_PROJECTION: SlotForecastProjection = {
+    points: new Map(),
+    solarMaxWh: 0,
+    gridMaxAbsKwh: 0,
+    priceMaxAbs: 0,
+    batteryAvailable: false,
+    solarAvailable: false,
+    gridAvailable: false,
+    priceAvailable: false,
+    priceDisplayUnit: null,
+    currentBatterySoc: null,
+    currentPrice: null,
 };
 
 export interface ScheduleForecastParams {
@@ -66,8 +94,15 @@ export function buildSlotForecastMap(
     forecast: ForecastPayload | null,
     slots: readonly ScheduleDisplaySlot[],
 ): SlotForecastMap {
+    return materializeSlotForecastMap(buildSlotForecastProjection(forecast, slots), slots);
+}
+
+export function buildSlotForecastProjection(
+    forecast: ForecastPayload | null,
+    slots: readonly ScheduleDisplaySlot[],
+): SlotForecastProjection {
     if (forecast === null || slots.length === 0) {
-        return EMPTY_SLOT_FORECAST_MAP;
+        return EMPTY_SLOT_FORECAST_PROJECTION;
     }
 
     const batteryAvailable = FORECAST_AVAILABLE_STATUSES.has(forecast.battery_capacity.status);
@@ -81,21 +116,17 @@ export function buildSlotForecastMap(
         : new Map<number, number>();
     const priceProjection = _buildPriceProjection(forecast.grid, slots);
     if (!batteryAvailable && !solarAvailable && !gridAvailable && !priceProjection.available) {
-        return EMPTY_SLOT_FORECAST_MAP;
+        return EMPTY_SLOT_FORECAST_PROJECTION;
     }
     const gridProjection = gridAvailable
         ? _buildGridProjection(forecast.grid, slots)
         : { points: new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>(), maxAbsKwh: 0 };
-    const currentBatterySoc = batteryAvailable
-        ? forecast.battery_capacity.currentSoc
-        : null;
 
     let solarMaxWh = 0;
     const points = new Map<string, SlotForecastPoint>();
 
     for (const slot of slots) {
-        const socPct = batteryByMs.get(slot.startMs)
-            ?? (slot.isCurrent ? currentBatterySoc ?? null : null);
+        const socPct = batteryByMs.get(slot.startMs) ?? null;
         const solarWh = solarByMs.get(slot.startMs) ?? null;
         const gridPoint = gridProjection.points.get(slot.id);
         const pricePoint = priceProjection.points.get(slot.id);
@@ -124,7 +155,52 @@ export function buildSlotForecastMap(
         gridAvailable,
         priceAvailable: priceProjection.available,
         priceDisplayUnit: priceProjection.displayUnit,
+        currentBatterySoc: batteryAvailable ? forecast.battery_capacity.currentSoc : null,
+        currentPrice: forecast.grid.currentExportPrice ?? null,
     };
+}
+
+export function materializeSlotForecastMap(
+    projection: SlotForecastProjection,
+    slots: readonly ScheduleDisplaySlot[],
+): SlotForecastMap {
+    if (projection === EMPTY_SLOT_FORECAST_PROJECTION || slots.length === 0) {
+        return EMPTY_SLOT_FORECAST_MAP;
+    }
+
+    const points = new Map<string, SlotForecastPoint>();
+    for (const slot of slots) {
+        const point = projection.points.get(slot.id);
+        const socPct = point?.socPct
+            ?? (slot.isCurrent ? projection.currentBatterySoc ?? null : null);
+        const price = point?.price
+            ?? (slot.isCurrent ? projection.currentPrice ?? null : null);
+
+        points.set(slot.id, {
+            socPct,
+            solarWh: point?.solarWh ?? null,
+            gridNetKwh: point?.gridNetKwh ?? null,
+            gridImportKwh: point?.gridImportKwh ?? null,
+            gridExportKwh: point?.gridExportKwh ?? null,
+            price,
+        });
+    }
+
+    return {
+        points,
+        solarMaxWh: projection.solarMaxWh,
+        gridMaxAbsKwh: projection.gridMaxAbsKwh,
+        priceMaxAbs: projection.priceMaxAbs,
+        batteryAvailable: projection.batteryAvailable,
+        solarAvailable: projection.solarAvailable,
+        gridAvailable: projection.gridAvailable,
+        priceAvailable: projection.priceAvailable,
+        priceDisplayUnit: projection.priceDisplayUnit,
+    };
+}
+
+export function getSlotForecastProjectionKey(slots: readonly ScheduleDisplaySlot[]): string {
+    return slots.map((slot) => `${slot.id}:${slot.startMs}:${slot.endMs ?? ""}`).join("|");
 }
 
 function _buildBatteryTimeline(battery: BatteryCapacityForecastDTO): Map<number, number> {
@@ -241,8 +317,7 @@ function _buildPriceProjection(
     );
 
     for (const slot of slots) {
-        const price = exportPriceByMs.get(slot.startMs)
-            ?? (slot.isCurrent ? grid.currentExportPrice ?? null : null);
+        const price = exportPriceByMs.get(slot.startMs) ?? null;
 
         if (price === null) {
             continue;
