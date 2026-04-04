@@ -185,7 +185,9 @@
       "select_interval": "Vybrat celý interval",
       "select_slot": "Vybrat slot",
       "select_hour": "Vybrat celou hodinu",
+      "expand_day": "Rozbalit den",
       "expand_hour": "Rozbalit hodinu",
+      "collapse_day": "Sbalit den",
       "collapse_hour": "Sbalit hodinu",
       "edit_hour": "Upravit hodinu",
       "edit_selected": "Upravit vybrané"

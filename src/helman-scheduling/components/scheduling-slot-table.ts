@@ -14,6 +14,7 @@ import {
 import type { SlotForecastPoint } from "../model/slot-forecast-model";
 import {
     EMPTY_SCHEDULE_TABLE_MODEL,
+    type ScheduleDayToggleDetail,
     type ScheduleTableDayAggregateModel,
     type ScheduleHourToggleDetail,
     type ScheduleTableActionCellModel,
@@ -182,6 +183,49 @@ export class SchedulingSlotTable extends LitElement {
                 text-transform: uppercase;
                 text-align: left;
                 white-space: nowrap;
+            }
+
+            .day-toggle-button {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-width: 0;
+                max-width: 100%;
+                color: inherit;
+                font: inherit;
+                letter-spacing: inherit;
+                text-transform: inherit;
+                transition: color 120ms ease;
+            }
+
+            .day-toggle-button:hover {
+                color: var(--primary-color);
+            }
+
+            .day-toggle-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 var(--schedule-table-disclosure-width);
+                width: var(--schedule-table-disclosure-width);
+                height: var(--schedule-table-disclosure-width);
+                border-radius: 999px;
+                color: var(--secondary-text-color);
+                font-size: 0.82rem;
+                font-weight: 700;
+                line-height: 1;
+                transition: background-color 120ms ease, color 120ms ease;
+            }
+
+            .day-toggle-button:hover .day-toggle-icon {
+                background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+                color: var(--primary-color);
+            }
+
+            .day-toggle-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             .day-spacer-cell {
@@ -968,8 +1012,10 @@ export class SchedulingSlotTable extends LitElement {
     ];
 
     private _selectedSet: ReadonlySet<string> = new Set();
+    private _expandedDaySet: ReadonlySet<string> = new Set();
 
     @property({ attribute: false }) public tableModel: ScheduleTableModel = EMPTY_SCHEDULE_TABLE_MODEL;
+    @property({ attribute: false }) public expandedDayKeys: readonly string[] = [];
     @property({ attribute: false }) public appliances: ScheduleApplianceMetadata[] = [];
     @property({ attribute: false }) public selectedSlotIds: string[] = [];
     @property({ attribute: false }) public localize!: LocalizeFunction;
@@ -978,6 +1024,9 @@ export class SchedulingSlotTable extends LitElement {
 
     protected willUpdate(changedProperties: PropertyValues<this>): void {
         super.willUpdate(changedProperties);
+        if (changedProperties.has("expandedDayKeys")) {
+            this._expandedDaySet = new Set(this.expandedDayKeys);
+        }
         if (changedProperties.has("selectedSlotIds")) {
             this._selectedSet = new Set(this.selectedSlotIds);
         }
@@ -1046,11 +1095,21 @@ export class SchedulingSlotTable extends LitElement {
 
     private _renderSection(section: ScheduleTableSectionModel) {
         const headerId = this._buildDayHeaderId(section.dayKey);
+        const expanded = this._expandedDaySet.has(section.dayKey);
         return html`
             <tbody aria-labelledby=${headerId}>
                 <tr class="day-row">
-                    <th id=${headerId} scope="row" class="day-label-cell">
-                        ${section.dayLabel}
+                    <th id=${headerId} scope="rowgroup" class="day-label-cell">
+                        <button
+                            class="button-reset day-toggle-button"
+                            type="button"
+                            aria-expanded=${expanded ? "true" : "false"}
+                            aria-label=${this._buildDayToggleAriaLabel(section, expanded)}
+                            @click=${(event: MouseEvent) => this._handleDayExpansionClick(section.dayKey, event)}
+                        >
+                            <span class="day-toggle-icon" aria-hidden="true">${expanded ? "−" : "+"}</span>
+                            <span class="day-toggle-label">${section.dayLabel}</span>
+                        </button>
                     </th>
                     <td class="day-spacer-cell action" aria-hidden="true"></td>
                     <td class="day-aggregate-cell soc">
@@ -1066,7 +1125,7 @@ export class SchedulingSlotTable extends LitElement {
                         ${this._renderDayPriceAggregate(section.dayAggregate)}
                     </td>
                 </tr>
-                ${section.rows.map((row) => this._renderTableRow(row))}
+                ${expanded ? section.rows.map((row) => this._renderTableRow(row)) : nothing}
             </tbody>
         `;
     }
@@ -1754,6 +1813,12 @@ export class SchedulingSlotTable extends LitElement {
         )} ${row.rangeLabel}`;
     }
 
+    private _buildDayToggleAriaLabel(section: ScheduleTableSectionModel, expanded: boolean): string {
+        return `${this.localize(
+            expanded ? "scheduling.actions.collapse_day" : "scheduling.actions.expand_day",
+        )} ${section.dayLabel}`;
+    }
+
     private _buildDayHeaderId(dayKey: string): string {
         return `schedule-day-${dayKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
     }
@@ -1795,6 +1860,15 @@ export class SchedulingSlotTable extends LitElement {
             bubbles: true,
             composed: true,
             detail: { hourKey } satisfies ScheduleHourToggleDetail,
+        }));
+    }
+
+    private _handleDayExpansionClick(dayKey: string, event: MouseEvent): void {
+        event.stopPropagation();
+        this.dispatchEvent(new CustomEvent("toggle-schedule-day-expansion", {
+            bubbles: true,
+            composed: true,
+            detail: { dayKey } satisfies ScheduleDayToggleDetail,
         }));
     }
 }

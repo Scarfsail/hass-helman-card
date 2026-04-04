@@ -247,12 +247,14 @@ This card depends on the Helman backend scheduling API being configured and avai
 type: custom:helman-scheduling-card
 title: Bateriový rozvrh
 transparent_background: false
+default_expanded_days: 1
 ```
 
 Options:
 
 - `title`: optional custom card title.
 - `transparent_background`: removes card background and shadow.
+- `default_expanded_days`: how many day sections start expanded by default. Use `0` for fully collapsed; values above the available day count expand all days.
 
 
 ## Examples

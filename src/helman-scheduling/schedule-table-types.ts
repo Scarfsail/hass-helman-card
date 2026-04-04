@@ -167,6 +167,10 @@ export const EMPTY_SCHEDULE_TABLE_MODEL: ScheduleTableModel = {
     forecast: EMPTY_SCHEDULE_TABLE_FORECAST_META,
 };
 
+export interface ScheduleDayToggleDetail {
+    dayKey: string;
+}
+
 export interface ScheduleHourToggleDetail {
     hourKey: string;
 }

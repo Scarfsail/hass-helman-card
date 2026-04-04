@@ -28,6 +28,7 @@ import {
 import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-owner";
 import {
     EMPTY_SCHEDULE_TABLE_MODEL,
+    type ScheduleDayToggleDetail,
     type ScheduleHourToggleDetail,
     type ScheduleTableModel,
 } from "./schedule-table-types";
@@ -115,6 +116,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _selectedSlotIds: string[] = [];
     @state() private _dialogState: ScheduleDialogState | null = null;
     @state() private _dialogOpen = false;
+    @state() private _dayExpansionOverrides: Record<string, boolean> = {};
     @state() private _expandedHourKeys: string[] = [];
 
     public set hass(value: HomeAssistant) {
@@ -143,7 +145,9 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     setConfig(config: HelmanSchedulingCardConfig) {
         this._config = {
             transparent_background: false,
+            default_expanded_days: 1,
             ...config,
+            default_expanded_days: this._normalizeDefaultExpandedDays(config.default_expanded_days),
         };
     }
 
@@ -190,6 +194,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 this._dialogOpen = false;
                 this._pendingDialogPatches = null;
             }
+            this._pruneDayExpansionOverrides(this._collectScheduleDayKeys());
         }
 
         if (changedProperties.has("_ownerSnapshot") || changedProperties.has("_forecast") || changedProperties.has("_hass")) {
@@ -229,6 +234,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 @refresh-schedule=${this._handleRefresh}
                 @toggle-schedule-execution=${this._handleToggleExecution}
                 @toggle-schedule-slot-selection=${this._handleToggleSlotSelection}
+                @toggle-schedule-day-expansion=${this._handleToggleDayExpansion}
                 @toggle-schedule-hour-expansion=${this._handleToggleHourExpansion}
                 @open-schedule-dialog=${this._handleOpenDialog}
             >
@@ -253,6 +259,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                         : html`
                             <scheduling-slot-table
                                 .tableModel=${this._tableModel}
+                                .expandedDayKeys=${this._buildExpandedDayKeys()}
                                 .appliances=${this._appliances}
                                 .selectedSlotIds=${this._selectedSlotIds}
                                 .localize=${this._localize}
@@ -397,6 +404,21 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             : [...this._expandedHourKeys, hourKey];
     }
 
+    private _handleToggleDayExpansion(event: CustomEvent<ScheduleDayToggleDetail>): void {
+        event.stopPropagation();
+        const dayKeys = this._collectScheduleDayKeys();
+        if (!dayKeys.includes(event.detail.dayKey)) {
+            return;
+        }
+
+        const defaultExpandedDayKeys = this._resolveDefaultExpandedDayKeys(dayKeys);
+        const isExpanded = this._isDayExpanded(event.detail.dayKey, defaultExpandedDayKeys);
+        this._dayExpansionOverrides = {
+            ...this._dayExpansionOverrides,
+            [event.detail.dayKey]: !isExpanded,
+        };
+    }
+
     private _handleOpenDialog(event: CustomEvent<ScheduleDialogOpenDetail>): void {
         event.stopPropagation();
 
@@ -470,6 +492,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
         this._pendingDialogPatches = null;
         this._selectionAnchorSlotId = null;
+        this._dayExpansionOverrides = {};
         this._expandedHourKeys = [];
         this._appliancesRequested = false;
     }
@@ -638,6 +661,50 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         return cloneScheduleDomains(firstSlot.domains);
     }
 
+    private _collectScheduleDayKeys(): string[] {
+        const dayKeys: string[] = [];
+        const seenDayKeys = new Set<string>();
+        for (const slot of this._normalizedSchedule.slots) {
+            if (seenDayKeys.has(slot.dayKey)) {
+                continue;
+            }
+
+            seenDayKeys.add(slot.dayKey);
+            dayKeys.push(slot.dayKey);
+        }
+
+        return dayKeys;
+    }
+
+    private _buildExpandedDayKeys(): string[] {
+        const dayKeys = this._collectScheduleDayKeys();
+        const defaultExpandedDayKeys = this._resolveDefaultExpandedDayKeys(dayKeys);
+        return dayKeys.filter((dayKey) => this._isDayExpanded(dayKey, defaultExpandedDayKeys));
+    }
+
+    private _resolveDefaultExpandedDayKeys(dayKeys: readonly string[]): ReadonlySet<string> {
+        const expandedDayCount = Math.min(this._config.default_expanded_days ?? 1, dayKeys.length);
+        return new Set(dayKeys.slice(0, expandedDayCount));
+    }
+
+    private _isDayExpanded(dayKey: string, defaultExpandedDayKeys: ReadonlySet<string>): boolean {
+        return this._dayExpansionOverrides[dayKey] ?? defaultExpandedDayKeys.has(dayKey);
+    }
+
+    private _pruneDayExpansionOverrides(dayKeys: readonly string[]): void {
+        if (Object.keys(this._dayExpansionOverrides).length === 0) {
+            return;
+        }
+
+        const validDayKeys = new Set(dayKeys);
+        const nextOverrides = Object.fromEntries(
+            Object.entries(this._dayExpansionOverrides).filter(([dayKey]) => validDayKeys.has(dayKey)),
+        );
+        if (Object.keys(nextOverrides).length !== Object.keys(this._dayExpansionOverrides).length) {
+            this._dayExpansionOverrides = nextOverrides;
+        }
+    }
+
     private _pruneExpandedHourKeys(): void {
         if (this._expandedHourKeys.length === 0) {
             return;
@@ -652,6 +719,14 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         if (nextExpandedHourKeys.length !== this._expandedHourKeys.length) {
             this._expandedHourKeys = nextExpandedHourKeys;
         }
+    }
+
+    private _normalizeDefaultExpandedDays(value: unknown): number {
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+            return 1;
+        }
+
+        return Math.max(0, Math.floor(value));
     }
 
     private get _localize(): LocalizeFunction {
