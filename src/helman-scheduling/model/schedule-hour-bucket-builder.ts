@@ -1,4 +1,4 @@
-import type { SlotForecastMap } from "./slot-forecast-model";
+import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import { getScheduleApplianceById } from "./schedule-appliance-metadata";
 import { aggregateScheduleHourForecast } from "./schedule-table-forecast";
@@ -112,6 +112,26 @@ export function buildScheduleTableRows({
     }
 
     return _disambiguateRepeatedHourRows(rows);
+}
+
+export function collectScheduleHourForecasts({
+    slots,
+    slotForecastMap,
+    timeZone,
+}: {
+    slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+    timeZone: string;
+}): SlotForecastPoint[] {
+    return _buildHourBuckets(slots, timeZone)
+        .filter((bucket) => _isCollapsibleHourBucket(bucket, timeZone))
+        .flatMap((bucket) => {
+            const point = aggregateScheduleHourForecast({
+                slots: bucket.slots,
+                slotForecastMap,
+            });
+            return point ? [point] : [];
+        });
 }
 
 function _buildHourBuckets(

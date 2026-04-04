@@ -19,8 +19,19 @@ export interface ScheduleTableForecastMeta {
     gridAvailable: boolean;
     priceAvailable: boolean;
     priceDisplayUnit: string | null;
+    rowScale: ScheduleTableForecastRowScale;
+    dayAggregateScale: ScheduleTableDayAggregateScale;
+}
+
+export interface ScheduleTableForecastRowScale {
     solarMaxWh: number;
     gridMaxAbsKwh: number;
+    priceMaxAbs: number;
+}
+
+export interface ScheduleTableDayAggregateScale {
+    solarMaxWh: number;
+    gridMaxKwh: number;
     priceMaxAbs: number;
 }
 
@@ -30,9 +41,16 @@ export const EMPTY_SCHEDULE_TABLE_FORECAST_META: ScheduleTableForecastMeta = {
     gridAvailable: false,
     priceAvailable: false,
     priceDisplayUnit: null,
-    solarMaxWh: 0,
-    gridMaxAbsKwh: 0,
-    priceMaxAbs: 0,
+    rowScale: {
+        solarMaxWh: 0,
+        gridMaxAbsKwh: 0,
+        priceMaxAbs: 0,
+    },
+    dayAggregateScale: {
+        solarMaxWh: 0,
+        gridMaxKwh: 0,
+        priceMaxAbs: 0,
+    },
 };
 
 export type ScheduleTableColumnKey =
@@ -112,6 +130,19 @@ export interface ScheduleTableDetailRowModel {
     variant: "raw" | "hour" | "hour-child";
 }
 
+export interface ScheduleTableDayAggregateModel {
+    batteryMinSocPct: number | null;
+    batteryMaxSocPct: number | null;
+    solarWh: number | null;
+    gridImportKwh: number | null;
+    gridExportKwh: number | null;
+    priceHasData: boolean;
+    pricePositiveMin: number | null;
+    pricePositiveMax: number | null;
+    priceNegativeMin: number | null;
+    priceNegativeMax: number | null;
+}
+
 export type ScheduleTableRowModel =
     | ScheduleTableSlotRowModel
     | ScheduleTableHourRowModel
@@ -120,6 +151,7 @@ export type ScheduleTableRowModel =
 export interface ScheduleTableSectionModel {
     dayKey: string;
     dayLabel: string;
+    dayAggregate: ScheduleTableDayAggregateModel | null;
     rows: ScheduleTableRowModel[];
 }
 

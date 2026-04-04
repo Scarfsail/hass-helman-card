@@ -1,7 +1,7 @@
 import type { SlotForecastMap } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
-import { buildScheduleTableForecastMeta } from "./schedule-table-forecast";
+import { aggregateScheduleDayForecast, buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
 import {
     SCHEDULE_TABLE_COLUMNS,
@@ -61,6 +61,10 @@ export function buildScheduleTableModel({
     const sections: ScheduleTableSectionModel[] = daySections.map((section) => ({
         dayKey: section.dayKey,
         dayLabel: section.dayLabel,
+        dayAggregate: aggregateScheduleDayForecast({
+            slots: section.slots,
+            slotForecastMap,
+        }),
         rows: buildScheduleTableRows({
             slots: section.slots,
             appliances,
@@ -77,6 +81,8 @@ export function buildScheduleTableModel({
         forecast: buildScheduleTableForecastMeta({
             slotForecastMap,
             sections,
+            slots,
+            timeZone,
         }),
     };
 }

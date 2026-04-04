@@ -1,6 +1,13 @@
 import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
-import type { ScheduleTableForecastMeta, ScheduleTableSectionModel } from "../schedule-table-types";
+import { collectScheduleHourForecasts } from "./schedule-hour-bucket-builder";
+import type {
+    ScheduleTableDayAggregateModel,
+    ScheduleTableForecastMeta,
+    ScheduleTableSectionModel,
+} from "../schedule-table-types";
 import type { ScheduleSlot } from "../schedule-types";
+
+const ZERO_PRICE_RANGE_THRESHOLD = 0.05;
 
 export function aggregateScheduleHourForecast({
     slots,
@@ -9,6 +16,245 @@ export function aggregateScheduleHourForecast({
     slots: readonly ScheduleSlot[];
     slotForecastMap: SlotForecastMap;
 }): SlotForecastPoint | null {
+    const aggregate = _aggregateScheduleForecast({ slots, slotForecastMap });
+    if (aggregate === null) {
+        return null;
+    }
+
+    const forecastPoint: SlotForecastPoint = {
+        socPct: aggregate.socPct,
+        solarWh: aggregate.solarWh,
+        gridNetKwh: aggregate.gridImportKwh !== null && aggregate.gridExportKwh !== null
+            ? aggregate.gridExportKwh - aggregate.gridImportKwh
+            : null,
+        gridImportKwh: aggregate.gridImportKwh,
+        gridExportKwh: aggregate.gridExportKwh,
+        price: aggregate.price,
+    };
+
+    return forecastPoint.socPct === null
+        && forecastPoint.solarWh === null
+        && forecastPoint.gridNetKwh === null
+        && forecastPoint.gridImportKwh === null
+        && forecastPoint.gridExportKwh === null
+        && forecastPoint.price === null
+        ? null
+        : forecastPoint;
+}
+
+export function aggregateScheduleDayForecast({
+    slots,
+    slotForecastMap,
+}: {
+    slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+}): ScheduleTableDayAggregateModel | null {
+    const aggregate = _aggregateScheduleForecast({ slots, slotForecastMap });
+    const batteryRange = _aggregateScheduleDayBatteryRange({ slots, slotForecastMap });
+    const priceRange = _aggregateScheduleDayPriceRange({ slots, slotForecastMap });
+    if (aggregate === null && batteryRange.hasData === false && priceRange.priceHasData === false) {
+        return null;
+    }
+
+    return batteryRange.hasData === false
+        && (aggregate?.solarWh ?? null) === null
+        && (aggregate?.gridImportKwh ?? null) === null
+        && (aggregate?.gridExportKwh ?? null) === null
+        && priceRange.priceHasData === false
+        ? null
+        : {
+            batteryMinSocPct: batteryRange.minSocPct,
+            batteryMaxSocPct: batteryRange.maxSocPct,
+            solarWh: aggregate?.solarWh ?? null,
+            gridImportKwh: aggregate?.gridImportKwh ?? null,
+            gridExportKwh: aggregate?.gridExportKwh ?? null,
+            priceHasData: priceRange.priceHasData,
+            pricePositiveMin: priceRange.pricePositiveMin,
+            pricePositiveMax: priceRange.pricePositiveMax,
+            priceNegativeMin: priceRange.priceNegativeMin,
+            priceNegativeMax: priceRange.priceNegativeMax,
+        };
+}
+
+function _aggregateScheduleDayBatteryRange({
+    slots,
+    slotForecastMap,
+}: {
+    slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+}): { hasData: boolean; minSocPct: number | null; maxSocPct: number | null } {
+    let minSocPct: number | null = null;
+    let maxSocPct: number | null = null;
+
+    for (const slot of slots) {
+        const socPct = slotForecastMap.points.get(slot.id)?.socPct;
+        if (socPct === null || socPct === undefined) {
+            continue;
+        }
+
+        minSocPct = minSocPct === null ? socPct : Math.min(minSocPct, socPct);
+        maxSocPct = maxSocPct === null ? socPct : Math.max(maxSocPct, socPct);
+    }
+
+    return {
+        hasData: minSocPct !== null && maxSocPct !== null,
+        minSocPct,
+        maxSocPct,
+    };
+}
+
+export function buildScheduleTableForecastMeta({
+    slotForecastMap,
+    sections,
+    slots,
+    timeZone,
+}: {
+    slotForecastMap: SlotForecastMap;
+    sections: readonly ScheduleTableSectionModel[];
+    slots: readonly ScheduleSlot[];
+    timeZone: string;
+}): ScheduleTableForecastMeta {
+    const rowScale = {
+        solarMaxWh: 0,
+        gridMaxAbsKwh: 0,
+        priceMaxAbs: 0,
+    };
+    const dayAggregateScale = {
+        solarMaxWh: 0,
+        gridMaxKwh: 0,
+        priceMaxAbs: 0,
+    };
+
+    const scanPoint = (point: SlotForecastPoint | null | undefined): void => {
+        if (!point) {
+            return;
+        }
+
+        if (point.solarWh !== null) {
+            rowScale.solarMaxWh = Math.max(rowScale.solarMaxWh, point.solarWh);
+        }
+
+        if (point.gridNetKwh !== null) {
+            rowScale.gridMaxAbsKwh = Math.max(
+                rowScale.gridMaxAbsKwh,
+                Math.abs(point.gridNetKwh),
+                Math.abs(point.gridImportKwh ?? 0),
+                Math.abs(point.gridExportKwh ?? 0),
+            );
+        }
+
+        if (point.price !== null) {
+            rowScale.priceMaxAbs = Math.max(rowScale.priceMaxAbs, Math.abs(point.price));
+        }
+    };
+
+    const scanDayAggregate = (aggregate: ScheduleTableDayAggregateModel | null | undefined): void => {
+        if (!aggregate) {
+            return;
+        }
+
+        if (aggregate.solarWh !== null) {
+            dayAggregateScale.solarMaxWh = Math.max(dayAggregateScale.solarMaxWh, aggregate.solarWh);
+        }
+
+        if (aggregate.gridImportKwh !== null || aggregate.gridExportKwh !== null) {
+            dayAggregateScale.gridMaxKwh = Math.max(
+                dayAggregateScale.gridMaxKwh,
+                Math.abs(aggregate.gridImportKwh ?? 0),
+                Math.abs(aggregate.gridExportKwh ?? 0),
+            );
+        }
+
+        dayAggregateScale.priceMaxAbs = Math.max(
+            dayAggregateScale.priceMaxAbs,
+            Math.abs(aggregate.pricePositiveMin ?? 0),
+            Math.abs(aggregate.pricePositiveMax ?? 0),
+            Math.abs(aggregate.priceNegativeMin ?? 0),
+            Math.abs(aggregate.priceNegativeMax ?? 0),
+        );
+    };
+
+    for (const slot of slots) {
+        scanPoint(slotForecastMap.points.get(slot.id));
+    }
+
+    for (const point of collectScheduleHourForecasts({ slots, slotForecastMap, timeZone })) {
+        scanPoint(point);
+    }
+
+    for (const section of sections) {
+        scanDayAggregate(section.dayAggregate);
+    }
+
+    return {
+        batteryAvailable: slotForecastMap.batteryAvailable,
+        solarAvailable: slotForecastMap.solarAvailable,
+        gridAvailable: slotForecastMap.gridAvailable,
+        priceAvailable: slotForecastMap.priceAvailable,
+        priceDisplayUnit: slotForecastMap.priceDisplayUnit,
+        rowScale,
+        dayAggregateScale,
+    };
+}
+
+function _aggregateScheduleDayPriceRange({
+    slots,
+    slotForecastMap,
+}: {
+    slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+}): Pick<
+    ScheduleTableDayAggregateModel,
+    "priceHasData" | "pricePositiveMin" | "pricePositiveMax" | "priceNegativeMin" | "priceNegativeMax"
+> {
+    let priceHasData = false;
+    let pricePositiveMin: number | null = null;
+    let pricePositiveMax: number | null = null;
+    let priceNegativeMin: number | null = null;
+    let priceNegativeMax: number | null = null;
+
+    for (const slot of slots) {
+        const price = slotForecastMap.points.get(slot.id)?.price;
+        if (price === null || price === undefined) {
+            continue;
+        }
+
+        priceHasData = true;
+
+        if (price > ZERO_PRICE_RANGE_THRESHOLD) {
+            pricePositiveMin = pricePositiveMin === null ? price : Math.min(pricePositiveMin, price);
+            pricePositiveMax = pricePositiveMax === null ? price : Math.max(pricePositiveMax, price);
+            continue;
+        }
+
+        if (price < -ZERO_PRICE_RANGE_THRESHOLD) {
+            priceNegativeMin = priceNegativeMin === null ? price : Math.min(priceNegativeMin, price);
+            priceNegativeMax = priceNegativeMax === null ? price : Math.max(priceNegativeMax, price);
+        }
+    }
+
+    return {
+        priceHasData,
+        pricePositiveMin,
+        pricePositiveMax,
+        priceNegativeMin,
+        priceNegativeMax,
+    };
+}
+
+function _aggregateScheduleForecast({
+    slots,
+    slotForecastMap,
+}: {
+    slots: readonly ScheduleSlot[];
+    slotForecastMap: SlotForecastMap;
+}): {
+    socPct: number | null;
+    solarWh: number | null;
+    gridImportKwh: number | null;
+    gridExportKwh: number | null;
+    price: number | null;
+} | null {
     if (slots.length === 0) {
         return null;
     }
@@ -46,77 +292,11 @@ export function aggregateScheduleHourForecast({
         }
     }
 
-    const forecastPoint: SlotForecastPoint = {
+    return {
         socPct: lastPoint?.socPct ?? null,
         solarWh: hasSolar ? solarTotal : null,
-        gridNetKwh: hasGrid ? gridExportTotal - gridImportTotal : null,
         gridImportKwh: hasGrid ? gridImportTotal : null,
         gridExportKwh: hasGrid ? gridExportTotal : null,
         price: priceCount > 0 ? priceTotal / priceCount : null,
-    };
-
-    return forecastPoint.socPct === null
-        && forecastPoint.solarWh === null
-        && forecastPoint.gridNetKwh === null
-        && forecastPoint.gridImportKwh === null
-        && forecastPoint.gridExportKwh === null
-        && forecastPoint.price === null
-        ? null
-        : forecastPoint;
-}
-
-export function buildScheduleTableForecastMeta({
-    slotForecastMap,
-    sections,
-}: {
-    slotForecastMap: SlotForecastMap;
-    sections: readonly ScheduleTableSectionModel[];
-}): ScheduleTableForecastMeta {
-    let solarMaxWh = 0;
-    let gridMaxAbsKwh = 0;
-    let priceMaxAbs = 0;
-
-    const scanPoint = (point: SlotForecastPoint | null | undefined): void => {
-        if (!point) {
-            return;
-        }
-
-        if (point.solarWh !== null) {
-            solarMaxWh = Math.max(solarMaxWh, point.solarWh);
-        }
-
-        if (point.gridNetKwh !== null) {
-            gridMaxAbsKwh = Math.max(
-                gridMaxAbsKwh,
-                Math.abs(point.gridNetKwh),
-                Math.abs(point.gridImportKwh ?? 0),
-                Math.abs(point.gridExportKwh ?? 0),
-            );
-        }
-
-        if (point.price !== null) {
-            priceMaxAbs = Math.max(priceMaxAbs, Math.abs(point.price));
-        }
-    };
-
-    for (const section of sections) {
-        for (const row of section.rows) {
-            if (row.kind === "detail") {
-                continue;
-            }
-
-            scanPoint(row.forecast);
-        }
-    }
-
-    return {
-        batteryAvailable: slotForecastMap.batteryAvailable,
-        solarAvailable: slotForecastMap.solarAvailable,
-        gridAvailable: slotForecastMap.gridAvailable,
-        priceAvailable: slotForecastMap.priceAvailable,
-        priceDisplayUnit: slotForecastMap.priceDisplayUnit,
-        solarMaxWh,
-        gridMaxAbsKwh,
-        priceMaxAbs,
     };
 }
