@@ -275,21 +275,27 @@ export class SchedulingRangeEditDialog extends LitElement {
         const initialDomains = dialogState.initialDomains === null
             ? null
             : cloneScheduleDomains(dialogState.initialDomains);
+        const draftApplianceActions = Object.fromEntries(
+            Object.entries(initialDomains?.appliances ?? {}).map(([applianceId, action]) => [
+                applianceId,
+                this._normalizeDraftApplianceAction(action),
+            ]),
+        );
         this._initialDomains = initialDomains;
         this._activeTabId = "inverter";
         this._inverterEdited = false;
         this._actionKind = initialDomains?.inverter.kind ?? null;
         this._targetSocInput = initialDomains?.inverter.targetSoc?.toString() ?? "";
-        this._draftApplianceActions = Object.fromEntries(
-            Object.entries(initialDomains?.appliances ?? {}).map(([applianceId, action]) => [
-                applianceId,
-                cloneScheduleApplianceAction(action),
-            ]),
-        );
+        this._draftApplianceActions = draftApplianceActions;
         this._applianceValidity = Object.fromEntries(
             Object.keys(this._draftApplianceActions).map((applianceId) => [applianceId, true]),
         );
-        this._editedApplianceIds = [];
+        this._editedApplianceIds = Object.entries(initialDomains?.appliances ?? {}).flatMap(
+            ([applianceId, action]) => {
+                const draftAction = draftApplianceActions[applianceId] ?? null;
+                return this._isApplianceActionEdited(action, draftAction) ? [applianceId] : [];
+            },
+        );
     }
 
     private _title(): string {
@@ -685,9 +691,7 @@ export class SchedulingRangeEditDialog extends LitElement {
         nextAction: ScheduleApplianceAction | null,
     ): string[] {
         const initialAction = this._initialDomains?.appliances[applianceId] ?? null;
-        const isEdited = nextAction === null || initialAction === null
-            ? nextAction !== initialAction
-            : !areScheduleApplianceActionsEqual(nextAction, initialAction);
+        const isEdited = this._isApplianceActionEdited(initialAction, nextAction);
 
         const nextEditedIds = new Set(this._editedApplianceIds);
         if (isEdited) {
@@ -697,6 +701,21 @@ export class SchedulingRangeEditDialog extends LitElement {
         }
 
         return [...nextEditedIds];
+    }
+
+    private _normalizeDraftApplianceAction(
+        action: ScheduleApplianceAction,
+    ): ScheduleApplianceAction | null {
+        return action.charge ? cloneScheduleApplianceAction(action) : null;
+    }
+
+    private _isApplianceActionEdited(
+        initialAction: ScheduleApplianceAction | null,
+        nextAction: ScheduleApplianceAction | null,
+    ): boolean {
+        return nextAction === null || initialAction === null
+            ? nextAction !== initialAction
+            : !areScheduleApplianceActionsEqual(nextAction, initialAction);
     }
 
     private _closeDialogElement(): void {

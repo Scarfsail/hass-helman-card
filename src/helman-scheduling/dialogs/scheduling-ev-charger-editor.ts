@@ -2,7 +2,6 @@ import { LitElement, css, html, type PropertyValues } from "lit-element";
 import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
-import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import type { ScheduleEvChargerApplianceMetadata } from "../model/schedule-appliance-metadata";
 import type { ScheduleApplianceAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
@@ -13,11 +12,11 @@ export interface ScheduleEvChargerActionChangeDetail {
     valid: boolean;
 }
 
-type EvChargerEditorMode = "none" | "no_charge" | "charge";
+type EvChargerEditorMode = "none" | "charge";
 type EvChargerOptionPresentation = {
     icon: string;
     label: string;
-    toneClass: "action-tone-neutral" | "action-tone-charge" | "action-tone-stop";
+    toneClass: "action-tone-neutral" | "action-tone-charge";
 };
 
 @customElement("scheduling-ev-charger-editor")
@@ -149,7 +148,6 @@ export class SchedulingEvChargerEditor extends LitElement {
             return nothing;
         }
 
-        const canToggleCharge = this.appliance.scheduleCapabilities.chargeToggle;
         const needsEcoGear = this._mode === "charge" && this._useMode === "ECO";
         return html`
             <div class="appliance-panel">
@@ -160,19 +158,7 @@ export class SchedulingEvChargerEditor extends LitElement {
 
                 <div class="action-options">
                     ${this._renderModeOption("none")}
-                    ${canToggleCharge
-                        ? this._renderModeOption("no_charge")
-                        : nothing}
                     ${this._renderModeOption("charge", html`
-                        <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.appliance.vehicle")}</div>
-                            <select class="select-input" .value=${this._vehicleId} @change=${this._handleVehicleChange}>
-                                ${this.appliance.vehicles.map((vehicle) => html`
-                                    <option value=${vehicle.id} ?selected=${this._vehicleId === vehicle.id}>${vehicle.name}</option>
-                                `)}
-                            </select>
-                        </div>
-
                         <div class="field">
                             <div class="field-label">${this.localize("scheduling.dialog.appliance.mode")}</div>
                             <select class="select-input" .value=${this._useMode} @change=${this._handleUseModeChange}>
@@ -192,6 +178,15 @@ export class SchedulingEvChargerEditor extends LitElement {
                                 </select>
                             </div>
                         ` : nothing}
+
+                        <div class="field">
+                            <div class="field-label">${this.localize("scheduling.dialog.appliance.vehicle")}</div>
+                            <select class="select-input" .value=${this._vehicleId} @change=${this._handleVehicleChange}>
+                                ${this.appliance.vehicles.map((vehicle) => html`
+                                    <option value=${vehicle.id} ?selected=${this._vehicleId === vehicle.id}>${vehicle.name}</option>
+                                `)}
+                            </select>
+                        </div>
                     `)}
                 </div>
             </div>
@@ -245,7 +240,7 @@ export class SchedulingEvChargerEditor extends LitElement {
             return;
         }
 
-        this._mode = action.charge ? "charge" : "no_charge";
+        this._mode = action.charge ? "charge" : "none";
         this._vehicleId = action.vehicleId ?? this.appliance.vehicles[0]?.id ?? "";
         this._useMode = action.useMode ?? this.appliance.scheduleCapabilities.useModes[0] ?? "Fast";
         this._ecoGear = action.ecoGear ?? this.appliance.scheduleCapabilities.ecoGears[0] ?? "";
@@ -315,22 +310,6 @@ export class SchedulingEvChargerEditor extends LitElement {
             return { applianceId: this.appliance.id, action: null, valid: true };
         }
 
-        if (this._mode === "no_charge") {
-            if (!this.appliance.scheduleCapabilities.chargeToggle) {
-                return {
-                    applianceId: this.appliance.id,
-                    action: null,
-                    valid: false,
-                };
-            }
-
-            return {
-                applianceId: this.appliance.id,
-                action: { charge: false },
-                valid: true,
-            };
-        }
-
         const validVehicle = this.appliance.scheduleCapabilities.requiresVehicleSelection
             ? this.appliance.vehicles.some((vehicle) => vehicle.id === this._vehicleId)
             : true;
@@ -378,30 +357,10 @@ export class SchedulingEvChargerEditor extends LitElement {
             };
         }
 
-        if (mode === "no_charge") {
-            return getScheduleApplianceActionPresentation({
-                appliance: this.appliance,
-                action: { charge: false },
-                localize: this.localize,
-            });
-        }
-
-        return getScheduleApplianceActionPresentation({
-            appliance: this.appliance,
-            action: this._buildChargePreviewAction(),
-            localize: this.localize,
-        });
-    }
-
-    private _buildChargePreviewAction(): ScheduleApplianceAction {
-        const defaultUseMode = this.appliance?.scheduleCapabilities.useModes[0] ?? "Fast";
-        const useMode = (this._useMode || defaultUseMode) as "Fast" | "ECO";
-        const defaultEcoGear = this.appliance?.scheduleCapabilities.ecoGears[0] ?? "";
         return {
-            charge: true,
-            vehicleId: this._vehicleId || undefined,
-            useMode,
-            ecoGear: useMode === "ECO" ? this._ecoGear || defaultEcoGear || undefined : undefined,
+            icon: "mdi:car-electric",
+            label: this.localize("scheduling.dialog.appliance.charge"),
+            toneClass: "action-tone-charge",
         };
     }
 }
