@@ -1,5 +1,6 @@
 import type { SlotForecastMap } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
+import type { ScheduleApplianceProjectionIndex } from "./schedule-appliance-projection";
 import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
 import { aggregateScheduleDayForecast, buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
@@ -13,6 +14,7 @@ import type { ScheduleDisplaySlot } from "../schedule-types";
 export function buildScheduleTableModel({
     slots,
     appliances,
+    applianceProjectionIndex,
     slotForecastMap,
     expandedHourKeys,
     locale,
@@ -23,6 +25,7 @@ export function buildScheduleTableModel({
 }: {
     slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex;
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: readonly string[];
     locale: string;
@@ -68,6 +71,7 @@ export function buildScheduleTableModel({
         rows: buildScheduleTableRows({
             slots: section.slots,
             appliances,
+            applianceProjectionIndex,
             slotForecastMap,
             expandedHourKeys: expandedHourKeySet,
             locale,

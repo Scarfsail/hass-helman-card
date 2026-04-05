@@ -1471,6 +1471,7 @@ export class SchedulingSlotTable extends LitElement {
                     supportsAuthoring: false,
                 }}
                 .action=${item.action}
+                .expectedVehicleSocPct=${item.expectedVehicleSocPct}
                 .localize=${this.localize}
                 size="compact"
                 ?iconOnly=${true}
@@ -1725,7 +1726,11 @@ export class SchedulingSlotTable extends LitElement {
             action: item.action,
             localize: this.localize,
         });
-        return `${item.applianceName} · ${presentation.label}`;
+        if (item.expectedVehicleSocPct === null) {
+            return `${item.applianceName} · ${presentation.label}`;
+        }
+
+        return `${item.applianceName} · ${presentation.label} · ${this.localize("scheduling.appliance.ev.expected_soc")} ${item.expectedVehicleSocPct}%`;
     }
 
     private _buildGridGaugeTitle(point: SlotForecastPoint): string {

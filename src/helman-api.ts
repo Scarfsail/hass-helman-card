@@ -416,9 +416,19 @@ export interface GetAppliancesRequest {
     type: "helman/get_appliances";
 }
 
-export interface ApplianceProjectionDTO {
-    [key: string]: unknown;
+export interface ApplianceProjectionPointDTO {
+    slotId: string;
+    energyKwh: number;
+    mode: string;
+    vehicleId: string | null;
+    vehicleSoc: number | null;
 }
+
+export interface ApplianceProjectionSeriesDTO {
+    series: ApplianceProjectionPointDTO[];
+}
+
+export type ApplianceProjectionDTO = ApplianceProjectionSeriesDTO;
 
 export interface ApplianceProjectionsPayload {
     generatedAt: string;

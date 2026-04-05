@@ -1,5 +1,9 @@
 import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
+import {
+    getExpectedVehicleSocPct,
+    type ScheduleApplianceProjectionIndex,
+} from "./schedule-appliance-projection";
 import { getScheduleApplianceById } from "./schedule-appliance-metadata";
 import { aggregateScheduleHourForecast } from "./schedule-table-forecast";
 import {
@@ -11,6 +15,7 @@ import {
 import type {
     ScheduleTableActionCellModel,
     ScheduleTableActionItemModel,
+    ScheduleTableApplianceActionItemModel,
     ScheduleTableDetailRowModel,
     ScheduleTableHourRowModel,
     ScheduleTableRowModel,
@@ -33,6 +38,7 @@ interface ScheduleHourBucket {
 export function buildScheduleTableRows({
     slots,
     appliances,
+    applianceProjectionIndex,
     slotForecastMap,
     expandedHourKeys,
     locale,
@@ -40,6 +46,7 @@ export function buildScheduleTableRows({
 }: {
     slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex;
     slotForecastMap: SlotForecastMap;
     expandedHourKeys: ReadonlySet<string>;
     locale: string;
@@ -52,6 +59,7 @@ export function buildScheduleTableRows({
             const hourRow = _buildHourRow({
                 bucket,
                 appliances,
+                applianceProjectionIndex,
                 slotForecastMap,
                 expanded: expandedHourKeys.has(bucket.hourKey),
                 locale,
@@ -64,6 +72,7 @@ export function buildScheduleTableRows({
                     const childRow = _buildSlotRow({
                         slot,
                         appliances,
+                        applianceProjectionIndex,
                         slotForecastMap,
                         locale,
                         timeZone,
@@ -96,6 +105,7 @@ export function buildScheduleTableRows({
             const slotRow = _buildSlotRow({
                 slot,
                 appliances,
+                applianceProjectionIndex,
                 slotForecastMap,
                 locale,
                 timeZone,
@@ -285,6 +295,7 @@ function _addDayKey(dayKey: string, days: number): string {
 function _buildHourRow({
     bucket,
     appliances,
+    applianceProjectionIndex,
     slotForecastMap,
     expanded,
     locale,
@@ -292,6 +303,7 @@ function _buildHourRow({
 }: {
     bucket: ScheduleHourBucket;
     appliances: readonly ScheduleApplianceMetadata[];
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex;
     slotForecastMap: SlotForecastMap;
     expanded: boolean;
     locale: string;
@@ -322,7 +334,7 @@ function _buildHourRow({
         slotIds: bucket.slots
             .filter(isScheduleBackedDisplaySlot)
             .map((slot) => slot.scheduleSlot.id),
-        actionCell: _buildActionCell(bucket.slots, appliances),
+        actionCell: _buildActionCell(bucket.slots, appliances, applianceProjectionIndex),
         forecast: aggregateScheduleHourForecast({
             slots: bucket.slots,
             slotForecastMap,
@@ -363,6 +375,7 @@ function _buildDistinctInverterItems(
 function _buildDistinctApplianceItems(
     slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex,
 ): ScheduleTableActionItemModel[] {
     const applianceOrder = new Map(
         appliances.map((appliance) => [appliance.id, appliance.order] as const),
@@ -390,15 +403,26 @@ function _buildDistinctApplianceItems(
     });
 
     const items: ScheduleTableActionItemModel[] = [];
-    const seenKeys = new Set<string>();
+    const itemsByKey = new Map<string, ScheduleTableApplianceActionItemModel>();
     for (const entry of actions) {
         const key = `${entry.applianceId}:${getScheduleApplianceActionIdentityKey(entry.action)}`;
-        if (seenKeys.has(key)) {
+        const expectedVehicleSocPct = getExpectedVehicleSocPct({
+            projectionIndex: applianceProjectionIndex,
+            applianceKind: entry.appliance?.kind,
+            applianceId: entry.applianceId,
+            action: entry.action,
+            slotId: entry.slotId,
+        });
+        const existing = itemsByKey.get(key);
+        if (existing) {
+            existing.expectedVehicleSocPct = _mergeExpectedVehicleSocPct(
+                existing.expectedVehicleSocPct,
+                expectedVehicleSocPct,
+            );
             continue;
         }
 
-        seenKeys.add(key);
-        items.push({
+        const item = {
             kind: "appliance",
             key,
             applianceId: entry.applianceId,
@@ -406,7 +430,10 @@ function _buildDistinctApplianceItems(
             applianceKind: entry.appliance?.kind ?? "unknown",
             action: entry.action,
             firstSlotId: entry.slotId,
-        });
+            expectedVehicleSocPct,
+        } satisfies ScheduleTableApplianceActionItemModel;
+        itemsByKey.set(key, item);
+        items.push(item);
     }
 
     return items;
@@ -415,12 +442,13 @@ function _buildDistinctApplianceItems(
 function _buildActionCell(
     slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex,
 ): ScheduleTableActionCellModel {
     const scheduleBackedSlots = slots.filter(isScheduleBackedDisplaySlot);
     return {
         items: [
             ..._buildDistinctInverterItems(scheduleBackedSlots),
-            ..._buildDistinctApplianceItems(scheduleBackedSlots, appliances),
+            ..._buildDistinctApplianceItems(scheduleBackedSlots, appliances, applianceProjectionIndex),
         ],
         interactive: scheduleBackedSlots.length > 0,
     };
@@ -429,6 +457,7 @@ function _buildActionCell(
 function _buildSlotRow({
     slot,
     appliances,
+    applianceProjectionIndex,
     slotForecastMap,
     locale,
     timeZone,
@@ -437,6 +466,7 @@ function _buildSlotRow({
 }: {
     slot: ScheduleDisplaySlot;
     appliances: readonly ScheduleApplianceMetadata[];
+    applianceProjectionIndex: ScheduleApplianceProjectionIndex;
     slotForecastMap: SlotForecastMap;
     locale: string;
     timeZone: string;
@@ -447,7 +477,7 @@ function _buildSlotRow({
         kind: "slot",
         rowId: variant === "raw" ? `slot:${slot.id}` : `hour-child:${slot.id}`,
         slot,
-        actionCell: _buildActionCell([slot], appliances),
+        actionCell: _buildActionCell([slot], appliances, applianceProjectionIndex),
         interactiveSlotId: isScheduleBackedDisplaySlot(slot) ? slot.scheduleSlot.id : null,
         displayTimeLabel: variant === "raw"
             ? {
@@ -469,6 +499,19 @@ function _buildSlotRow({
         variant,
         parentHourKey,
     };
+}
+
+function _mergeExpectedVehicleSocPct(
+    current: number | null,
+    next: number | null,
+): number | null {
+    if (current === null) {
+        return next;
+    }
+    if (next === null) {
+        return current;
+    }
+    return Math.max(current, next);
 }
 
 function _buildDetailRow({

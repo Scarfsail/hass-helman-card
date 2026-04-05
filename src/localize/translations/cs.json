@@ -169,7 +169,8 @@
         "mode": {
           "fast": "Fast",
           "eco": "ECO"
-        }
+        },
+        "expected_soc": "Očekávané SoC vozidla"
       }
     },
     "reason": {

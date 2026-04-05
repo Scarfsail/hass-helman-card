@@ -86,6 +86,7 @@ export interface ScheduleTableApplianceActionItemModel {
     applianceKind: string;
     action: ScheduleApplianceAction;
     firstSlotId: string;
+    expectedVehicleSocPct: number | null;
 }
 
 export type ScheduleTableActionItemModel =

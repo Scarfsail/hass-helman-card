@@ -16,6 +16,11 @@ import {
     type ScheduleApplianceMetadata,
 } from "./model/schedule-appliance-metadata";
 import {
+    buildScheduleApplianceProjectionIndex,
+    EMPTY_SCHEDULE_APPLIANCE_PROJECTION_INDEX,
+    type ScheduleApplianceProjectionIndex,
+} from "./model/schedule-appliance-projection";
+import {
     buildScheduleHeaderModel,
     type ScheduleHeaderModel,
 } from "./model/schedule-header-model";
@@ -127,6 +132,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     private _forecastLoaderGranularity: number | null = null;
     private _forecastLoaderDays: number | null = null;
     private _forecastLoadGeneration = 0;
+    private _applianceProjectionLoadGeneration = 0;
     private _slotForecastProjection: SlotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
     private _slotForecastProjectionKey = "";
     private _slotForecastMap: SlotForecastMap = EMPTY_SLOT_FORECAST_MAP;
@@ -138,6 +144,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _ownerSnapshot: ScheduleOwnerSnapshot = EMPTY_SCHEDULE_OWNER_SNAPSHOT;
     @state() private _forecast: ForecastPayload | null = null;
     @state() private _appliances: ScheduleApplianceMetadata[] = [];
+    @state() private _applianceProjectionIndex: ScheduleApplianceProjectionIndex = EMPTY_SCHEDULE_APPLIANCE_PROJECTION_INDEX;
     @state() private _appliancesError: string | null = null;
     @state() private _selectedSlotIds: string[] = [];
     @state() private _dialogState: ScheduleDialogState | null = null;
@@ -275,10 +282,18 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             this._slotForecastMap = materializeSlotForecastMap(this._slotForecastProjection, this._timelineModel.slots);
         }
 
-        if (scheduleChanged || forecastChanged || changedProperties.has("_appliances") || changedProperties.has("_expandedHourKeys") || nowChanged) {
+        if (
+            scheduleChanged
+            || forecastChanged
+            || changedProperties.has("_appliances")
+            || changedProperties.has("_applianceProjectionIndex")
+            || changedProperties.has("_expandedHourKeys")
+            || nowChanged
+        ) {
             this._tableModel = buildScheduleTableModel({
                 slots: this._timelineModel.slots,
                 appliances: this._appliances,
+                applianceProjectionIndex: this._applianceProjectionIndex,
                 slotForecastMap: this._slotForecastMap,
                 expandedHourKeys: this._expandedHourKeys,
                 locale: this._locale,
@@ -566,9 +581,11 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._forecastLoaderGranularity = null;
         this._forecastLoaderDays = null;
         this._forecastLoadGeneration = 0;
+        this._applianceProjectionLoadGeneration += 1;
         this._slotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
         this._slotForecastProjectionKey = "";
         this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
+        this._applianceProjectionIndex = EMPTY_SCHEDULE_APPLIANCE_PROJECTION_INDEX;
         this._pendingDialogPatches = null;
         this._selectionAnchorSlotIds = null;
         this._dayExpansionOverrides = {};
@@ -605,14 +622,19 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     }
 
     private _applyOwnerSnapshot(snapshot: ScheduleOwnerSnapshot): void {
-        const scheduleChanged = snapshot.schedule !== null
-            && snapshot.schedule !== this._ownerSnapshot.schedule;
+        const scheduleChanged = snapshot.schedule !== this._ownerSnapshot.schedule;
         this._ownerSnapshot = snapshot;
 
         if (scheduleChanged) {
-            void this._loadForecastForSchedule(snapshot.schedule!, {
+            this._applianceProjectionLoadGeneration += 1;
+            this._applianceProjectionIndex = EMPTY_SCHEDULE_APPLIANCE_PROJECTION_INDEX;
+        }
+
+        if (scheduleChanged && snapshot.schedule !== null) {
+            void this._loadForecastForSchedule(snapshot.schedule, {
                 resetExistingForecast: snapshot.writing || snapshot.togglingExecution,
             });
+            void this._loadApplianceProjections();
         }
     }
 
@@ -642,6 +664,30 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 ? error.message
                 : "Failed to load appliance metadata";
             console.error("helman-scheduling: failed to load appliance metadata", error);
+        }
+    }
+
+    private async _loadApplianceProjections(): Promise<void> {
+        const hass = this._hass;
+        if (!hass) {
+            return;
+        }
+
+        const generation = this._applianceProjectionLoadGeneration;
+        try {
+            const payload = await getSharedHelmanStore(hass).getApplianceProjections();
+            if (generation !== this._applianceProjectionLoadGeneration || this._hass?.connection !== hass.connection) {
+                return;
+            }
+
+            this._applianceProjectionIndex = buildScheduleApplianceProjectionIndex(payload);
+        } catch (error) {
+            if (generation !== this._applianceProjectionLoadGeneration || this._hass?.connection !== hass.connection) {
+                return;
+            }
+
+            this._applianceProjectionIndex = EMPTY_SCHEDULE_APPLIANCE_PROJECTION_INDEX;
+            console.error("helman-scheduling: failed to load appliance projections", error);
         }
     }
 
