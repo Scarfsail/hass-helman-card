@@ -1,10 +1,12 @@
 import type {
     ApplianceMetadataDTO,
-    ApplianceScheduleCapabilitiesDTO,
     AppliancesPayload,
     ApplianceVehicleDTO,
     EvChargerApplianceMetadataDTO,
+    EvChargerScheduleCapabilitiesDTO,
     EvChargerUseMode,
+    GenericApplianceMetadataRecordDTO,
+    GenericApplianceScheduleCapabilitiesDTO,
 } from "../../helman-api";
 
 export interface ScheduleVehicleOption {
@@ -27,6 +29,10 @@ export interface ScheduleEvChargerCapabilities {
     requiresVehicleSelection: boolean;
 }
 
+export interface ScheduleGenericApplianceCapabilities {
+    onOffToggle: boolean;
+}
+
 export interface ScheduleEvChargerApplianceMetadata extends ScheduleApplianceMetadataBase {
     kind: "ev_charger";
     supportsAuthoring: true;
@@ -35,12 +41,18 @@ export interface ScheduleEvChargerApplianceMetadata extends ScheduleApplianceMet
     vehicles: ScheduleVehicleOption[];
 }
 
+export interface ScheduleGenericApplianceMetadata extends ScheduleApplianceMetadataBase {
+    kind: "generic";
+    scheduleCapabilities: ScheduleGenericApplianceCapabilities;
+}
+
 export interface ScheduleUnknownApplianceMetadata extends ScheduleApplianceMetadataBase {
     supportsAuthoring: false;
 }
 
 export type ScheduleApplianceMetadata =
     | ScheduleEvChargerApplianceMetadata
+    | ScheduleGenericApplianceMetadata
     | ScheduleUnknownApplianceMetadata;
 
 export function normalizeScheduleApplianceMetadata(
@@ -75,10 +87,21 @@ function _normalizeApplianceMetadata(
             order,
             supportsAuthoring: true,
             maxChargingPowerKw: appliance.metadata.maxChargingPowerKw,
-            scheduleCapabilities: _cloneScheduleCapabilities(appliance.metadata.scheduleCapabilities),
+            scheduleCapabilities: _cloneEvChargerScheduleCapabilities(appliance.metadata.scheduleCapabilities),
             vehicles: appliance.vehicles
                 .filter((vehicle) => _isVehicleOption(vehicle))
                 .map((vehicle) => ({ id: vehicle.id, name: vehicle.name })),
+        };
+    }
+
+    if (appliance.kind === "generic" && _isGenericApplianceMetadata(appliance)) {
+        return {
+            id: appliance.id,
+            name: appliance.name,
+            kind: appliance.kind,
+            order,
+            supportsAuthoring: appliance.metadata.scheduleCapabilities.onOffToggle,
+            scheduleCapabilities: _cloneGenericScheduleCapabilities(appliance.metadata.scheduleCapabilities),
         };
     }
 
@@ -91,14 +114,22 @@ function _normalizeApplianceMetadata(
     };
 }
 
-function _cloneScheduleCapabilities(
-    capabilities: ApplianceScheduleCapabilitiesDTO,
+function _cloneEvChargerScheduleCapabilities(
+    capabilities: EvChargerScheduleCapabilitiesDTO,
 ): ScheduleEvChargerCapabilities {
     return {
         chargeToggle: capabilities.chargeToggle,
         useModes: [...capabilities.useModes],
         ecoGears: [...capabilities.ecoGears],
         requiresVehicleSelection: capabilities.requiresVehicleSelection,
+    };
+}
+
+function _cloneGenericScheduleCapabilities(
+    capabilities: GenericApplianceScheduleCapabilitiesDTO,
+): ScheduleGenericApplianceCapabilities {
+    return {
+        onOffToggle: capabilities.onOffToggle,
     };
 }
 
@@ -112,6 +143,14 @@ function _isEvChargerApplianceMetadata(
         && typeof appliance.metadata?.scheduleCapabilities?.chargeToggle === "boolean"
         && typeof appliance.metadata?.scheduleCapabilities?.requiresVehicleSelection === "boolean"
         && Array.isArray(appliance.vehicles);
+}
+
+function _isGenericApplianceMetadata(
+    appliance: ApplianceMetadataDTO,
+): appliance is GenericApplianceMetadataRecordDTO {
+    return appliance.kind === "generic"
+        && typeof appliance.metadata?.scheduleCapabilities?.onOffToggle === "boolean"
+        && typeof appliance.controls?.switch?.entityId === "string";
 }
 
 function _isVehicleOption(vehicle: ApplianceVehicleDTO): boolean {

@@ -1,4 +1,5 @@
 import type { SlotForecastPoint } from "./model/slot-forecast-model";
+import type { ScheduleApplianceProjectionBadge } from "./model/schedule-appliance-projection";
 import type {
     ScheduleAction,
     ScheduleApplianceAction,
@@ -86,7 +87,7 @@ export interface ScheduleTableApplianceActionItemModel {
     applianceKind: string;
     action: ScheduleApplianceAction;
     firstSlotId: string;
-    expectedVehicleSocPct: number | null;
+    projectionBadge: ScheduleApplianceProjectionBadge | null;
 }
 
 export type ScheduleTableActionItemModel =

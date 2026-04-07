@@ -1,6 +1,10 @@
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import type { ScheduleApplianceAction } from "../schedule-types";
+import {
+    isScheduleEvChargerAction,
+    isScheduleGenericApplianceAction,
+} from "../schedule-types";
 
 type ScheduleApplianceActionTone = "neutral" | "charge" | "stop";
 type ScheduleApplianceActionToneClass = `action-tone-${ScheduleApplianceActionTone}`;
@@ -20,8 +24,22 @@ export function getScheduleApplianceActionPresentation({
     action: ScheduleApplianceAction;
     localize: LocalizeFunction;
 }): ScheduleApplianceActionPresentation {
-    if (appliance.kind === "ev_charger") {
-        return _getEvChargerActionPresentation(appliance, action, localize);
+    if (appliance.kind === "ev_charger" && isScheduleEvChargerAction(action)) {
+        return _getEvChargerActionPresentation(action, localize);
+    }
+
+    if (appliance.kind === "generic" && isScheduleGenericApplianceAction(action)) {
+        return action.on
+            ? {
+                icon: "mdi:power-plug",
+                label: localize("scheduling.appliance.generic.action.on"),
+                toneClass: "action-tone-charge",
+            }
+            : {
+                icon: "mdi:circle-outline",
+                label: localize("scheduling.dialog.appliance.no_action"),
+                toneClass: "action-tone-neutral",
+            };
     }
 
     return {
@@ -32,11 +50,10 @@ export function getScheduleApplianceActionPresentation({
 }
 
 function _getEvChargerActionPresentation(
-    appliance: Pick<ScheduleApplianceMetadata, "kind">,
-    action: ScheduleApplianceAction,
+    action: Extract<ScheduleApplianceAction, { charge: boolean }>,
     localize: LocalizeFunction,
 ): ScheduleApplianceActionPresentation {
-    const modeLabel = _buildEvModeLabel(appliance, action, localize);
+    const modeLabel = _buildEvModeLabel(action, localize);
     return {
         icon: "mdi:car-electric",
         label: action.charge ? modeLabel : localize("scheduling.appliance.ev.action.no_charge"),
@@ -45,8 +62,7 @@ function _getEvChargerActionPresentation(
 }
 
 function _buildEvModeLabel(
-    _appliance: Pick<ScheduleApplianceMetadata, "kind">,
-    action: ScheduleApplianceAction,
+    action: Extract<ScheduleApplianceAction, { charge: boolean }>,
     localize: LocalizeFunction,
 ): string {
     if (!action.charge) {

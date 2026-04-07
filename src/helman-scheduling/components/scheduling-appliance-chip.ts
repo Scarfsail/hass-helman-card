@@ -4,6 +4,8 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import type { ScheduleApplianceMetadata } from "../model/schedule-appliance-metadata";
+import type { ScheduleApplianceProjectionBadge } from "../model/schedule-appliance-projection";
+import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appliance-projection-presentation";
 import type { ScheduleApplianceAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
@@ -87,7 +89,7 @@ export class SchedulingApplianceChip extends LitElement {
 
     @property({ attribute: false }) public appliance?: ScheduleApplianceMetadata;
     @property({ attribute: false }) public action?: ScheduleApplianceAction;
-    @property({ attribute: false }) public expectedVehicleSocPct: number | null = null;
+    @property({ attribute: false }) public projectionBadge: ScheduleApplianceProjectionBadge | null = null;
     @property({ attribute: false }) public localize?: LocalizeFunction;
     @property({ type: String }) public size: "compact" | "regular" = "regular";
     @property({ type: Boolean }) public iconOnly = false;
@@ -102,25 +104,24 @@ export class SchedulingApplianceChip extends LitElement {
             action: this.action,
             localize: this.localize,
         });
-        const expectedVehicleSocPct = this._resolveExpectedVehicleSocPct();
+        const projectionBadge = this._resolveProjectionBadge();
         const classes = [
             "chip",
             "action",
             presentation.toneClass,
             this.size === "compact" ? "compact" : "",
-            expectedVehicleSocPct === null ? "" : "has-badge",
+            projectionBadge === null ? "" : "has-badge",
         ].filter((className) => className.length > 0).join(" ");
         return html`
-            <span class=${classes}>
+            <span class=${classes} title=${projectionBadge === null ? "" : this._buildProjectionBadgeTitle(projectionBadge)}>
                 <span class="chip-icon-stack">
                     <ha-icon class="chip-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
-                    ${expectedVehicleSocPct === null ? nothing : html`
+                    ${projectionBadge === null ? nothing : html`
                         <span
                             class="chip-icon-badge"
-                            title=${this._buildExpectedVehicleSocTitle(expectedVehicleSocPct)}
                             aria-hidden="true"
                         >
-                            ${expectedVehicleSocPct}
+                            ${projectionBadge.text}
                         </span>
                     `}
                 </span>
@@ -131,20 +132,42 @@ export class SchedulingApplianceChip extends LitElement {
         `;
     }
 
-    private _resolveExpectedVehicleSocPct(): number | null {
-        if (
-            this.appliance?.kind !== "ev_charger"
-            || this.action?.charge !== true
-            || typeof this.expectedVehicleSocPct !== "number"
-            || !Number.isFinite(this.expectedVehicleSocPct)
-        ) {
+    private _resolveProjectionBadge(): ScheduleApplianceProjectionBadge | null {
+        if (this.projectionBadge === null) {
             return null;
         }
 
-        return Math.max(0, Math.min(100, Math.round(this.expectedVehicleSocPct)));
+        if (this.projectionBadge.kind === "vehicle_soc") {
+            if (
+                typeof this.projectionBadge.expectedVehicleSocPct !== "number"
+                || !Number.isFinite(this.projectionBadge.expectedVehicleSocPct)
+            ) {
+                return null;
+            }
+
+            const expectedVehicleSocPct = Math.max(0, Math.min(100, Math.round(this.projectionBadge.expectedVehicleSocPct)));
+            return {
+                kind: "vehicle_soc",
+                text: String(expectedVehicleSocPct),
+                expectedVehicleSocPct,
+            };
+        }
+
+        if (typeof this.projectionBadge.energyKwh !== "number" || !Number.isFinite(this.projectionBadge.energyKwh)) {
+            return null;
+        }
+
+        return {
+            kind: "energy",
+            text: this.projectionBadge.text,
+            energyKwh: this.projectionBadge.energyKwh,
+            projectionMethod: this.projectionBadge.projectionMethod,
+        };
     }
 
-    private _buildExpectedVehicleSocTitle(expectedVehicleSocPct: number): string {
-        return `${this.localize?.("scheduling.appliance.ev.expected_soc") ?? "Expected vehicle SoC"} ${expectedVehicleSocPct}%`;
+    private _buildProjectionBadgeTitle(projectionBadge: ScheduleApplianceProjectionBadge): string {
+        return this.localize
+            ? getScheduleApplianceProjectionBadgeLabel(projectionBadge, this.localize)
+            : "";
     }
 }

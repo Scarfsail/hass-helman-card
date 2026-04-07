@@ -6,6 +6,8 @@ import "./scheduling-action-chip";
 import "./scheduling-appliance-chip";
 import type { ScheduleApplianceMetadata } from "../model/schedule-appliance-metadata";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
+import type { ScheduleApplianceProjectionBadge } from "../model/schedule-appliance-projection";
+import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appliance-projection-presentation";
 import { getScheduleActionLabel } from "../model/schedule-labels";
 import {
     buildScheduleRuntimeComplianceModel,
@@ -1471,7 +1473,7 @@ export class SchedulingSlotTable extends LitElement {
                     supportsAuthoring: false,
                 }}
                 .action=${item.action}
-                .expectedVehicleSocPct=${item.expectedVehicleSocPct}
+                .projectionBadge=${item.projectionBadge}
                 .localize=${this.localize}
                 size="compact"
                 ?iconOnly=${true}
@@ -1726,11 +1728,19 @@ export class SchedulingSlotTable extends LitElement {
             action: item.action,
             localize: this.localize,
         });
-        if (item.expectedVehicleSocPct === null) {
+        if (item.projectionBadge === null) {
             return `${item.applianceName} · ${presentation.label}`;
         }
 
-        return `${item.applianceName} · ${presentation.label} · ${this.localize("scheduling.appliance.ev.expected_soc")} ${item.expectedVehicleSocPct}%`;
+        return `${item.applianceName} · ${presentation.label} · ${this._buildProjectionBadgeLabel(item.projectionBadge)}`;
+    }
+
+    private _buildProjectionBadgeLabel(
+        projectionBadge: ScheduleApplianceProjectionBadge | null,
+    ): string {
+        return projectionBadge === null
+            ? ""
+            : getScheduleApplianceProjectionBadgeLabel(projectionBadge, this.localize);
     }
 
     private _buildGridGaugeTitle(point: SlotForecastPoint): string {

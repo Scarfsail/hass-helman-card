@@ -14,6 +14,7 @@ import type {
 } from "../schedule-types";
 import {
     areScheduleActionsEqual,
+    isScheduleApplianceActionEnabled,
     isTargetScheduleAction,
 } from "../schedule-types";
 
@@ -235,9 +236,9 @@ function _buildApplianceIssue({
         });
     }
 
-    const plannedCharge = plannedAction.charge === true;
+    const plannedEnabled = isScheduleApplianceActionEnabled(plannedAction) === true;
     const isSkippedNoop = runtime.outcome === "skipped" && runtime.actionKind === "noop";
-    if (plannedCharge && runtime.actionKind === "slot_stop") {
+    if (plannedEnabled && runtime.actionKind === "slot_stop") {
         return _createIssue({
             key: `${applianceId}:stopped`,
             actorLabel,
@@ -246,15 +247,15 @@ function _buildApplianceIssue({
         });
     }
 
-    if (plannedCharge && runtime.actionKind === "apply" && runtime.outcome === "success") {
+    if (plannedEnabled && runtime.actionKind === "apply" && runtime.outcome === "success") {
         return null;
     }
 
-    if (plannedCharge && isSkippedNoop) {
+    if (plannedEnabled && isSkippedNoop) {
         return null;
     }
 
-    if (!plannedCharge && (runtime.outcome === "success" || isSkippedNoop)) {
+    if (!plannedEnabled && (runtime.outcome === "success" || isSkippedNoop || runtime.actionKind === "slot_stop")) {
         return null;
     }
 

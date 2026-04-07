@@ -279,7 +279,13 @@ export interface ScheduleEvChargerActionDTO {
     ecoGear?: string;
 }
 
-export type ScheduleApplianceActionDTO = ScheduleEvChargerActionDTO;
+export interface ScheduleGenericApplianceActionDTO {
+    on: boolean;
+}
+
+export type ScheduleApplianceActionDTO =
+    | ScheduleEvChargerActionDTO
+    | ScheduleGenericApplianceActionDTO;
 
 export type ScheduleRuntimeReason = "scheduled" | "target_soc_reached";
 export type RuntimeActionKind = "apply" | "slot_stop" | "noop";
@@ -352,11 +358,15 @@ export interface EntityReferenceDTO {
     entityId: string;
 }
 
-export interface ApplianceScheduleCapabilitiesDTO {
+export interface EvChargerScheduleCapabilitiesDTO {
     chargeToggle: boolean;
     useModes: EvChargerUseMode[];
     ecoGears: string[];
     requiresVehicleSelection: boolean;
+}
+
+export interface GenericApplianceScheduleCapabilitiesDTO {
+    onOffToggle: boolean;
 }
 
 export interface ApplianceVehicleTelemetryDTO {
@@ -378,13 +388,21 @@ export interface ApplianceVehicleDTO {
 
 export interface EvChargerMetadataDTO {
     maxChargingPowerKw: number;
-    scheduleCapabilities: ApplianceScheduleCapabilitiesDTO;
+    scheduleCapabilities: EvChargerScheduleCapabilitiesDTO;
 }
 
-export interface ApplianceControlsDTO {
+export interface GenericApplianceMetadataDTO {
+    scheduleCapabilities: GenericApplianceScheduleCapabilitiesDTO;
+}
+
+export interface EvChargerControlsDTO {
     charge: EntityReferenceDTO;
     useMode: EntityReferenceDTO;
     ecoGear: EntityReferenceDTO;
+}
+
+export interface GenericApplianceControlsDTO {
+    switch: EntityReferenceDTO;
 }
 
 export interface ApplianceMetadataDTOBase {
@@ -396,8 +414,14 @@ export interface ApplianceMetadataDTOBase {
 export interface EvChargerApplianceMetadataDTO extends ApplianceMetadataDTOBase {
     kind: "ev_charger";
     metadata: EvChargerMetadataDTO;
-    controls: ApplianceControlsDTO;
+    controls: EvChargerControlsDTO;
     vehicles: ApplianceVehicleDTO[];
+}
+
+export interface GenericApplianceMetadataRecordDTO extends ApplianceMetadataDTOBase {
+    kind: "generic";
+    metadata: GenericApplianceMetadataDTO;
+    controls: GenericApplianceControlsDTO;
 }
 
 export interface UnknownApplianceMetadataDTO extends ApplianceMetadataDTOBase {
@@ -406,6 +430,7 @@ export interface UnknownApplianceMetadataDTO extends ApplianceMetadataDTOBase {
 
 export type ApplianceMetadataDTO =
     | EvChargerApplianceMetadataDTO
+    | GenericApplianceMetadataRecordDTO
     | UnknownApplianceMetadataDTO;
 
 export interface AppliancesPayload {
@@ -416,12 +441,18 @@ export interface GetAppliancesRequest {
     type: "helman/get_appliances";
 }
 
+export type ApplianceProjectionMethod =
+    | "fixed"
+    | "history_average"
+    | "fixed_fallback";
+
 export interface ApplianceProjectionPointDTO {
     slotId: string;
     energyKwh: number;
-    mode: string;
-    vehicleId: string | null;
-    vehicleSoc: number | null;
+    mode?: string | null;
+    vehicleId?: string | null;
+    vehicleSoc?: number | null;
+    projectionMethod?: ApplianceProjectionMethod | null;
 }
 
 export interface ApplianceProjectionSeriesDTO {

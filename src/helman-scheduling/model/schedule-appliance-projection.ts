@@ -1,14 +1,34 @@
 import type {
+    ApplianceProjectionMethod,
     ApplianceProjectionPointDTO,
     ApplianceProjectionsPayload,
 } from "../../helman-api";
 import type { ScheduleApplianceAction } from "../schedule-types";
+import {
+    isScheduleApplianceActionEnabled,
+    isScheduleEvChargerAction,
+} from "../schedule-types";
 
 export interface ScheduleApplianceProjectionPoint {
     vehicleId: string | null;
     mode: string | null;
-    expectedVehicleSocPct: number;
+    expectedVehicleSocPct: number | null;
+    energyKwh: number | null;
+    projectionMethod: ApplianceProjectionMethod | null;
 }
+
+export type ScheduleApplianceProjectionBadge =
+    | {
+        kind: "vehicle_soc";
+        text: string;
+        expectedVehicleSocPct: number;
+    }
+    | {
+        kind: "energy";
+        text: string;
+        energyKwh: number;
+        projectionMethod: ApplianceProjectionMethod | null;
+    };
 
 export interface ScheduleApplianceProjectionIndex {
     generatedAt: string | null;
@@ -30,31 +50,21 @@ export function buildScheduleApplianceProjectionIndex(
             continue;
         }
 
-        const slotPoints = new Map<string, Map<string, ScheduleApplianceProjectionPoint>>();
+        const slotPoints = new Map<string, ScheduleApplianceProjectionPoint[]>();
         for (const point of projection.series) {
             const normalized = _normalizeProjectionPoint(point);
             if (normalized === null) {
                 continue;
             }
 
-            const slotCandidates = slotPoints.get(normalized.slotId) ?? new Map<string, ScheduleApplianceProjectionPoint>();
-            const existing = slotCandidates.get(normalized.identityKey);
-            if (!existing || existing.expectedVehicleSocPct < normalized.point.expectedVehicleSocPct) {
-                slotCandidates.set(normalized.identityKey, normalized.point);
-            }
-            slotPoints.set(normalized.slotId, slotCandidates);
+            slotPoints.set(normalized.slotId, [
+                ...(slotPoints.get(normalized.slotId) ?? []),
+                normalized.point,
+            ]);
         }
 
         if (slotPoints.size > 0) {
-            points.set(
-                applianceId,
-                new Map(
-                    Array.from(slotPoints.entries()).map(([slotId, candidates]) => [
-                        slotId,
-                        Array.from(candidates.values()),
-                    ]),
-                ),
-            );
+            points.set(applianceId, slotPoints);
         }
     }
 
@@ -68,7 +78,7 @@ export function buildScheduleApplianceProjectionIndex(
     };
 }
 
-export function getExpectedVehicleSocPct({
+export function getScheduleApplianceProjectionBadge({
     projectionIndex,
     applianceKind,
     applianceId,
@@ -80,8 +90,8 @@ export function getExpectedVehicleSocPct({
     applianceId: string;
     action: ScheduleApplianceAction;
     slotId: string;
-}): number | null {
-    if (applianceKind !== "ev_charger" || action.charge !== true) {
+}): ScheduleApplianceProjectionBadge | null {
+    if (isScheduleApplianceActionEnabled(action) !== true) {
         return null;
     }
 
@@ -90,41 +100,105 @@ export function getExpectedVehicleSocPct({
         return null;
     }
 
-    const matches = candidates
-        .filter((candidate) => _matchesProjectedAction(action, candidate))
-        .map((candidate) => candidate.expectedVehicleSocPct);
-    if (matches.length === 0) {
-        return null;
+    if (applianceKind === "ev_charger" && isScheduleEvChargerAction(action)) {
+        const matches = candidates
+            .filter((candidate) => _matchesEvProjectedAction(action, candidate))
+            .flatMap((candidate) => candidate.expectedVehicleSocPct === null
+                ? []
+                : [candidate.expectedVehicleSocPct]);
+        if (matches.length === 0) {
+            return null;
+        }
+
+        const expectedVehicleSocPct = Math.max(...matches);
+        return {
+            kind: "vehicle_soc",
+            text: String(expectedVehicleSocPct),
+            expectedVehicleSocPct,
+        };
     }
 
-    return Math.max(...matches);
+    if (applianceKind === "generic") {
+        const energyPoints = candidates.flatMap((candidate) =>
+            candidate.energyKwh === null ? [] : [candidate],
+        );
+        if (energyPoints.length === 0) {
+            return null;
+        }
+
+        const energyKwh = energyPoints.reduce((sum, candidate) => sum + candidate.energyKwh!, 0);
+        return {
+            kind: "energy",
+            text: _formatEnergyBadgeText(energyKwh),
+            energyKwh,
+            projectionMethod: _mergeProjectionMethods(
+                energyPoints.map((candidate) => candidate.projectionMethod),
+            ),
+        };
+    }
+
+    return null;
+}
+
+export function mergeScheduleApplianceProjectionBadges(
+    current: ScheduleApplianceProjectionBadge | null,
+    next: ScheduleApplianceProjectionBadge | null,
+): ScheduleApplianceProjectionBadge | null {
+    if (current === null) {
+        return next;
+    }
+    if (next === null || current.kind !== next.kind) {
+        return current;
+    }
+
+    if (current.kind === "vehicle_soc") {
+        const expectedVehicleSocPct = Math.max(current.expectedVehicleSocPct, next.expectedVehicleSocPct);
+        return {
+            kind: "vehicle_soc",
+            text: String(expectedVehicleSocPct),
+            expectedVehicleSocPct,
+        };
+    }
+
+    const energyKwh = current.energyKwh + next.energyKwh;
+    return {
+        kind: "energy",
+        text: _formatEnergyBadgeText(energyKwh),
+        energyKwh,
+        projectionMethod: _mergeProjectionMethods([
+            current.projectionMethod,
+            next.projectionMethod,
+        ]),
+    };
 }
 
 function _normalizeProjectionPoint(
     point: ApplianceProjectionPointDTO,
-): { slotId: string; identityKey: string; point: ScheduleApplianceProjectionPoint } | null {
+): { slotId: string; point: ScheduleApplianceProjectionPoint } | null {
     if (!_isNonEmptyString(point.slotId)) {
         return null;
     }
 
     const expectedVehicleSocPct = _normalizeSocPct(point.vehicleSoc);
-    if (expectedVehicleSocPct === null) {
+    const energyKwh = _normalizeEnergyKwh(point.energyKwh);
+    if (expectedVehicleSocPct === null && energyKwh === null) {
         return null;
     }
 
     return {
         slotId: point.slotId,
-        identityKey: _buildProjectionIdentityKey(point),
         point: {
             vehicleId: _normalizeOptionalString(point.vehicleId),
             mode: _normalizeOptionalString(point.mode),
             expectedVehicleSocPct,
+            energyKwh,
+            projectionMethod: _normalizeProjectionMethod(point.projectionMethod),
         },
     };
 }
 
-function _matchesProjectedAction(
-    action: ScheduleApplianceAction,
+function _matchesEvProjectedAction(
+    action: Extract<ScheduleApplianceAction, { charge: boolean }>,
     candidate: ScheduleApplianceProjectionPoint,
 ): boolean {
     if (
@@ -146,11 +220,36 @@ function _matchesProjectedAction(
     return true;
 }
 
-function _buildProjectionIdentityKey(point: ApplianceProjectionPointDTO): string {
-    return `${_normalizeOptionalString(point.vehicleId) ?? ""}|${_normalizeOptionalString(point.mode) ?? ""}`;
+function _mergeProjectionMethods(
+    methods: readonly (ApplianceProjectionMethod | null)[],
+): ApplianceProjectionMethod | null {
+    const normalizedMethods = methods.filter((method): method is ApplianceProjectionMethod => method !== null);
+    if (normalizedMethods.length === 0) {
+        return null;
+    }
+
+    return normalizedMethods.every((method) => method === normalizedMethods[0])
+        ? normalizedMethods[0]
+        : null;
 }
 
-function _normalizeSocPct(value: number | null): number | null {
+function _formatEnergyBadgeText(value: number): string {
+    if (!Number.isFinite(value)) {
+        return "";
+    }
+
+    return String(Number(value.toFixed(value >= 10 ? 0 : 1)));
+}
+
+function _normalizeProjectionMethod(
+    value: ApplianceProjectionPointDTO["projectionMethod"],
+): ApplianceProjectionMethod | null {
+    return value === "fixed" || value === "history_average" || value === "fixed_fallback"
+        ? value
+        : null;
+}
+
+function _normalizeSocPct(value: number | null | undefined): number | null {
     if (typeof value !== "number" || !Number.isFinite(value)) {
         return null;
     }
@@ -158,7 +257,15 @@ function _normalizeSocPct(value: number | null): number | null {
     return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function _normalizeOptionalString(value: string | null): string | null {
+function _normalizeEnergyKwh(value: number | null | undefined): number | null {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+        return null;
+    }
+
+    return value;
+}
+
+function _normalizeOptionalString(value: string | null | undefined): string | null {
     return _isNonEmptyString(value) ? value : null;
 }
 

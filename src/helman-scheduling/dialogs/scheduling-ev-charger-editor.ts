@@ -4,13 +4,9 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleEvChargerApplianceMetadata } from "../model/schedule-appliance-metadata";
 import type { ScheduleApplianceAction } from "../schedule-types";
+import { isScheduleEvChargerAction } from "../schedule-types";
+import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
-
-export interface ScheduleEvChargerActionChangeDetail {
-    applianceId: string;
-    action: ScheduleApplianceAction | null;
-    valid: boolean;
-}
 
 type EvChargerEditorMode = "none" | "charge";
 type EvChargerOptionPresentation = {
@@ -232,7 +228,7 @@ export class SchedulingEvChargerEditor extends LitElement {
             return;
         }
 
-        if (action === null) {
+        if (action === null || !isScheduleEvChargerAction(action)) {
             this._mode = "none";
             this._vehicleId = this.appliance.vehicles[0]?.id ?? "";
             this._useMode = this.appliance.scheduleCapabilities.useModes[0] ?? "Fast";
@@ -294,14 +290,14 @@ export class SchedulingEvChargerEditor extends LitElement {
         }
 
         const detail = this._buildDetail();
-        this.dispatchEvent(new CustomEvent("schedule-ev-charger-action-change", {
+        this.dispatchEvent(new CustomEvent("schedule-appliance-action-change", {
             bubbles: true,
             composed: true,
             detail,
         }));
     }
 
-    private _buildDetail(): ScheduleEvChargerActionChangeDetail {
+    private _buildDetail(): ScheduleApplianceActionChangeDetail {
         if (!this.appliance) {
             return { applianceId: "", action: null, valid: false };
         }

@@ -4,10 +4,11 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import "../components/scheduling-action-option-card";
 import "./scheduling-ev-charger-editor";
+import "./scheduling-generic-appliance-editor";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
-import type { ScheduleEvChargerActionChangeDetail } from "./scheduling-ev-charger-editor";
+import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import {
     formatScheduleSlotCount,
 } from "../model/schedule-labels";
@@ -21,12 +22,14 @@ import {
     areScheduleApplianceActionsEqual,
     cloneScheduleApplianceAction,
     cloneScheduleDomains,
+    isScheduleApplianceActionEnabled,
     isTargetScheduleAction,
     type ScheduleAction,
 } from "../schedule-types";
 import type {
     ScheduleApplianceMetadata,
     ScheduleEvChargerApplianceMetadata,
+    ScheduleGenericApplianceMetadata,
 } from "../model/schedule-appliance-metadata";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
@@ -459,9 +462,18 @@ export class SchedulingRangeEditDialog extends LitElement {
             return nothing;
         }
 
-        return appliance.kind === "ev_charger"
-            ? this._renderEvChargerSection(appliance)
-            : this._renderUnsupportedApplianceSection(appliance);
+        if (!appliance.supportsAuthoring) {
+            return this._renderUnsupportedApplianceSection(appliance);
+        }
+
+        switch (appliance.kind) {
+            case "ev_charger":
+                return this._renderEvChargerSection(appliance);
+            case "generic":
+                return this._renderGenericSection(appliance);
+            default:
+                return this._renderUnsupportedApplianceSection(appliance);
+        }
     }
 
     private _renderEvChargerSection(appliance: ScheduleEvChargerApplianceMetadata) {
@@ -470,8 +482,19 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
-                @schedule-ev-charger-action-change=${this._handleEvChargerActionChange}
+                @schedule-appliance-action-change=${this._handleApplianceActionChange}
             ></scheduling-ev-charger-editor>
+        `;
+    }
+
+    private _renderGenericSection(appliance: ScheduleGenericApplianceMetadata) {
+        return html`
+            <scheduling-generic-appliance-editor
+                .appliance=${appliance}
+                .localize=${this.localize}
+                .action=${this._draftApplianceActions[appliance.id] ?? null}
+                @schedule-appliance-action-change=${this._handleApplianceActionChange}
+            ></scheduling-generic-appliance-editor>
         `;
     }
 
@@ -541,8 +564,8 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._setActionKind(event.detail.actionKind);
     }
 
-    private _handleEvChargerActionChange(
-        event: CustomEvent<ScheduleEvChargerActionChangeDetail>,
+    private _handleApplianceActionChange(
+        event: CustomEvent<ScheduleApplianceActionChangeDetail>,
     ): void {
         const { applianceId, action, valid } = event.detail;
         this._applianceValidity = {
@@ -673,6 +696,8 @@ export class SchedulingRangeEditDialog extends LitElement {
         switch (appliance.kind) {
             case "ev_charger":
                 return "mdi:car-electric";
+            case "generic":
+                return "mdi:power-plug";
             default:
                 return "mdi:flash-outline";
         }
@@ -706,16 +731,24 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _normalizeDraftApplianceAction(
         action: ScheduleApplianceAction,
     ): ScheduleApplianceAction | null {
-        return action.charge ? cloneScheduleApplianceAction(action) : null;
+        return isScheduleApplianceActionEnabled(action) === true
+            ? cloneScheduleApplianceAction(action)
+            : null;
     }
 
     private _isApplianceActionEdited(
         initialAction: ScheduleApplianceAction | null,
         nextAction: ScheduleApplianceAction | null,
     ): boolean {
-        return nextAction === null || initialAction === null
-            ? nextAction !== initialAction
-            : !areScheduleApplianceActionsEqual(nextAction, initialAction);
+        const normalizedInitialAction = initialAction === null
+            ? null
+            : this._normalizeDraftApplianceAction(initialAction);
+        const normalizedNextAction = nextAction === null
+            ? null
+            : this._normalizeDraftApplianceAction(nextAction);
+        return normalizedNextAction === null || normalizedInitialAction === null
+            ? normalizedNextAction !== normalizedInitialAction
+            : !areScheduleApplianceActionsEqual(normalizedNextAction, normalizedInitialAction);
     }
 
     private _closeDialogElement(): void {

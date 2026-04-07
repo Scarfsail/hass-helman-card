@@ -1,7 +1,8 @@
 import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import {
-    getExpectedVehicleSocPct,
+    getScheduleApplianceProjectionBadge,
+    mergeScheduleApplianceProjectionBadges,
     type ScheduleApplianceProjectionIndex,
 } from "./schedule-appliance-projection";
 import { getScheduleApplianceById } from "./schedule-appliance-metadata";
@@ -24,6 +25,7 @@ import type {
 import {
     getScheduleActionIdentityKey,
     getScheduleApplianceActionIdentityKey,
+    isScheduleApplianceActionEnabled,
     isScheduleBackedDisplaySlot,
     type ScheduleDisplaySlot,
     type ScheduleSlot,
@@ -385,13 +387,20 @@ function _buildDistinctApplianceItems(
             return [];
         }
 
-        return Object.entries(slot.scheduleSlot.domains.appliances).map(([applianceId, action]) => ({
-            slotId: slot.scheduleSlot.id,
-            applianceId,
-            action,
-            appliance: getScheduleApplianceById(appliances, applianceId),
-            order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
-        }));
+        return Object.entries(slot.scheduleSlot.domains.appliances).flatMap(([applianceId, action]) => {
+            const appliance = getScheduleApplianceById(appliances, applianceId);
+            if (appliance?.kind === "generic" && isScheduleApplianceActionEnabled(action) !== true) {
+                return [];
+            }
+
+            return [{
+                slotId: slot.scheduleSlot.id,
+                applianceId,
+                action,
+                appliance,
+                order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
+            }];
+        });
     }).sort((left, right) => {
         if (left.order !== right.order) {
             return left.order - right.order;
@@ -406,7 +415,7 @@ function _buildDistinctApplianceItems(
     const itemsByKey = new Map<string, ScheduleTableApplianceActionItemModel>();
     for (const entry of actions) {
         const key = `${entry.applianceId}:${getScheduleApplianceActionIdentityKey(entry.action)}`;
-        const expectedVehicleSocPct = getExpectedVehicleSocPct({
+        const projectionBadge = getScheduleApplianceProjectionBadge({
             projectionIndex: applianceProjectionIndex,
             applianceKind: entry.appliance?.kind,
             applianceId: entry.applianceId,
@@ -415,9 +424,9 @@ function _buildDistinctApplianceItems(
         });
         const existing = itemsByKey.get(key);
         if (existing) {
-            existing.expectedVehicleSocPct = _mergeExpectedVehicleSocPct(
-                existing.expectedVehicleSocPct,
-                expectedVehicleSocPct,
+            existing.projectionBadge = mergeScheduleApplianceProjectionBadges(
+                existing.projectionBadge,
+                projectionBadge,
             );
             continue;
         }
@@ -430,7 +439,7 @@ function _buildDistinctApplianceItems(
             applianceKind: entry.appliance?.kind ?? "unknown",
             action: entry.action,
             firstSlotId: entry.slotId,
-            expectedVehicleSocPct,
+            projectionBadge,
         } satisfies ScheduleTableApplianceActionItemModel;
         itemsByKey.set(key, item);
         items.push(item);
@@ -500,20 +509,6 @@ function _buildSlotRow({
         parentHourKey,
     };
 }
-
-function _mergeExpectedVehicleSocPct(
-    current: number | null,
-    next: number | null,
-): number | null {
-    if (current === null) {
-        return next;
-    }
-    if (next === null) {
-        return current;
-    }
-    return Math.max(current, next);
-}
-
 function _buildDetailRow({
     ownerRowId,
     slot,

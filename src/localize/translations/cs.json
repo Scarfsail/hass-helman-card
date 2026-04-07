@@ -162,6 +162,18 @@
       "action": {
         "generic": "Naplánováno"
       },
+      "generic": {
+        "action": {
+          "on": "Zapnout",
+          "off": "Vypnout"
+        },
+        "projected_energy": "Odhadovaná energie",
+        "projection_method": {
+          "fixed": "Fixní",
+          "history_average": "Historický průměr",
+          "fixed_fallback": "Fixní náhrada"
+        }
+      },
       "ev": {
         "action": {
           "no_charge": "Nenabíjet"
@@ -252,6 +264,7 @@
       "choose_action": "Vyberte akci, která se má použít na vybrané sloty.",
       "appliance": {
         "no_action": "Bez akce",
+        "turn_on": "Zapnout",
         "no_charge": "Nenabíjet",
         "charge": "Nabíjet",
         "vehicle": "Vozidlo",
@@ -260,7 +273,8 @@
         "unsupported_authoring": "Autorování pro tento typ spotřebiče zatím není v plánování dostupné."
       },
       "appliance_kind": {
-        "ev_charger": "EV nabíječka"
+        "ev_charger": "EV nabíječka",
+        "generic": "Obecný spotřebič"
       },
       "target_soc": "Cílové SoC",
       "affects_prefix": "Ovlivní",
