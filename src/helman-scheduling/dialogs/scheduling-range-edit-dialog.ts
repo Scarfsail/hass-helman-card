@@ -402,7 +402,7 @@ export class SchedulingRangeEditDialog extends LitElement {
         const action = this._draftApplianceActions[appliance.id] ?? null;
         const indicator = action === null
             ? {
-                icon: this._getApplianceBaseIcon(appliance),
+                icon: appliance.icon,
                 toneClass: "action-tone-neutral" as const,
                 configured: false,
                 title: this.localize("scheduling.dialog.tab.not_configured"),
@@ -690,17 +690,6 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _buildApplianceTabId(applianceId: string): `appliance:${string}` {
         return `appliance:${applianceId}`;
-    }
-
-    private _getApplianceBaseIcon(appliance: ScheduleApplianceMetadata): string {
-        switch (appliance.kind) {
-            case "ev_charger":
-                return "mdi:car-electric";
-            case "generic":
-                return "mdi:power-plug";
-            default:
-                return "mdi:flash-outline";
-        }
     }
 
     private _updateInverterEditedState(): void {

@@ -9,6 +9,8 @@ import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appl
 import type { ScheduleApplianceAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
+type SchedulingApplianceChipMetadata = Pick<ScheduleApplianceMetadata, "id" | "name" | "kind" | "icon">;
+
 @customElement("scheduling-appliance-chip")
 export class SchedulingApplianceChip extends LitElement {
     static styles = [
@@ -87,7 +89,7 @@ export class SchedulingApplianceChip extends LitElement {
         `,
     ];
 
-    @property({ attribute: false }) public appliance?: ScheduleApplianceMetadata;
+    @property({ attribute: false }) public appliance?: SchedulingApplianceChipMetadata;
     @property({ attribute: false }) public action?: ScheduleApplianceAction;
     @property({ attribute: false }) public projectionBadge: ScheduleApplianceProjectionBadge | null = null;
     @property({ attribute: false }) public localize?: LocalizeFunction;

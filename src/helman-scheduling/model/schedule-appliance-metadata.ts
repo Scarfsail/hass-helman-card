@@ -18,6 +18,7 @@ export interface ScheduleApplianceMetadataBase {
     id: string;
     name: string;
     kind: string;
+    icon: string;
     order: number;
     supportsAuthoring: boolean;
 }
@@ -84,6 +85,7 @@ function _normalizeApplianceMetadata(
             id: appliance.id,
             name: appliance.name,
             kind: appliance.kind,
+            icon: appliance.metadata.icon,
             order,
             supportsAuthoring: true,
             maxChargingPowerKw: appliance.metadata.maxChargingPowerKw,
@@ -99,6 +101,7 @@ function _normalizeApplianceMetadata(
             id: appliance.id,
             name: appliance.name,
             kind: appliance.kind,
+            icon: appliance.metadata.icon,
             order,
             supportsAuthoring: appliance.metadata.scheduleCapabilities.onOffToggle,
             scheduleCapabilities: _cloneGenericScheduleCapabilities(appliance.metadata.scheduleCapabilities),
@@ -109,6 +112,7 @@ function _normalizeApplianceMetadata(
         id: appliance.id,
         name: appliance.name,
         kind: appliance.kind,
+        icon: _extractUnknownApplianceIcon(appliance),
         order,
         supportsAuthoring: false,
     };
@@ -159,4 +163,15 @@ function _isVehicleOption(vehicle: ApplianceVehicleDTO): boolean {
 
 function _isNonEmptyString(value: unknown): value is string {
     return typeof value === "string" && value.trim().length > 0;
+}
+
+function _extractUnknownApplianceIcon(appliance: ApplianceMetadataDTO): string {
+    if ("metadata" in appliance && appliance.metadata && typeof appliance.metadata === "object") {
+        const icon = (appliance.metadata as { icon?: unknown }).icon;
+        if (_isNonEmptyString(icon)) {
+            return icon;
+        }
+    }
+
+    return "mdi:flash-outline";
 }

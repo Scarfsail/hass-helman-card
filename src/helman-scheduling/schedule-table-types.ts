@@ -82,9 +82,12 @@ export interface ScheduleTableInverterActionItemModel {
 export interface ScheduleTableApplianceActionItemModel {
     kind: "appliance";
     key: string;
-    applianceId: string;
-    applianceName: string;
-    applianceKind: string;
+    appliance: {
+        id: string;
+        name: string;
+        kind: string;
+        icon: string;
+    };
     action: ScheduleApplianceAction;
     firstSlotId: string;
     projectionBadge: ScheduleApplianceProjectionBadge | null;

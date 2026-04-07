@@ -387,11 +387,13 @@ export interface ApplianceVehicleDTO {
 }
 
 export interface EvChargerMetadataDTO {
+    icon: string;
     maxChargingPowerKw: number;
     scheduleCapabilities: EvChargerScheduleCapabilitiesDTO;
 }
 
 export interface GenericApplianceMetadataDTO {
+    icon: string;
     scheduleCapabilities: GenericApplianceScheduleCapabilitiesDTO;
 }
 

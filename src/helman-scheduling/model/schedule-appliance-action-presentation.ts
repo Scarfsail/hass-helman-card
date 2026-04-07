@@ -20,42 +20,43 @@ export function getScheduleApplianceActionPresentation({
     action,
     localize,
 }: {
-    appliance: Pick<ScheduleApplianceMetadata, "kind">;
+    appliance: Pick<ScheduleApplianceMetadata, "kind" | "icon">;
     action: ScheduleApplianceAction;
     localize: LocalizeFunction;
 }): ScheduleApplianceActionPresentation {
     if (appliance.kind === "ev_charger" && isScheduleEvChargerAction(action)) {
-        return _getEvChargerActionPresentation(action, localize);
+        return _getEvChargerActionPresentation(appliance.icon, action, localize);
     }
 
     if (appliance.kind === "generic" && isScheduleGenericApplianceAction(action)) {
         return action.on
             ? {
-                icon: "mdi:power-plug",
+                icon: appliance.icon,
                 label: localize("scheduling.appliance.generic.action.on"),
                 toneClass: "action-tone-charge",
             }
             : {
-                icon: "mdi:circle-outline",
+                icon: appliance.icon,
                 label: localize("scheduling.dialog.appliance.no_action"),
                 toneClass: "action-tone-neutral",
             };
     }
 
     return {
-        icon: "mdi:flash",
+        icon: appliance.icon,
         label: localize("scheduling.appliance.action.generic"),
         toneClass: "action-tone-neutral",
     };
 }
 
 function _getEvChargerActionPresentation(
+    icon: string,
     action: Extract<ScheduleApplianceAction, { charge: boolean }>,
     localize: LocalizeFunction,
 ): ScheduleApplianceActionPresentation {
     const modeLabel = _buildEvModeLabel(action, localize);
     return {
-        icon: "mdi:car-electric",
+        icon,
         label: action.charge ? modeLabel : localize("scheduling.appliance.ev.action.no_charge"),
         toneClass: action.charge ? "action-tone-charge" : "action-tone-stop",
     };

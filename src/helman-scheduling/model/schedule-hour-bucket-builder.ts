@@ -434,9 +434,12 @@ function _buildDistinctApplianceItems(
         const item = {
             kind: "appliance",
             key,
-            applianceId: entry.applianceId,
-            applianceName: entry.appliance?.name ?? entry.applianceId,
-            applianceKind: entry.appliance?.kind ?? "unknown",
+            appliance: {
+                id: entry.applianceId,
+                name: entry.appliance?.name ?? entry.applianceId,
+                kind: entry.appliance?.kind ?? "unknown",
+                icon: entry.appliance?.icon ?? "mdi:flash-outline",
+            },
             action: entry.action,
             firstSlotId: entry.slotId,
             projectionBadge,

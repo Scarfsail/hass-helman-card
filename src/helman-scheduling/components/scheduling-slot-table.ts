@@ -1465,13 +1465,7 @@ export class SchedulingSlotTable extends LitElement {
 
         return html`
             <scheduling-appliance-chip
-                .appliance=${{
-                    id: item.applianceId,
-                    name: item.applianceName,
-                    kind: item.applianceKind,
-                    order: 0,
-                    supportsAuthoring: false,
-                }}
+                .appliance=${item.appliance}
                 .action=${item.action}
                 .projectionBadge=${item.projectionBadge}
                 .localize=${this.localize}
@@ -1724,15 +1718,15 @@ export class SchedulingSlotTable extends LitElement {
         }
 
         const presentation = getScheduleApplianceActionPresentation({
-            appliance: { kind: item.applianceKind },
+            appliance: item.appliance,
             action: item.action,
             localize: this.localize,
         });
         if (item.projectionBadge === null) {
-            return `${item.applianceName} · ${presentation.label}`;
+            return `${item.appliance.name} · ${presentation.label}`;
         }
 
-        return `${item.applianceName} · ${presentation.label} · ${this._buildProjectionBadgeLabel(item.projectionBadge)}`;
+        return `${item.appliance.name} · ${presentation.label} · ${this._buildProjectionBadgeLabel(item.projectionBadge)}`;
     }
 
     private _buildProjectionBadgeLabel(

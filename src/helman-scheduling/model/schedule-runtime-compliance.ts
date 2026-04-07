@@ -312,6 +312,7 @@ function _getExpectedApplianceLabel(
             id: "unknown",
             name: "unknown",
             kind: "unknown",
+            icon: "mdi:flash-outline",
             order: 0,
             supportsAuthoring: false,
         },
