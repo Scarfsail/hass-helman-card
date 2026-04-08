@@ -23,30 +23,24 @@ export class SchedulingEvChargerEditor extends LitElement {
             .appliance-panel {
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
-                padding: 12px;
+                gap: 10px;
+                padding: 10px;
                 border: 1px solid var(--divider-color);
                 border-radius: 12px;
                 background: var(--secondary-background-color);
             }
 
-            .appliance-header {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-
             .action-options {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 8px;
             }
 
             .action-option-card {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
-                padding: 12px;
+                gap: 6px;
+                padding: 10px;
                 border: 1px solid var(--divider-color);
                 border-radius: 12px;
                 background: var(--card-background-color);
@@ -71,13 +65,13 @@ export class SchedulingEvChargerEditor extends LitElement {
 
             .action-option-header {
                 display: flex;
-                align-items: flex-start;
-                gap: 10px;
+                align-items: center;
+                gap: 8px;
             }
 
             .action-option-radio {
                 flex-shrink: 0;
-                margin-top: 2px;
+                margin-top: 0;
             }
 
             .action-option-copy {
@@ -89,8 +83,8 @@ export class SchedulingEvChargerEditor extends LitElement {
             .action-option-detail {
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
-                padding-left: 28px;
+                gap: 8px;
+                padding-left: 24px;
             }
 
             .preview-chip {
@@ -100,12 +94,17 @@ export class SchedulingEvChargerEditor extends LitElement {
                 max-width: 100%;
                 overflow: hidden;
                 justify-content: flex-start;
+                min-height: 20px;
+                padding: 2px 6px;
+                font-size: 0.75rem;
+                line-height: 1.1;
+                gap: 4px;
             }
 
             .preview-icon {
                 flex-shrink: 0;
                 color: var(--schedule-action-tone-icon, currentColor);
-                --mdc-icon-size: 1rem;
+                --mdc-icon-size: 0.85rem;
             }
 
             .chip-label {
@@ -146,8 +145,8 @@ export class SchedulingEvChargerEditor extends LitElement {
 
         const needsEcoGear = this._mode === "charge" && this._useMode === "ECO";
         return html`
-            <div class="appliance-panel">
-                <div class="appliance-header">
+            <div class=${`appliance-panel${this.action !== null ? " panel-highlight-success" : ""}`}>
+                <div class="appliance-header panel-header-inline">
                     <div class="panel-title">${this.appliance.name}</div>
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.ev_charger")}</div>
                 </div>

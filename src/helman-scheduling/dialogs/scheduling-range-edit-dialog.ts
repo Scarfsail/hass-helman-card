@@ -6,7 +6,6 @@ import "../components/scheduling-action-option-card";
 import "./scheduling-ev-charger-editor";
 import "./scheduling-generic-appliance-editor";
 import "./scheduling-climate-appliance-editor";
-import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
@@ -40,7 +39,7 @@ const DEFAULT_CHARGE_TARGET_SOC = 100;
 const DEFAULT_DISCHARGE_TARGET_SOC = 15;
 let nextDialogHistoryEntryId = 0;
 
-type ScheduleDialogTabId = "inverter" | `appliance:${string}`;
+type ScheduleDialogTabId = "inverter" | "appliances";
 
 @customElement("scheduling-range-edit-dialog")
 export class SchedulingRangeEditDialog extends LitElement {
@@ -71,7 +70,14 @@ export class SchedulingRangeEditDialog extends LitElement {
             .appliance-sections {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+            }
+
+            .action-options {
+                gap: 8px;
+            }
+
+            .appliance-sections {
+                gap: 12px;
             }
 
             .dialog-tabs {
@@ -250,13 +256,13 @@ export class SchedulingRangeEditDialog extends LitElement {
 
                     <div class="dialog-tabs" role="tablist" aria-label=${this.localize("scheduling.dialog.tabs")}>
                         ${this._renderInverterTab()}
-                        ${this.appliances.map((appliance) => this._renderApplianceTab(appliance))}
+                        ${this._renderAppliancesTab()}
                     </div>
 
                     <div class="dialog-panel">
                         ${this._activeTabId === "inverter"
                             ? this._renderInverterPanel()
-                            : this._renderActiveAppliancePanel()}
+                            : this._renderAppliancesPanel()}
                     </div>
 
                     <div class="field-help">
@@ -400,37 +406,23 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
-    private _renderApplianceTab(appliance: ScheduleApplianceMetadata) {
-        const action = this._draftApplianceActions[appliance.id] ?? null;
-        const indicator = action === null
-            ? {
-                icon: appliance.icon,
-                toneClass: "action-tone-neutral" as const,
-                configured: false,
-                title: this.localize("scheduling.dialog.tab.not_configured"),
-            }
-            : {
-                ...getScheduleApplianceActionPresentation({
-                    appliance,
-                    action,
-                    localize: this.localize,
-                }),
-                configured: true,
-                title: this.localize("scheduling.dialog.tab.configured"),
-            };
-        const activeTabId = this._buildApplianceTabId(appliance.id);
-        const active = this._activeTabId === activeTabId;
+    private _renderAppliancesTab() {
+        const configured = this._hasConfiguredApplianceActions();
+        const active = this._activeTabId === "appliances";
+        const title = configured
+            ? this.localize("scheduling.dialog.tab.configured")
+            : this.localize("scheduling.dialog.tab.not_configured");
         return html`
             <button
-                class=${`dialog-tab ${indicator.configured ? "configured" : "unconfigured"} ${indicator.toneClass}${active ? " active" : ""}`}
+                class=${`dialog-tab ${configured ? "configured action-tone-charge" : "unconfigured action-tone-neutral"}${active ? " active" : ""}`}
                 type="button"
                 role="tab"
                 aria-selected=${active ? "true" : "false"}
-                title=${indicator.title}
-                @click=${() => this._setActiveTab(activeTabId)}
+                title=${title}
+                @click=${() => this._setActiveTab("appliances")}
             >
-                <ha-icon class="dialog-tab-icon" .icon=${indicator.icon} aria-hidden="true"></ha-icon>
-                <span class="dialog-tab-label">${appliance.name}</span>
+                <ha-icon class="dialog-tab-icon" .icon=${"mdi:power-plug"} aria-hidden="true"></ha-icon>
+                <span class="dialog-tab-label">${this.localize("scheduling.dialog.appliances")}</span>
             </button>
         `;
     }
@@ -453,17 +445,15 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
-    private _renderActiveAppliancePanel() {
-        const applianceId = this._activeTabId.startsWith("appliance:")
-            ? this._activeTabId.slice("appliance:".length)
-            : null;
-        const appliance = applianceId === null
-            ? null
-            : this.appliances.find((candidate) => candidate.id === applianceId) ?? null;
-        if (appliance === null) {
-            return nothing;
-        }
+    private _renderAppliancesPanel() {
+        return html`
+            <div class="appliance-sections">
+                ${this.appliances.map((appliance) => this._renderApplianceSection(appliance))}
+            </div>
+        `;
+    }
 
+    private _renderApplianceSection(appliance: ScheduleApplianceMetadata) {
         if (!appliance.supportsAuthoring) {
             return this._renderUnsupportedApplianceSection(appliance);
         }
@@ -703,10 +693,6 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._activeTabId = tabId;
     }
 
-    private _buildApplianceTabId(applianceId: string): `appliance:${string}` {
-        return `appliance:${applianceId}`;
-    }
-
     private _updateInverterEditedState(): void {
         const currentAction = this._buildEditedAction();
         const initialAction = this._initialDomains?.inverter ?? null;
@@ -753,6 +739,10 @@ export class SchedulingRangeEditDialog extends LitElement {
         return normalizedNextAction === null || normalizedInitialAction === null
             ? normalizedNextAction !== normalizedInitialAction
             : !areScheduleApplianceActionsEqual(normalizedNextAction, normalizedInitialAction);
+    }
+
+    private _hasConfiguredApplianceActions(): boolean {
+        return this.appliances.some((appliance) => this._draftApplianceActions[appliance.id] !== null);
     }
 
     private _closeDialogElement(): void {

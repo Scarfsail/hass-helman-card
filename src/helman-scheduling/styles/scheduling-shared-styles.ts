@@ -21,6 +21,22 @@ export const schedulingSharedStyles = css`
         line-height: 1.2;
     }
 
+    .panel-header-inline {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+    }
+
+    .panel.panel-highlight-success,
+    .appliance-panel.panel-highlight-success {
+        border-color: color-mix(in srgb, var(--success-color, #2e7d32) 48%, var(--divider-color));
+        background: color-mix(in srgb, var(--success-color, #2e7d32) 14%, var(--secondary-background-color));
+        box-shadow:
+            inset 0 0 0 1px color-mix(in srgb, var(--success-color, #2e7d32) 14%, transparent),
+            0 0 0 1px color-mix(in srgb, var(--success-color, #2e7d32) 6%, transparent);
+    }
+
     .panel-subtitle,
     .muted,
     .field-help {

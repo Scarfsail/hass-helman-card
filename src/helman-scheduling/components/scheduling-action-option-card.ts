@@ -23,8 +23,8 @@ export class SchedulingActionOptionCard extends LitElement {
             .action-option-card {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
-                padding: 12px;
+                gap: 8px;
+                padding: 10px;
                 border: 1px solid var(--divider-color);
                 border-radius: 12px;
                 background: var(--card-background-color);
@@ -49,13 +49,13 @@ export class SchedulingActionOptionCard extends LitElement {
 
             .action-option-header {
                 display: flex;
-                align-items: flex-start;
-                gap: 10px;
+                align-items: center;
+                gap: 8px;
             }
 
             .action-option-radio {
                 flex-shrink: 0;
-                margin-top: 2px;
+                margin-top: 0;
             }
 
             .action-option-copy {
@@ -67,8 +67,8 @@ export class SchedulingActionOptionCard extends LitElement {
             .action-option-detail {
                 display: flex;
                 align-items: flex-start;
-                gap: 12px;
-                padding-left: 28px;
+                gap: 8px;
+                padding-left: 24px;
             }
 
             .action-option-detail[hidden] {
@@ -113,7 +113,11 @@ export class SchedulingActionOptionCard extends LitElement {
                         @change=${this._handleRadioChange}
                     />
                     <div class="action-option-copy">
-                        <scheduling-action-chip .action=${this.action} .localize=${this.localize}></scheduling-action-chip>
+                        <scheduling-action-chip
+                            .action=${this.action}
+                            .localize=${this.localize}
+                            size="compact"
+                        ></scheduling-action-chip>
                     </div>
                 </label>
                 <div class="action-option-detail" ?hidden=${!this._hasDetailContent} @click=${this._stopPropagation}>
