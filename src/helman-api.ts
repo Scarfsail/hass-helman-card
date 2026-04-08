@@ -271,6 +271,7 @@ export interface ScheduleActionDTO {
 }
 
 export type EvChargerUseMode = "Fast" | "ECO";
+export type ClimateApplianceMode = "heat" | "cool" | (string & {});
 
 export interface ScheduleEvChargerActionDTO {
     charge: boolean;
@@ -283,9 +284,14 @@ export interface ScheduleGenericApplianceActionDTO {
     on: boolean;
 }
 
+export interface ScheduleClimateApplianceActionDTO {
+    mode: ClimateApplianceMode;
+}
+
 export type ScheduleApplianceActionDTO =
     | ScheduleEvChargerActionDTO
-    | ScheduleGenericApplianceActionDTO;
+    | ScheduleGenericApplianceActionDTO
+    | ScheduleClimateApplianceActionDTO;
 
 export type ScheduleRuntimeReason = "scheduled" | "target_soc_reached";
 export type RuntimeActionKind = "apply" | "slot_stop" | "noop";
@@ -369,6 +375,10 @@ export interface GenericApplianceScheduleCapabilitiesDTO {
     onOffToggle: boolean;
 }
 
+export interface ClimateApplianceScheduleCapabilitiesDTO {
+    modes: ClimateApplianceMode[];
+}
+
 export interface ApplianceVehicleTelemetryDTO {
     socEntityId: string;
     chargeLimitEntityId?: string;
@@ -397,6 +407,11 @@ export interface GenericApplianceMetadataDTO {
     scheduleCapabilities: GenericApplianceScheduleCapabilitiesDTO;
 }
 
+export interface ClimateApplianceMetadataDTO {
+    icon: string;
+    scheduleCapabilities: ClimateApplianceScheduleCapabilitiesDTO;
+}
+
 export interface EvChargerControlsDTO {
     charge: EntityReferenceDTO;
     useMode: EntityReferenceDTO;
@@ -405,6 +420,10 @@ export interface EvChargerControlsDTO {
 
 export interface GenericApplianceControlsDTO {
     switch: EntityReferenceDTO;
+}
+
+export interface ClimateApplianceControlsDTO {
+    climate: EntityReferenceDTO;
 }
 
 export interface ApplianceMetadataDTOBase {
@@ -426,6 +445,12 @@ export interface GenericApplianceMetadataRecordDTO extends ApplianceMetadataDTOB
     controls: GenericApplianceControlsDTO;
 }
 
+export interface ClimateApplianceMetadataRecordDTO extends ApplianceMetadataDTOBase {
+    kind: "climate";
+    metadata: ClimateApplianceMetadataDTO;
+    controls: ClimateApplianceControlsDTO;
+}
+
 export interface UnknownApplianceMetadataDTO extends ApplianceMetadataDTOBase {
     [key: string]: unknown;
 }
@@ -433,6 +458,7 @@ export interface UnknownApplianceMetadataDTO extends ApplianceMetadataDTOBase {
 export type ApplianceMetadataDTO =
     | EvChargerApplianceMetadataDTO
     | GenericApplianceMetadataRecordDTO
+    | ClimateApplianceMetadataRecordDTO
     | UnknownApplianceMetadataDTO;
 
 export interface AppliancesPayload {

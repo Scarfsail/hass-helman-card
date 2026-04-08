@@ -15,6 +15,7 @@ export type ScheduleActionKind = ScheduleInverterAction["kind"];
 export type ScheduleApplianceAction = ScheduleApplianceActionDTO;
 export type ScheduleEvChargerAction = Extract<ScheduleApplianceAction, { charge: boolean }>;
 export type ScheduleGenericApplianceAction = Extract<ScheduleApplianceAction, { on: boolean }>;
+export type ScheduleClimateApplianceAction = Extract<ScheduleApplianceAction, { mode: string }>;
 export type ScheduleDomains = ScheduleDomainsDTO;
 
 export interface ScheduleInverterRuntime {
@@ -288,6 +289,13 @@ export function isScheduleGenericApplianceAction(
     return typeof (action as Partial<ScheduleGenericApplianceAction>).on === "boolean";
 }
 
+export function isScheduleClimateApplianceAction(
+    action: ScheduleApplianceAction,
+): action is ScheduleClimateApplianceAction {
+    return typeof (action as Partial<ScheduleClimateApplianceAction>).mode === "string"
+        && (action as Partial<ScheduleClimateApplianceAction>).mode!.trim().length > 0;
+}
+
 export function isScheduleApplianceActionEnabled(action: ScheduleApplianceAction): boolean | null {
     if (isScheduleEvChargerAction(action)) {
         return action.charge;
@@ -295,6 +303,10 @@ export function isScheduleApplianceActionEnabled(action: ScheduleApplianceAction
 
     if (isScheduleGenericApplianceAction(action)) {
         return action.on;
+    }
+
+    if (isScheduleClimateApplianceAction(action)) {
+        return true;
     }
 
     return null;

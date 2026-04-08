@@ -5,6 +5,7 @@ import type { LocalizeFunction } from "../../localize/localize";
 import "../components/scheduling-action-option-card";
 import "./scheduling-ev-charger-editor";
 import "./scheduling-generic-appliance-editor";
+import "./scheduling-climate-appliance-editor";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
@@ -28,6 +29,7 @@ import {
 } from "../schedule-types";
 import type {
     ScheduleApplianceMetadata,
+    ScheduleClimateApplianceMetadata,
     ScheduleEvChargerApplianceMetadata,
     ScheduleGenericApplianceMetadata,
 } from "../model/schedule-appliance-metadata";
@@ -469,6 +471,8 @@ export class SchedulingRangeEditDialog extends LitElement {
         switch (appliance.kind) {
             case "ev_charger":
                 return this._renderEvChargerSection(appliance);
+            case "climate":
+                return this._renderClimateSection(appliance);
             case "generic":
                 return this._renderGenericSection(appliance);
             default:
@@ -495,6 +499,17 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
             ></scheduling-generic-appliance-editor>
+        `;
+    }
+
+    private _renderClimateSection(appliance: ScheduleClimateApplianceMetadata) {
+        return html`
+            <scheduling-climate-appliance-editor
+                .appliance=${appliance}
+                .localize=${this.localize}
+                .action=${this._draftApplianceActions[appliance.id] ?? null}
+                @schedule-appliance-action-change=${this._handleApplianceActionChange}
+            ></scheduling-climate-appliance-editor>
         `;
     }
 

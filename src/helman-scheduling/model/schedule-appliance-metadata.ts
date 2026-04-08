@@ -2,6 +2,9 @@ import type {
     ApplianceMetadataDTO,
     AppliancesPayload,
     ApplianceVehicleDTO,
+    ClimateApplianceMetadataRecordDTO,
+    ClimateApplianceMode,
+    ClimateApplianceScheduleCapabilitiesDTO,
     EvChargerApplianceMetadataDTO,
     EvChargerScheduleCapabilitiesDTO,
     EvChargerUseMode,
@@ -34,6 +37,10 @@ export interface ScheduleGenericApplianceCapabilities {
     onOffToggle: boolean;
 }
 
+export interface ScheduleClimateApplianceCapabilities {
+    modes: ClimateApplianceMode[];
+}
+
 export interface ScheduleEvChargerApplianceMetadata extends ScheduleApplianceMetadataBase {
     kind: "ev_charger";
     supportsAuthoring: true;
@@ -47,6 +54,11 @@ export interface ScheduleGenericApplianceMetadata extends ScheduleApplianceMetad
     scheduleCapabilities: ScheduleGenericApplianceCapabilities;
 }
 
+export interface ScheduleClimateApplianceMetadata extends ScheduleApplianceMetadataBase {
+    kind: "climate";
+    scheduleCapabilities: ScheduleClimateApplianceCapabilities;
+}
+
 export interface ScheduleUnknownApplianceMetadata extends ScheduleApplianceMetadataBase {
     supportsAuthoring: false;
 }
@@ -54,6 +66,7 @@ export interface ScheduleUnknownApplianceMetadata extends ScheduleApplianceMetad
 export type ScheduleApplianceMetadata =
     | ScheduleEvChargerApplianceMetadata
     | ScheduleGenericApplianceMetadata
+    | ScheduleClimateApplianceMetadata
     | ScheduleUnknownApplianceMetadata;
 
 export function normalizeScheduleApplianceMetadata(
@@ -108,6 +121,18 @@ function _normalizeApplianceMetadata(
         };
     }
 
+    if (appliance.kind === "climate" && _isClimateApplianceMetadata(appliance)) {
+        return {
+            id: appliance.id,
+            name: appliance.name,
+            kind: appliance.kind,
+            icon: appliance.metadata.icon,
+            order,
+            supportsAuthoring: appliance.metadata.scheduleCapabilities.modes.length > 0,
+            scheduleCapabilities: _cloneClimateScheduleCapabilities(appliance.metadata.scheduleCapabilities),
+        };
+    }
+
     return {
         id: appliance.id,
         name: appliance.name,
@@ -137,6 +162,14 @@ function _cloneGenericScheduleCapabilities(
     };
 }
 
+function _cloneClimateScheduleCapabilities(
+    capabilities: ClimateApplianceScheduleCapabilitiesDTO,
+): ScheduleClimateApplianceCapabilities {
+    return {
+        modes: [...capabilities.modes],
+    };
+}
+
 function _isEvChargerApplianceMetadata(
     appliance: ApplianceMetadataDTO,
 ): appliance is EvChargerApplianceMetadataDTO {
@@ -155,6 +188,14 @@ function _isGenericApplianceMetadata(
     return appliance.kind === "generic"
         && typeof appliance.metadata?.scheduleCapabilities?.onOffToggle === "boolean"
         && typeof appliance.controls?.switch?.entityId === "string";
+}
+
+function _isClimateApplianceMetadata(
+    appliance: ApplianceMetadataDTO,
+): appliance is ClimateApplianceMetadataRecordDTO {
+    return appliance.kind === "climate"
+        && Array.isArray(appliance.metadata?.scheduleCapabilities?.modes)
+        && typeof appliance.controls?.climate?.entityId === "string";
 }
 
 function _isVehicleOption(vehicle: ApplianceVehicleDTO): boolean {

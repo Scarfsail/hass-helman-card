@@ -163,6 +163,8 @@ export class SchedulingApplianceChip extends LitElement {
             kind: "energy",
             text: this.projectionBadge.text,
             energyKwh: this.projectionBadge.energyKwh,
+            applianceKind: this.projectionBadge.applianceKind,
+            mode: this.projectionBadge.mode,
             projectionMethod: this.projectionBadge.projectionMethod,
         };
     }

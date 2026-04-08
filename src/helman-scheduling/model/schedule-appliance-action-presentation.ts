@@ -2,12 +2,13 @@ import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import type { ScheduleApplianceAction } from "../schedule-types";
 import {
+    isScheduleClimateApplianceAction,
     isScheduleEvChargerAction,
     isScheduleGenericApplianceAction,
 } from "../schedule-types";
 
 type ScheduleApplianceActionTone = "neutral" | "charge" | "stop";
-type ScheduleApplianceActionToneClass = `action-tone-${ScheduleApplianceActionTone}`;
+export type ScheduleApplianceActionToneClass = `action-tone-${ScheduleApplianceActionTone}`;
 
 export interface ScheduleApplianceActionPresentation {
     icon: string;
@@ -42,11 +43,33 @@ export function getScheduleApplianceActionPresentation({
             };
     }
 
+    if (appliance.kind === "climate" && isScheduleClimateApplianceAction(action)) {
+        return {
+            icon: appliance.icon,
+            label: formatScheduleClimateModeLabel(action.mode, localize),
+            toneClass: "action-tone-charge",
+        };
+    }
+
     return {
         icon: appliance.icon,
         label: localize("scheduling.appliance.action.generic"),
         toneClass: "action-tone-neutral",
     };
+}
+
+export function formatScheduleClimateModeLabel(
+    mode: string,
+    localize: LocalizeFunction,
+): string {
+    switch (mode) {
+        case "heat":
+            return localize("scheduling.appliance.climate.mode.heat");
+        case "cool":
+            return localize("scheduling.appliance.climate.mode.cool");
+        default:
+            return mode;
+    }
 }
 
 function _getEvChargerActionPresentation(

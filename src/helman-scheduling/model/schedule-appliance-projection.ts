@@ -5,6 +5,7 @@ import type {
 } from "../../helman-api";
 import type { ScheduleApplianceAction } from "../schedule-types";
 import {
+    isScheduleClimateApplianceAction,
     isScheduleApplianceActionEnabled,
     isScheduleEvChargerAction,
 } from "../schedule-types";
@@ -27,6 +28,8 @@ export type ScheduleApplianceProjectionBadge =
         kind: "energy";
         text: string;
         energyKwh: number;
+        applianceKind: "generic" | "climate";
+        mode: string | null;
         projectionMethod: ApplianceProjectionMethod | null;
     };
 
@@ -119,8 +122,27 @@ export function getScheduleApplianceProjectionBadge({
     }
 
     if (applianceKind === "generic") {
-        const energyPoints = candidates.flatMap((candidate) =>
-            candidate.energyKwh === null ? [] : [candidate],
+        const energyPoints = _collectEnergyProjectionPoints(candidates);
+        if (energyPoints.length === 0) {
+            return null;
+        }
+
+        const energyKwh = energyPoints.reduce((sum, candidate) => sum + candidate.energyKwh!, 0);
+        return {
+            kind: "energy",
+            text: _formatEnergyBadgeText(energyKwh),
+            energyKwh,
+            applianceKind: "generic",
+            mode: null,
+            projectionMethod: _mergeProjectionMethods(
+                energyPoints.map((candidate) => candidate.projectionMethod),
+            ),
+        };
+    }
+
+    if (applianceKind === "climate" && isScheduleClimateApplianceAction(action)) {
+        const energyPoints = _collectEnergyProjectionPoints(
+            candidates.filter((candidate) => _matchesClimateProjectedAction(action, candidate)),
         );
         if (energyPoints.length === 0) {
             return null;
@@ -131,6 +153,8 @@ export function getScheduleApplianceProjectionBadge({
             kind: "energy",
             text: _formatEnergyBadgeText(energyKwh),
             energyKwh,
+            applianceKind: "climate",
+            mode: action.mode,
             projectionMethod: _mergeProjectionMethods(
                 energyPoints.map((candidate) => candidate.projectionMethod),
             ),
@@ -165,6 +189,8 @@ export function mergeScheduleApplianceProjectionBadges(
         kind: "energy",
         text: _formatEnergyBadgeText(energyKwh),
         energyKwh,
+        applianceKind: current.applianceKind,
+        mode: _mergeOptionalString(current.mode, next.mode),
         projectionMethod: _mergeProjectionMethods([
             current.projectionMethod,
             next.projectionMethod,
@@ -220,6 +246,29 @@ function _matchesEvProjectedAction(
     return true;
 }
 
+function _matchesClimateProjectedAction(
+    action: Extract<ScheduleApplianceAction, { mode: string }>,
+    candidate: ScheduleApplianceProjectionPoint,
+): boolean {
+    if (
+        _isNonEmptyString(action.mode)
+        && _isNonEmptyString(candidate.mode)
+        && action.mode !== candidate.mode
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
+function _collectEnergyProjectionPoints(
+    candidates: readonly ScheduleApplianceProjectionPoint[],
+): ScheduleApplianceProjectionPoint[] {
+    return candidates.flatMap((candidate) =>
+        candidate.energyKwh === null ? [] : [candidate],
+    );
+}
+
 function _mergeProjectionMethods(
     methods: readonly (ApplianceProjectionMethod | null)[],
 ): ApplianceProjectionMethod | null {
@@ -267,6 +316,17 @@ function _normalizeEnergyKwh(value: number | null | undefined): number | null {
 
 function _normalizeOptionalString(value: string | null | undefined): string | null {
     return _isNonEmptyString(value) ? value : null;
+}
+
+function _mergeOptionalString(
+    current: string | null,
+    next: string | null,
+): string | null {
+    if (current === next) {
+        return current;
+    }
+
+    return current ?? next;
 }
 
 function _isNonEmptyString(value: unknown): value is string {
