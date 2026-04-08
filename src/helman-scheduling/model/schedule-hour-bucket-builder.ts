@@ -1,11 +1,16 @@
 import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
+import type { LocalizeFunction } from "../../localize/localize";
 import {
     getScheduleApplianceProjectionBadge,
     mergeScheduleApplianceProjectionBadges,
     type ScheduleApplianceProjectionIndex,
 } from "./schedule-appliance-projection";
 import { getScheduleApplianceById } from "./schedule-appliance-metadata";
+import {
+    buildScheduleRuntimeComplianceModel,
+    type ScheduleRuntimeComplianceModel,
+} from "./schedule-runtime-compliance";
 import { aggregateScheduleHourForecast } from "./schedule-table-forecast";
 import {
     buildScheduleCompactExpandedRangeLabel,
@@ -45,6 +50,8 @@ export function buildScheduleTableRows({
     expandedHourKeys,
     locale,
     timeZone,
+    executionEnabled,
+    localize,
 }: {
     slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
@@ -53,6 +60,8 @@ export function buildScheduleTableRows({
     expandedHourKeys: ReadonlySet<string>;
     locale: string;
     timeZone: string;
+    executionEnabled: boolean;
+    localize: LocalizeFunction;
 }): ScheduleTableRowModel[] {
     const rows: ScheduleTableRowModel[] = [];
 
@@ -66,11 +75,27 @@ export function buildScheduleTableRows({
                 expanded: expandedHourKeys.has(bucket.hourKey),
                 locale,
                 timeZone,
+                runtimeCompliance: !expandedHourKeys.has(bucket.hourKey)
+                    ? _buildCurrentRuntimeCompliance({
+                        slots: bucket.slots,
+                        appliances,
+                        executionEnabled,
+                        localize,
+                    })
+                    : null,
             });
             rows.push(hourRow);
 
             if (hourRow.expanded) {
                 for (const slot of bucket.slots) {
+                    const runtimeCompliance = slot.isCurrent && isScheduleBackedDisplaySlot(slot)
+                        ? _buildRuntimeCompliance({
+                            slot: slot.scheduleSlot,
+                            appliances,
+                            executionEnabled,
+                            localize,
+                        })
+                        : null;
                     const childRow = _buildSlotRow({
                         slot,
                         appliances,
@@ -80,22 +105,35 @@ export function buildScheduleTableRows({
                         timeZone,
                         variant: "hour-child",
                         parentHourKey: bucket.hourKey,
+                        runtimeCompliance,
                     });
                     rows.push(childRow);
-                    if (slot.isCurrent && isScheduleBackedDisplaySlot(slot)) {
+                    if (
+                        slot.isCurrent
+                        && isScheduleBackedDisplaySlot(slot)
+                        && runtimeCompliance !== null
+                        && runtimeCompliance.state !== "on_plan"
+                    ) {
                         rows.push(_buildDetailRow({
                             ownerRowId: childRow.rowId,
                             slot: slot.scheduleSlot,
+                            runtimeCompliance,
                             variant: "hour-child",
                         }));
                     }
                 }
             } else {
                 const currentSlot = bucket.slots.find((slot) => slot.isCurrent && isScheduleBackedDisplaySlot(slot));
-                if (currentSlot && isScheduleBackedDisplaySlot(currentSlot)) {
+                if (
+                    currentSlot
+                    && isScheduleBackedDisplaySlot(currentSlot)
+                    && hourRow.runtimeCompliance !== null
+                    && hourRow.runtimeCompliance.state !== "on_plan"
+                ) {
                     rows.push(_buildDetailRow({
                         ownerRowId: hourRow.rowId,
                         slot: currentSlot.scheduleSlot,
+                        runtimeCompliance: hourRow.runtimeCompliance,
                         variant: "hour",
                     }));
                 }
@@ -104,6 +142,14 @@ export function buildScheduleTableRows({
         }
 
         for (const slot of bucket.slots) {
+            const runtimeCompliance = slot.isCurrent && isScheduleBackedDisplaySlot(slot)
+                ? _buildRuntimeCompliance({
+                    slot: slot.scheduleSlot,
+                    appliances,
+                    executionEnabled,
+                    localize,
+                })
+                : null;
             const slotRow = _buildSlotRow({
                 slot,
                 appliances,
@@ -113,12 +159,19 @@ export function buildScheduleTableRows({
                 timeZone,
                 variant: "raw",
                 parentHourKey: null,
+                runtimeCompliance,
             });
             rows.push(slotRow);
-            if (slot.isCurrent && isScheduleBackedDisplaySlot(slot)) {
+            if (
+                slot.isCurrent
+                && isScheduleBackedDisplaySlot(slot)
+                && runtimeCompliance !== null
+                && runtimeCompliance.state !== "on_plan"
+            ) {
                 rows.push(_buildDetailRow({
                     ownerRowId: slotRow.rowId,
                     slot: slot.scheduleSlot,
+                    runtimeCompliance,
                     variant: "raw",
                 }));
             }
@@ -302,6 +355,7 @@ function _buildHourRow({
     expanded,
     locale,
     timeZone,
+    runtimeCompliance,
 }: {
     bucket: ScheduleHourBucket;
     appliances: readonly ScheduleApplianceMetadata[];
@@ -310,6 +364,7 @@ function _buildHourRow({
     expanded: boolean;
     locale: string;
     timeZone: string;
+    runtimeCompliance: ScheduleRuntimeComplianceModel | null;
 }): ScheduleTableHourRowModel {
     const firstSlot = bucket.slots[0];
     const lastSlot = bucket.slots[bucket.slots.length - 1];
@@ -342,6 +397,7 @@ function _buildHourRow({
             slotForecastMap,
         }),
         isCurrent: !expanded && bucket.slots.some((slot) => slot.isCurrent),
+        runtimeCompliance,
         expanded,
     };
 }
@@ -475,6 +531,7 @@ function _buildSlotRow({
     timeZone,
     variant,
     parentHourKey,
+    runtimeCompliance,
 }: {
     slot: ScheduleDisplaySlot;
     appliances: readonly ScheduleApplianceMetadata[];
@@ -484,6 +541,7 @@ function _buildSlotRow({
     timeZone: string;
     variant: "raw" | "hour-child";
     parentHourKey: string | null;
+    runtimeCompliance: ScheduleRuntimeComplianceModel | null;
 }): ScheduleTableSlotRowModel {
     return {
         kind: "slot",
@@ -508,6 +566,7 @@ function _buildSlotRow({
         rangeLabel: slot.rangeLabel,
         forecast: slotForecastMap.points.get(slot.id) ?? null,
         isCurrent: slot.isCurrent,
+        runtimeCompliance,
         variant,
         parentHourKey,
     };
@@ -515,10 +574,12 @@ function _buildSlotRow({
 function _buildDetailRow({
     ownerRowId,
     slot,
+    runtimeCompliance,
     variant,
 }: {
     ownerRowId: string;
     slot: ScheduleSlot;
+    runtimeCompliance: ScheduleRuntimeComplianceModel;
     variant: ScheduleTableDetailRowModel["variant"];
 }): ScheduleTableDetailRowModel {
     return {
@@ -526,8 +587,52 @@ function _buildDetailRow({
         rowId: `detail:${ownerRowId}`,
         ownerRowId,
         slot,
+        runtimeCompliance,
         variant,
     };
+}
+
+function _buildCurrentRuntimeCompliance({
+    slots,
+    appliances,
+    executionEnabled,
+    localize,
+}: {
+    slots: readonly ScheduleDisplaySlot[];
+    appliances: readonly ScheduleApplianceMetadata[];
+    executionEnabled: boolean;
+    localize: LocalizeFunction;
+}): ScheduleRuntimeComplianceModel | null {
+    const currentSlot = slots.find((slot) => slot.isCurrent && isScheduleBackedDisplaySlot(slot));
+    if (!currentSlot || !isScheduleBackedDisplaySlot(currentSlot)) {
+        return null;
+    }
+
+    return _buildRuntimeCompliance({
+        slot: currentSlot.scheduleSlot,
+        appliances,
+        executionEnabled,
+        localize,
+    });
+}
+
+function _buildRuntimeCompliance({
+    slot,
+    appliances,
+    executionEnabled,
+    localize,
+}: {
+    slot: ScheduleSlot;
+    appliances: readonly ScheduleApplianceMetadata[];
+    executionEnabled: boolean;
+    localize: LocalizeFunction;
+}): ScheduleRuntimeComplianceModel {
+    return buildScheduleRuntimeComplianceModel({
+        slot,
+        appliances,
+        executionEnabled,
+        localize,
+    });
 }
 
 function _disambiguateRepeatedHourRows(

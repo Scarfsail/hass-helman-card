@@ -301,6 +301,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 currentDayKey: this._normalizedSchedule.currentDayKey,
                 todayLabel: this._localize("scheduling.day.today"),
                 tomorrowLabel: this._localize("scheduling.day.tomorrow"),
+                executionEnabled: this._ownerSnapshot.schedule?.executionEnabled ?? false,
+                localize: this._localize,
             });
             this._pruneExpandedHourKeys();
         }

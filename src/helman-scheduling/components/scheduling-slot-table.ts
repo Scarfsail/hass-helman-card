@@ -10,8 +10,8 @@ import type { ScheduleApplianceProjectionBadge } from "../model/schedule-applian
 import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appliance-projection-presentation";
 import { getScheduleActionLabel } from "../model/schedule-labels";
 import {
-    buildScheduleRuntimeComplianceModel,
-    type ScheduleRuntimeComplianceState,
+    type ScheduleRuntimeComplianceModel,
+    type ScheduleRuntimeComplianceSeverity,
 } from "../model/schedule-runtime-compliance";
 import type { SlotForecastPoint } from "../model/slot-forecast-model";
 import {
@@ -31,7 +31,6 @@ import {
 } from "../schedule-table-types";
 import type {
     ScheduleDialogOpenDetail,
-    ScheduleSlot,
     ScheduleSlotToggleDetail,
 } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
@@ -661,6 +660,36 @@ export class SchedulingSlotTable extends LitElement {
 
             .detail-row.hour-child > * {
                 background: color-mix(in srgb, var(--secondary-text-color) 5%, transparent);
+            }
+
+            .schedule-row.runtime-success > *,
+            .detail-row.runtime-success > * {
+                background: color-mix(in srgb, var(--success-color, #2e7d32) 12%, transparent);
+            }
+
+            .schedule-row.runtime-warning > *,
+            .detail-row.runtime-warning > * {
+                background: color-mix(in srgb, var(--warning-color, #c27c0e) 14%, transparent);
+            }
+
+            .schedule-row.runtime-error > *,
+            .detail-row.runtime-error > * {
+                background: color-mix(in srgb, var(--error-color, #c62828) 12%, transparent);
+            }
+
+            .schedule-row.runtime-success .time-button.current {
+                background: color-mix(in srgb, var(--success-color, #2e7d32) 18%, var(--card-background-color));
+                color: color-mix(in srgb, var(--success-color, #2e7d32) 82%, var(--primary-text-color));
+            }
+
+            .schedule-row.runtime-warning .time-button.current {
+                background: color-mix(in srgb, var(--warning-color, #c27c0e) 18%, var(--card-background-color));
+                color: color-mix(in srgb, var(--warning-color, #c27c0e) 82%, var(--primary-text-color));
+            }
+
+            .schedule-row.runtime-error .time-button.current {
+                background: color-mix(in srgb, var(--error-color, #c62828) 18%, var(--card-background-color));
+                color: color-mix(in srgb, var(--error-color, #c62828) 82%, var(--primary-text-color));
             }
 
             .detail-spacer {
@@ -1345,7 +1374,7 @@ export class SchedulingSlotTable extends LitElement {
 
     private _renderSlotRow(row: ScheduleTableSlotRowModel) {
         const selected = row.interactiveSlotId !== null && this._selectedSet.has(row.interactiveSlotId);
-        const classes = `schedule-row slot-row${row.isCurrent ? " current" : ""}${selected ? " selected" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
+        const classes = `schedule-row slot-row${row.isCurrent ? " current" : ""}${selected ? " selected" : ""}${row.variant === "hour-child" ? " hour-child" : ""}${this._getRuntimeRowClass(row.runtimeCompliance)}`;
         const timeButtonClasses = `button-reset time-button${selected ? " selected" : ""}${row.isCurrent ? " current" : ""}${row.variant === "hour-child" ? " hour-child" : ""}`;
 
         return html`
@@ -1377,7 +1406,7 @@ export class SchedulingSlotTable extends LitElement {
         const selectedCount = row.slotIds.filter((slotId) => this._selectedSet.has(slotId)).length;
         const fullySelected = selectedCount === row.slotIds.length && row.slotIds.length > 0;
         const partiallySelected = selectedCount > 0 && !fullySelected;
-        const classes = `schedule-row hour-row${row.isCurrent ? " current" : ""}${fullySelected ? " selected" : ""}${partiallySelected ? " partially-selected" : ""}`;
+        const classes = `schedule-row hour-row${row.isCurrent ? " current" : ""}${fullySelected ? " selected" : ""}${partiallySelected ? " partially-selected" : ""}${this._getRuntimeRowClass(row.runtimeCompliance)}`;
         const timeButtonClasses = `button-reset time-button${fullySelected ? " selected" : ""}${row.isCurrent ? " current" : ""}`;
 
         return html`
@@ -1412,11 +1441,15 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _renderDetailRow(row: ScheduleTableDetailRowModel) {
+        if (row.runtimeCompliance === null) {
+            return nothing;
+        }
+
         return html`
-            <tr class=${`detail-row ${row.variant}`}>
+            <tr class=${`detail-row ${row.variant}${this._getRuntimeRowClass(row.runtimeCompliance)}`}>
                 <td class="detail-spacer" aria-hidden="true"></td>
                 <td class="detail-cell" colspan=${this.tableModel.columns.length - 1}>
-                    <div class="slot-runtime">${this._renderSlotRuntime(row.slot)}</div>
+                    <div class="slot-runtime">${this._renderSlotRuntime(row.runtimeCompliance)}</div>
                 </td>
             </tr>
         `;
@@ -1662,14 +1695,8 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _renderSlotRuntime(slot: ScheduleSlot) {
-        const compliance = buildScheduleRuntimeComplianceModel({
-            slot,
-            appliances: this.appliances,
-            executionEnabled: this.executionEnabled,
-            localize: this.localize,
-        });
-        const summaryChipClass = this._getRuntimeSummaryChipClass(compliance.state);
+    private _renderSlotRuntime(compliance: ScheduleRuntimeComplianceModel) {
+        const summaryChipClass = this._getRuntimeSummaryChipClass(compliance.severity);
         return html`
             <div class="slot-runtime-summary">
                 <div class=${summaryChipClass}>
@@ -1695,17 +1722,23 @@ export class SchedulingSlotTable extends LitElement {
         `;
     }
 
-    private _getRuntimeSummaryChipClass(state: ScheduleRuntimeComplianceState): string {
-        switch (state) {
-            case "on_plan":
+    private _getRuntimeSummaryChipClass(severity: ScheduleRuntimeComplianceSeverity): string {
+        switch (severity) {
+            case "success":
                 return "chip success";
-            case "off_plan":
+            case "warning":
                 return "chip warning";
-            case "execution_disabled":
-                return "chip disabled";
-            case "runtime_unavailable":
-                return "chip runtime";
+            case "error":
+                return "chip error";
         }
+    }
+
+    private _getRuntimeRowClass(runtimeCompliance: ScheduleRuntimeComplianceModel | null): string {
+        if (runtimeCompliance === null) {
+            return "";
+        }
+
+        return ` runtime-${runtimeCompliance.severity}`;
     }
 
     private _buildActionCellLabel(actionCell: ScheduleTableActionCellModel): string {

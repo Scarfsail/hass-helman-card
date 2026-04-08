@@ -1,6 +1,7 @@
 import type { SlotForecastMap } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import type { ScheduleApplianceProjectionIndex } from "./schedule-appliance-projection";
+import type { LocalizeFunction } from "../../localize/localize";
 import { buildScheduleTableRows } from "./schedule-hour-bucket-builder";
 import { aggregateScheduleDayForecast, buildScheduleTableForecastMeta } from "./schedule-table-forecast";
 import { formatScheduleDayLabel } from "./schedule-time";
@@ -22,6 +23,8 @@ export function buildScheduleTableModel({
     currentDayKey,
     todayLabel,
     tomorrowLabel,
+    executionEnabled,
+    localize,
 }: {
     slots: readonly ScheduleDisplaySlot[];
     appliances: readonly ScheduleApplianceMetadata[];
@@ -33,6 +36,8 @@ export function buildScheduleTableModel({
     currentDayKey: string | null;
     todayLabel: string;
     tomorrowLabel: string;
+    executionEnabled: boolean;
+    localize: LocalizeFunction;
 }): ScheduleTableModel {
     const daySections: Array<{
         dayKey: string;
@@ -76,6 +81,8 @@ export function buildScheduleTableModel({
             expandedHourKeys: expandedHourKeySet,
             locale,
             timeZone,
+            executionEnabled,
+            localize,
         }),
     }));
 

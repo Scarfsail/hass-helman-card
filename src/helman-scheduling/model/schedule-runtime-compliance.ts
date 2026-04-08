@@ -24,6 +24,8 @@ export type ScheduleRuntimeComplianceState =
     | "on_plan"
     | "off_plan";
 
+export type ScheduleRuntimeComplianceSeverity = "success" | "warning" | "error";
+
 export interface ScheduleRuntimeComplianceIssue {
     key: string;
     actorLabel: string;
@@ -33,6 +35,7 @@ export interface ScheduleRuntimeComplianceIssue {
 
 export interface ScheduleRuntimeComplianceModel {
     state: ScheduleRuntimeComplianceState;
+    severity: ScheduleRuntimeComplianceSeverity;
     icon: string;
     summaryLabel: string;
     issues: ScheduleRuntimeComplianceIssue[];
@@ -52,6 +55,7 @@ export function buildScheduleRuntimeComplianceModel({
     if (!executionEnabled) {
         return {
             state: "execution_disabled",
+            severity: "warning",
             icon: "mdi:pause-circle-outline",
             summaryLabel: localize("scheduling.now.execution_disabled"),
             issues: [],
@@ -61,6 +65,7 @@ export function buildScheduleRuntimeComplianceModel({
     if (slot.runtime === null) {
         return {
             state: "runtime_unavailable",
+            severity: "warning",
             icon: "mdi:help-circle-outline",
             summaryLabel: localize("scheduling.now.runtime_unavailable"),
             issues: [],
@@ -126,6 +131,7 @@ export function buildScheduleRuntimeComplianceModel({
     if (issues.length === 0) {
         return {
             state: "on_plan",
+            severity: "success",
             icon: "mdi:check-circle-outline",
             summaryLabel: localize("scheduling.now.compliance_ok"),
             issues: [],
@@ -134,6 +140,7 @@ export function buildScheduleRuntimeComplianceModel({
 
     return {
         state: "off_plan",
+        severity: "error",
         icon: "mdi:alert-circle-outline",
         summaryLabel: localize("scheduling.now.compliance_off"),
         issues,
@@ -180,6 +187,10 @@ function _buildInverterIssue({
             actualLabel: getScheduleActionLabel(runtime.executedAction, localize),
             reasonLabel: _buildExpectedReason(expectedLabel, localize),
         });
+    }
+
+    if (runtime.actionKind === "apply" && runtime.outcome === "success") {
+        return null;
     }
 
     if (runtime.reason === "scheduled") {

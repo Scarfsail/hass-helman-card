@@ -1,5 +1,6 @@
 import type { SlotForecastPoint } from "./model/slot-forecast-model";
 import type { ScheduleApplianceProjectionBadge } from "./model/schedule-appliance-projection";
+import type { ScheduleRuntimeComplianceModel } from "./model/schedule-runtime-compliance";
 import type {
     ScheduleAction,
     ScheduleApplianceAction,
@@ -112,6 +113,7 @@ export interface ScheduleTableSlotRowModel {
     rangeLabel: string;
     forecast: SlotForecastPoint | null;
     isCurrent: boolean;
+    runtimeCompliance: ScheduleRuntimeComplianceModel | null;
     variant: "raw" | "hour-child";
     parentHourKey: string | null;
 }
@@ -127,6 +129,7 @@ export interface ScheduleTableHourRowModel {
     actionCell: ScheduleTableActionCellModel;
     forecast: SlotForecastPoint | null;
     isCurrent: boolean;
+    runtimeCompliance: ScheduleRuntimeComplianceModel | null;
     expanded: boolean;
 }
 
@@ -135,6 +138,7 @@ export interface ScheduleTableDetailRowModel {
     rowId: string;
     ownerRowId: string;
     slot: ScheduleSlot;
+    runtimeCompliance: ScheduleRuntimeComplianceModel | null;
     variant: "raw" | "hour" | "hour-child";
 }
 
