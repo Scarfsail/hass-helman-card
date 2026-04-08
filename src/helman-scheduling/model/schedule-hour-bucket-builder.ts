@@ -2,6 +2,7 @@ import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
 import type { LocalizeFunction } from "../../localize/localize";
 import {
+    aggregateScheduleApplianceEnergyProjectionBadges,
     getScheduleApplianceProjectionBadge,
     mergeScheduleApplianceProjectionBadges,
     type ScheduleApplianceProjectionIndex,
@@ -22,6 +23,7 @@ import type {
     ScheduleTableActionCellModel,
     ScheduleTableActionItemModel,
     ScheduleTableApplianceActionItemModel,
+    ScheduleTableApplianceSummaryActionItemModel,
     ScheduleTableDetailRowModel,
     ScheduleTableHourRowModel,
     ScheduleTableRowModel,
@@ -30,8 +32,12 @@ import type {
 import {
     getScheduleActionIdentityKey,
     getScheduleApplianceActionIdentityKey,
+    isScheduleClimateApplianceAction,
     isScheduleApplianceActionEnabled,
     isScheduleBackedDisplaySlot,
+    isScheduleEvChargerAction,
+    isScheduleGenericApplianceAction,
+    type ScheduleApplianceAction,
     type ScheduleDisplaySlot,
     type ScheduleSlot,
 } from "../schedule-types";
@@ -434,7 +440,7 @@ function _buildDistinctApplianceItems(
     slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
     applianceProjectionIndex: ScheduleApplianceProjectionIndex,
-): ScheduleTableActionItemModel[] {
+): ScheduleTableApplianceActionItemModel[] {
     const applianceOrder = new Map(
         appliances.map((appliance) => [appliance.id, appliance.order] as const),
     );
@@ -445,7 +451,8 @@ function _buildDistinctApplianceItems(
 
         return Object.entries(slot.scheduleSlot.domains.appliances).flatMap(([applianceId, action]) => {
             const appliance = getScheduleApplianceById(appliances, applianceId);
-            if (appliance?.kind === "generic" && isScheduleApplianceActionEnabled(action) !== true) {
+            const applianceKind = _resolveApplianceKind(appliance, action);
+            if (applianceKind === "generic" && isScheduleApplianceActionEnabled(action) !== true) {
                 return [];
             }
 
@@ -454,6 +461,7 @@ function _buildDistinctApplianceItems(
                 applianceId,
                 action,
                 appliance,
+                applianceKind,
                 order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
             }];
         });
@@ -467,13 +475,13 @@ function _buildDistinctApplianceItems(
         return left.slotId.localeCompare(right.slotId);
     });
 
-    const items: ScheduleTableActionItemModel[] = [];
+    const items: ScheduleTableApplianceActionItemModel[] = [];
     const itemsByKey = new Map<string, ScheduleTableApplianceActionItemModel>();
     for (const entry of actions) {
         const key = `${entry.applianceId}:${getScheduleApplianceActionIdentityKey(entry.action)}`;
         const projectionBadge = getScheduleApplianceProjectionBadge({
             projectionIndex: applianceProjectionIndex,
-            applianceKind: entry.appliance?.kind,
+            applianceKind: entry.applianceKind,
             applianceId: entry.applianceId,
             action: entry.action,
             slotId: entry.slotId,
@@ -493,7 +501,7 @@ function _buildDistinctApplianceItems(
             appliance: {
                 id: entry.applianceId,
                 name: entry.appliance?.name ?? entry.applianceId,
-                kind: entry.appliance?.kind ?? "unknown",
+                kind: entry.applianceKind,
                 icon: entry.appliance?.icon ?? "mdi:flash-outline",
             },
             action: entry.action,
@@ -507,16 +515,63 @@ function _buildDistinctApplianceItems(
     return items;
 }
 
+function _buildApplianceSummaryItem(
+    items: ScheduleTableApplianceActionItemModel[],
+): ScheduleTableApplianceSummaryActionItemModel | null {
+    if (items.length === 0) {
+        return null;
+    }
+
+    return {
+        kind: "appliance_summary",
+        key: "appliance_summary",
+        firstSlotId: items[0].firstSlotId,
+        items,
+        projectionBadge: aggregateScheduleApplianceEnergyProjectionBadges(
+            items.map((item) => item.projectionBadge),
+        ),
+    };
+}
+
+function _resolveApplianceKind(
+    appliance: ScheduleApplianceMetadata | undefined,
+    action: ScheduleApplianceAction,
+): string {
+    if (appliance?.kind) {
+        return appliance.kind;
+    }
+
+    if (isScheduleEvChargerAction(action)) {
+        return "ev_charger";
+    }
+
+    if (isScheduleGenericApplianceAction(action)) {
+        return "generic";
+    }
+
+    if (isScheduleClimateApplianceAction(action)) {
+        return "climate";
+    }
+
+    return "unknown";
+}
+
 function _buildActionCell(
     slots: readonly ScheduleDisplaySlot[],
     appliances: readonly ScheduleApplianceMetadata[],
     applianceProjectionIndex: ScheduleApplianceProjectionIndex,
 ): ScheduleTableActionCellModel {
     const scheduleBackedSlots = slots.filter(isScheduleBackedDisplaySlot);
+    const applianceItems = _buildDistinctApplianceItems(scheduleBackedSlots, appliances, applianceProjectionIndex);
+    const firstClassApplianceItems = applianceItems.filter((item) => item.appliance.kind === "ev_charger");
+    const applianceSummaryItem = _buildApplianceSummaryItem(
+        applianceItems.filter((item) => item.appliance.kind !== "ev_charger"),
+    );
     return {
         items: [
             ..._buildDistinctInverterItems(scheduleBackedSlots),
-            ..._buildDistinctApplianceItems(scheduleBackedSlots, appliances, applianceProjectionIndex),
+            ...firstClassApplianceItems,
+            ...(applianceSummaryItem === null ? [] : [applianceSummaryItem]),
         ],
         interactive: scheduleBackedSlots.length > 0,
     };

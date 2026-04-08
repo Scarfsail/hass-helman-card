@@ -1024,8 +1024,8 @@ export class SchedulingSlotTable extends LitElement {
 
                 .action-pill-list {
                     gap: 2px;
-                    flex-wrap: wrap;
-                    white-space: normal;
+                    flex-wrap: nowrap;
+                    white-space: nowrap;
                 }
 
                 .slot-forecast-gauge {
@@ -1496,6 +1496,18 @@ export class SchedulingSlotTable extends LitElement {
             `;
         }
 
+        if (item.kind === "appliance_summary") {
+            return html`
+                <scheduling-appliance-chip
+                    .projectionBadge=${item.projectionBadge}
+                    .localize=${this.localize}
+                    size="compact"
+                    ?iconOnly=${true}
+                    ?summary=${true}
+                ></scheduling-appliance-chip>
+            `;
+        }
+
         return html`
             <scheduling-appliance-chip
                 .appliance=${item.appliance}
@@ -1748,6 +1760,10 @@ export class SchedulingSlotTable extends LitElement {
     private _buildActionItemLabel(item: ScheduleTableActionItemModel): string {
         if (item.kind === "inverter") {
             return getScheduleActionLabel(item.action, this.localize);
+        }
+
+        if (item.kind === "appliance_summary") {
+            return item.items.map((summaryItem) => this._buildActionItemLabel(summaryItem)).join(", ");
         }
 
         const presentation = getScheduleApplianceActionPresentation({

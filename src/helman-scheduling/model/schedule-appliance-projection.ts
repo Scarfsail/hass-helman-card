@@ -8,6 +8,7 @@ import {
     isScheduleClimateApplianceAction,
     isScheduleApplianceActionEnabled,
     isScheduleEvChargerAction,
+    isScheduleGenericApplianceAction,
 } from "../schedule-types";
 
 export interface ScheduleApplianceProjectionPoint {
@@ -28,7 +29,7 @@ export type ScheduleApplianceProjectionBadge =
         kind: "energy";
         text: string;
         energyKwh: number;
-        applianceKind: "generic" | "climate";
+        applianceKind: "generic" | "climate" | "aggregate";
         mode: string | null;
         projectionMethod: ApplianceProjectionMethod | null;
     };
@@ -98,12 +99,13 @@ export function getScheduleApplianceProjectionBadge({
         return null;
     }
 
+    const resolvedApplianceKind = _resolveProjectionApplianceKind(applianceKind, action);
     const candidates = projectionIndex.points.get(applianceId)?.get(slotId);
     if (!candidates || candidates.length === 0) {
         return null;
     }
 
-    if (applianceKind === "ev_charger" && isScheduleEvChargerAction(action)) {
+    if (resolvedApplianceKind === "ev_charger" && isScheduleEvChargerAction(action)) {
         const matches = candidates
             .filter((candidate) => _matchesEvProjectedAction(action, candidate))
             .flatMap((candidate) => candidate.expectedVehicleSocPct === null
@@ -121,7 +123,7 @@ export function getScheduleApplianceProjectionBadge({
         };
     }
 
-    if (applianceKind === "generic") {
+    if (resolvedApplianceKind === "generic") {
         const energyPoints = _collectEnergyProjectionPoints(candidates);
         if (energyPoints.length === 0) {
             return null;
@@ -140,7 +142,7 @@ export function getScheduleApplianceProjectionBadge({
         };
     }
 
-    if (applianceKind === "climate" && isScheduleClimateApplianceAction(action)) {
+    if (resolvedApplianceKind === "climate" && isScheduleClimateApplianceAction(action)) {
         const energyPoints = _collectEnergyProjectionPoints(
             candidates.filter((candidate) => _matchesClimateProjectedAction(action, candidate)),
         );
@@ -196,6 +198,51 @@ export function mergeScheduleApplianceProjectionBadges(
             next.projectionMethod,
         ]),
     };
+}
+
+export function aggregateScheduleApplianceEnergyProjectionBadges(
+    badges: readonly (ScheduleApplianceProjectionBadge | null)[],
+): Extract<ScheduleApplianceProjectionBadge, { kind: "energy" }> | null {
+    const energyBadges = badges.filter((badge): badge is Extract<ScheduleApplianceProjectionBadge, { kind: "energy" }> =>
+        badge !== null && badge.kind === "energy");
+    if (energyBadges.length === 0) {
+        return null;
+    }
+
+    const energyKwh = energyBadges.reduce((sum, badge) => sum + badge.energyKwh, 0);
+    return {
+        kind: "energy",
+        text: _formatEnergyBadgeText(energyKwh),
+        energyKwh,
+        applianceKind: "aggregate",
+        mode: null,
+        projectionMethod: _mergeProjectionMethods(
+            energyBadges.map((badge) => badge.projectionMethod),
+        ),
+    };
+}
+
+function _resolveProjectionApplianceKind(
+    applianceKind: string | null | undefined,
+    action: ScheduleApplianceAction,
+): "ev_charger" | "generic" | "climate" | null {
+    if (applianceKind === "ev_charger" || applianceKind === "generic" || applianceKind === "climate") {
+        return applianceKind;
+    }
+
+    if (isScheduleEvChargerAction(action)) {
+        return "ev_charger";
+    }
+
+    if (isScheduleGenericApplianceAction(action)) {
+        return "generic";
+    }
+
+    if (isScheduleClimateApplianceAction(action)) {
+        return "climate";
+    }
+
+    return null;
 }
 
 function _normalizeProjectionPoint(

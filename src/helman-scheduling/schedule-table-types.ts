@@ -94,9 +94,18 @@ export interface ScheduleTableApplianceActionItemModel {
     projectionBadge: ScheduleApplianceProjectionBadge | null;
 }
 
+export interface ScheduleTableApplianceSummaryActionItemModel {
+    kind: "appliance_summary";
+    key: string;
+    firstSlotId: string;
+    items: ScheduleTableApplianceActionItemModel[];
+    projectionBadge: Extract<ScheduleApplianceProjectionBadge, { kind: "energy" }> | null;
+}
+
 export type ScheduleTableActionItemModel =
     | ScheduleTableInverterActionItemModel
-    | ScheduleTableApplianceActionItemModel;
+    | ScheduleTableApplianceActionItemModel
+    | ScheduleTableApplianceSummaryActionItemModel;
 
 export interface ScheduleTableActionCellModel {
     items: ScheduleTableActionItemModel[];

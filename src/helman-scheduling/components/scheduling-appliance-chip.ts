@@ -95,17 +95,44 @@ export class SchedulingApplianceChip extends LitElement {
     @property({ attribute: false }) public localize?: LocalizeFunction;
     @property({ type: String }) public size: "compact" | "regular" = "regular";
     @property({ type: Boolean }) public iconOnly = false;
+    @property({ type: Boolean }) public summary = false;
 
     render() {
+        if (this.summary) {
+            const projectionBadge = this._resolveProjectionBadge();
+            const summaryLabel = this.localize ? this.localize("scheduling.dialog.appliances") : "";
+            const classes = [
+                "chip",
+                "action",
+                "action-tone-charge",
+                this.size === "compact" ? "compact" : "",
+                projectionBadge === null ? "" : "has-badge",
+            ].filter((className) => className.length > 0).join(" ");
+            return html`
+                <span class=${classes}>
+                    <span class="chip-icon-stack">
+                        <ha-icon class="chip-icon" .icon=${"mdi:power-plug-outline"} aria-hidden="true"></ha-icon>
+                        ${projectionBadge === null ? nothing : html`
+                            <span
+                                class="chip-icon-badge"
+                                aria-hidden="true"
+                            >
+                                ${projectionBadge.text}
+                            </span>
+                        `}
+                    </span>
+                    ${this.iconOnly ? nothing : html`
+                        <span class="chip-label">${summaryLabel}</span>
+                    `}
+                </span>
+            `;
+        }
+
         if (!this.appliance || !this.action || !this.localize) {
             return nothing;
         }
 
-        const presentation = getScheduleApplianceActionPresentation({
-            appliance: this.appliance,
-            action: this.action,
-            localize: this.localize,
-        });
+        const presentation = this._resolvePresentation();
         const projectionBadge = this._resolveProjectionBadge();
         const classes = [
             "chip",
@@ -132,6 +159,14 @@ export class SchedulingApplianceChip extends LitElement {
                 `}
             </span>
         `;
+    }
+
+    private _resolvePresentation() {
+        return getScheduleApplianceActionPresentation({
+            appliance: this.appliance!,
+            action: this.action!,
+            localize: this.localize!,
+        });
     }
 
     private _resolveProjectionBadge(): ScheduleApplianceProjectionBadge | null {
