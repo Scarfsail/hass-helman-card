@@ -207,8 +207,10 @@
       "select_hour": "Vybrat celou hodinu",
       "expand_day": "Rozbalit den",
       "expand_hour": "Rozbalit hodinu",
+      "expand_appliance_actions": "Rozbalit akce spotřebičů",
       "collapse_day": "Sbalit den",
       "collapse_hour": "Sbalit hodinu",
+      "collapse_appliance_actions": "Sbalit akce spotřebičů",
       "edit_hour": "Upravit hodinu",
       "edit_selected": "Upravit vybrané"
     },

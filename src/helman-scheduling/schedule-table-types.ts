@@ -195,3 +195,7 @@ export interface ScheduleDayToggleDetail {
 export interface ScheduleHourToggleDetail {
     hourKey: string;
 }
+
+export interface ScheduleActionViewToggleDetail {
+    expanded: boolean;
+}

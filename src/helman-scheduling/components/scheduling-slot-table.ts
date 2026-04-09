@@ -15,6 +15,7 @@ import {
 } from "../model/schedule-runtime-compliance";
 import type { SlotForecastPoint } from "../model/slot-forecast-model";
 import {
+    type ScheduleActionViewToggleDetail,
     EMPTY_SCHEDULE_TABLE_MODEL,
     type ScheduleDayToggleDetail,
     type ScheduleTableDayAggregateModel,
@@ -97,6 +98,7 @@ export class SchedulingSlotTable extends LitElement {
 
             .table-shell {
                 min-width: 0;
+                overflow-x: auto;
             }
 
             .schedule-table {
@@ -105,6 +107,10 @@ export class SchedulingSlotTable extends LitElement {
                 border-collapse: separate;
                 border-spacing: 0 1px;
                 table-layout: auto;
+            }
+
+            .schedule-table.expanded-actions {
+                --schedule-table-metric-column-width: 68px;
             }
 
             .schedule-table col.col-time {
@@ -160,6 +166,25 @@ export class SchedulingSlotTable extends LitElement {
                 font-weight: 600;
                 letter-spacing: normal;
                 text-transform: none;
+            }
+
+            .action-header-button {
+                display: inline-flex;
+                align-items: center;
+                min-width: 0;
+                max-width: 100%;
+                padding: 0;
+                color: inherit;
+                font: inherit;
+                letter-spacing: inherit;
+                text-transform: inherit;
+                transition: color 120ms ease;
+            }
+
+            .action-header-button:hover,
+            .action-header-button:focus-visible,
+            .action-header-button.active {
+                color: var(--primary-color);
             }
 
             .column-header-unit {
@@ -623,6 +648,11 @@ export class SchedulingSlotTable extends LitElement {
                 cursor: pointer;
             }
 
+            .action-button.expanded-actions {
+                max-width: none;
+                overflow: visible;
+            }
+
             .action-button:hover:not(:disabled) {
                 background: color-mix(in srgb, var(--primary-color) 6%, transparent);
             }
@@ -640,6 +670,11 @@ export class SchedulingSlotTable extends LitElement {
                 width: auto;
                 overflow: hidden;
                 white-space: nowrap;
+            }
+
+            .action-pill-list.expanded-actions {
+                width: max-content;
+                max-width: none;
             }
 
             .action-pill-list scheduling-action-chip,
@@ -1005,6 +1040,10 @@ export class SchedulingSlotTable extends LitElement {
                     --schedule-table-metric-column-width: 68px;
                 }
 
+                .schedule-table.expanded-actions {
+                    --schedule-table-metric-column-width: 56px;
+                }
+
                 .column-header-row th {
                     padding: 5px 3px;
                     font-size: 0.72rem;
@@ -1057,6 +1096,7 @@ export class SchedulingSlotTable extends LitElement {
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ type: Boolean }) public busy = false;
     @property({ type: Boolean }) public executionEnabled = false;
+    @property({ type: Boolean }) public expandedApplianceActions = false;
 
     protected willUpdate(changedProperties: PropertyValues<this>): void {
         super.willUpdate(changedProperties);
@@ -1069,9 +1109,10 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     render() {
+        const tableClasses = `schedule-table${this.expandedApplianceActions ? " expanded-actions" : ""}`;
         return html`
             <div class="table-shell">
-                <table class="schedule-table">
+                <table class=${tableClasses}>
                     <caption class="sr-only">${this.localize("scheduling.table.caption")}</caption>
                     <colgroup>
                         ${this.tableModel.columns.map((column) => html`
@@ -1103,7 +1144,18 @@ export class SchedulingSlotTable extends LitElement {
                 `;
             case "action":
                 return html`
-                    <th scope="col">${this.localize("scheduling.table.action_label")}</th>
+                    <th scope="col">
+                        <button
+                            class=${`button-reset action-header-button${this.expandedApplianceActions ? " active" : ""}`}
+                            type="button"
+                            aria-pressed=${this.expandedApplianceActions ? "true" : "false"}
+                            aria-label=${this._buildActionHeaderToggleLabel()}
+                            title=${this._buildActionHeaderToggleLabel()}
+                            @click=${this._handleActionViewToggle}
+                        >
+                            <span class="column-header-title">${this.localize("scheduling.table.action_label")}</span>
+                        </button>
+                    </th>
                 `;
             case "soc":
                 return this._renderMetricHeader(column, this.localize("scheduling.table.soc_label"), "%");
@@ -1461,22 +1513,25 @@ export class SchedulingSlotTable extends LitElement {
         slotId: string | null,
         slotIds?: readonly string[],
     ) {
+        const visibleItems = this._getVisibleActionItems(actionCell.items);
         const actionLabel = this._buildActionCellLabel(actionCell);
         const ariaLabel = actionLabel.length > 0
             ? `${this.localize("scheduling.table.action_label")} ${rangeLabel}. ${actionLabel}`
             : `${this.localize("scheduling.table.action_label")} ${rangeLabel}`;
+        const actionButtonClasses = `button-reset action-button${this.expandedApplianceActions ? " expanded-actions" : ""}`;
+        const actionPillListClasses = `action-pill-list${this.expandedApplianceActions ? " expanded-actions" : ""}`;
 
         return html`
             <td class="action-cell">
                 <button
-                    class="button-reset action-button"
+                    class=${actionButtonClasses}
                     type="button"
                     ?disabled=${this.busy || !actionCell.interactive || slotId === null}
                     aria-label=${ariaLabel}
                     @click=${() => this._handleActionClick(slotId, slotIds)}
                 >
-                    <span class="action-pill-list">
-                        ${actionCell.items.map((item) => this._renderActionItem(item))}
+                    <span class=${actionPillListClasses}>
+                        ${visibleItems.map((item) => this._renderActionItem(item))}
                     </span>
                 </button>
             </td>
@@ -1518,6 +1573,20 @@ export class SchedulingSlotTable extends LitElement {
                 ?iconOnly=${true}
             ></scheduling-appliance-chip>
         `;
+    }
+
+    private _buildActionHeaderToggleLabel(): string {
+        return this.expandedApplianceActions
+            ? this.localize("scheduling.actions.collapse_appliance_actions")
+            : this.localize("scheduling.actions.expand_appliance_actions");
+    }
+
+    private _getVisibleActionItems(items: readonly ScheduleTableActionItemModel[]): ScheduleTableActionItemModel[] {
+        if (!this.expandedApplianceActions) {
+            return [...items];
+        }
+
+        return items.flatMap((item) => item.kind === "appliance_summary" ? item.items : [item]);
     }
 
     private _renderTimeLabel(label: ScheduleTableSlotRowModel["displayTimeLabel"]) {
@@ -1923,6 +1992,15 @@ export class SchedulingSlotTable extends LitElement {
             bubbles: true,
             composed: true,
             detail: { hourKey } satisfies ScheduleHourToggleDetail,
+        }));
+    }
+
+    private _handleActionViewToggle(event: MouseEvent): void {
+        event.stopPropagation();
+        this.dispatchEvent(new CustomEvent("toggle-schedule-action-view", {
+            bubbles: true,
+            composed: true,
+            detail: { expanded: !this.expandedApplianceActions } satisfies ScheduleActionViewToggleDetail,
         }));
     }
 

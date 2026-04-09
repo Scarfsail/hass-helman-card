@@ -47,6 +47,7 @@ import {
 } from "./model/slot-forecast-model";
 import { getSharedScheduleOwner, type SharedScheduleOwner } from "./schedule-owner";
 import {
+    type ScheduleActionViewToggleDetail,
     EMPTY_SCHEDULE_TABLE_MODEL,
     type ScheduleDayToggleDetail,
     type ScheduleHourToggleDetail,
@@ -151,6 +152,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _dialogOpen = false;
     @state() private _dayExpansionOverrides: Record<string, boolean> = {};
     @state() private _expandedHourKeys: string[] = [];
+    @state() private _expandedApplianceActions = false;
     @state() private _nowMs = Date.now();
 
     public set hass(value: HomeAssistant) {
@@ -326,6 +328,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                 @toggle-schedule-slot-selection=${this._handleToggleSlotSelection}
                 @toggle-schedule-day-expansion=${this._handleToggleDayExpansion}
                 @toggle-schedule-hour-expansion=${this._handleToggleHourExpansion}
+                @toggle-schedule-action-view=${this._handleToggleActionView}
                 @open-schedule-dialog=${this._handleOpenDialog}
             >
                 <div class="card-content">
@@ -349,6 +352,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
                                 .localize=${this._localize}
                                 .busy=${this._ownerSnapshot.writing || this._ownerSnapshot.togglingExecution}
                                 .executionEnabled=${this._ownerSnapshot.schedule?.executionEnabled ?? false}
+                                .expandedApplianceActions=${this._expandedApplianceActions}
                             ></scheduling-slot-table>
                         `}
                 </div>
@@ -422,6 +426,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
     private async _handleRefresh(event: Event): Promise<void> {
         event.stopPropagation();
+        this._expandedApplianceActions = false;
         await this._scheduleOwner?.refresh();
     }
 
@@ -496,6 +501,11 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._expandedHourKeys = this._expandedHourKeys.includes(hourKey)
             ? this._expandedHourKeys.filter((value) => value !== hourKey)
             : [...this._expandedHourKeys, hourKey];
+    }
+
+    private _handleToggleActionView(event: CustomEvent<ScheduleActionViewToggleDetail>): void {
+        event.stopPropagation();
+        this._expandedApplianceActions = event.detail.expanded;
     }
 
     private _handleToggleDayExpansion(event: CustomEvent<ScheduleDayToggleDetail>): void {
@@ -592,6 +602,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._selectionAnchorSlotIds = null;
         this._dayExpansionOverrides = {};
         this._expandedHourKeys = [];
+        this._expandedApplianceActions = false;
         this._appliancesRequested = false;
         this._nowMs = Date.now();
         this._clearTimelineBoundaryTick();
