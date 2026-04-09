@@ -263,7 +263,8 @@ export type ScheduleActionKind =
     | "charge_to_target_soc"
     | "discharge_to_target_soc"
     | "stop_charging"
-    | "stop_discharging";
+    | "stop_discharging"
+    | "stop_export";
 
 export interface ScheduleActionDTO {
     kind: ScheduleActionKind;

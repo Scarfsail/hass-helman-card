@@ -437,6 +437,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                     ${this._renderActionOption("discharge_to_target_soc")}
                     ${this._renderActionOption("stop_charging")}
                     ${this._renderActionOption("stop_discharging")}
+                    ${this._renderActionOption("stop_export")}
                 </div>
                 ${this._actionKind === null ? html`
                     <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>

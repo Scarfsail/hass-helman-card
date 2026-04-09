@@ -18,6 +18,8 @@ export function getScheduleActionKindLabel(
             return localize("scheduling.action_kind.stop_charging");
         case "stop_discharging":
             return localize("scheduling.action_kind.stop_discharging");
+        case "stop_export":
+            return localize("scheduling.action_kind.stop_export");
     }
 }
 
@@ -41,6 +43,8 @@ export function getScheduleActionLabel(
             return localize(variant === "table" ? "scheduling.action_table.stop_charging" : "scheduling.action.stop_charging");
         case "stop_discharging":
             return localize(variant === "table" ? "scheduling.action_table.stop_discharging" : "scheduling.action.stop_discharging");
+        case "stop_export":
+            return localize(variant === "table" ? "scheduling.action_table.stop_export" : "scheduling.action.stop_export");
     }
 }
 

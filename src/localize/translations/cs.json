@@ -142,21 +142,24 @@
       "charge_to_target_soc": "Nabíjet do",
       "discharge_to_target_soc": "Vybíjet do",
       "stop_charging": "Zastavit nabíjení",
-      "stop_discharging": "Zastavit vybíjení"
+      "stop_discharging": "Zastavit vybíjení",
+      "stop_export": "Zastavit export"
     },
     "action_table": {
       "normal": "Normální",
       "charge_to_target_soc": "Do",
       "discharge_to_target_soc": "Do",
       "stop_charging": "Nenabíjet",
-      "stop_discharging": "Nevybíjet"
+      "stop_discharging": "Nevybíjet",
+      "stop_export": "Neexportovat"
     },
     "action_kind": {
       "normal": "Normální režim",
       "charge_to_target_soc": "Nabíjet do cílového SoC",
       "discharge_to_target_soc": "Vybíjet do cílového SoC",
       "stop_charging": "Zakázat nabíjení",
-      "stop_discharging": "Zakázat vybíjení"
+      "stop_discharging": "Zakázat vybíjení",
+      "stop_export": "Zakázat export do sítě"
     },
     "appliance": {
       "action": {
