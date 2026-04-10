@@ -30,7 +30,7 @@ export function getScheduleActionPresentation(
 function _getScheduleActionTone(actionKind: ScheduleAction["kind"]): ScheduleActionTone {
     switch (actionKind) {
         case "empty":
-            return "empty";
+            return "neutral";
         case "normal":
             return "normal";
         case "charge_to_target_soc":

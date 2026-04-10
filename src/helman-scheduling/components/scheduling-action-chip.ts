@@ -95,6 +95,8 @@ export class SchedulingActionChip extends LitElement {
     @property({ type: String }) public surface: "scheduled" | "runtime" = "scheduled";
     @property({ type: String }) public runtimeState: "neutral" | "following" | "diverged" | "error" = "neutral";
     @property({ type: Boolean }) public iconOnly = false;
+    @property({ type: Boolean }) public interactive = false;
+    @property({ type: Boolean }) public selected = false;
 
     render() {
         if (!this.action || !this.localize) {
@@ -103,7 +105,7 @@ export class SchedulingActionChip extends LitElement {
 
         const presentation = getScheduleActionPresentation(this.action, this.localize, this.labelVariant);
         const runtimeStateClass = this.surface === "runtime" ? ` runtime-${this.runtimeState}` : "";
-        const classes = `chip action ${presentation.toneClass}${this.size === "compact" ? " compact" : ""}${this.surface === "runtime" ? " runtime-surface" : ""}${runtimeStateClass}`;
+        const classes = `chip action ${presentation.toneClass}${this.size === "compact" ? " compact" : ""}${this.interactive ? " selectable" : ""}${this.selected ? " selected" : ""}${this.surface === "runtime" ? " runtime-surface" : ""}${runtimeStateClass}`;
         return html`
             <span class=${classes}>
                 <ha-icon class="chip-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>

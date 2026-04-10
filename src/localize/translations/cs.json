@@ -279,7 +279,7 @@
       },
       "choose_action": "Vyberte akci, která se má použít na vybrané sloty.",
       "appliance": {
-        "no_action": "Bez akce",
+        "no_action": "Bez zásahu",
         "turn_on": "Zapnout",
         "turn_off": "Vypnout",
         "no_charge": "Nenabíjet",

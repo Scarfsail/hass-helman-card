@@ -32,52 +32,8 @@ export class SchedulingGenericApplianceEditor extends LitElement {
 
             .action-options {
                 display: flex;
-                flex-direction: column;
+                flex-wrap: wrap;
                 gap: 8px;
-            }
-
-            .action-option-card {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                padding: 10px;
-                border: 1px solid var(--divider-color);
-                border-radius: 12px;
-                background: var(--card-background-color);
-                cursor: pointer;
-                transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
-            }
-
-            .action-option-card:hover {
-                border-color: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 40%, var(--divider-color));
-            }
-
-            .action-option-card.selected {
-                border-color: var(--schedule-action-tone-accent, var(--primary-color));
-                background: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 10%, var(--card-background-color));
-                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 18%, transparent);
-            }
-
-            .action-option-card:focus-within {
-                outline: 2px solid var(--primary-color);
-                outline-offset: 2px;
-            }
-
-            .action-option-header {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .action-option-radio {
-                flex-shrink: 0;
-                margin-top: 0;
-            }
-
-            .action-option-copy {
-                display: flex;
-                min-width: 0;
-                flex: 1;
             }
 
             .preview-chip {
@@ -134,7 +90,7 @@ export class SchedulingGenericApplianceEditor extends LitElement {
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.generic")}</div>
                 </div>
 
-                <div class="action-options">
+                <div class="action-options compact-action-options">
                     ${this._renderModeOption("none")}
                     ${this._renderModeOption("off")}
                     ${this._renderModeOption("on")}
@@ -147,24 +103,21 @@ export class SchedulingGenericApplianceEditor extends LitElement {
         const checked = this._mode === mode;
         const presentation = this._buildModePresentation(mode);
         return html`
-            <div class=${`action-option-card ${presentation.toneClass}${checked ? " selected" : ""}`} @click=${() => this._handleModeChange(mode)}>
-                <label class="action-option-header">
-                    <input
-                        class="action-option-radio"
-                        type="radio"
-                        name=${`generic-schedule-mode-${this.appliance?.id ?? "unknown"}`}
-                        value=${mode}
-                        .checked=${checked}
-                        @change=${() => this._handleModeChange(mode)}
-                    />
-                    <div class="action-option-copy">
-                        <span class=${`chip action preview-chip ${presentation.toneClass}`}>
-                            <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
-                            <span class="chip-label">${presentation.label}</span>
-                        </span>
-                    </div>
-                </label>
-            </div>
+            <label class="compact-action-option">
+                <input
+                    class="sr-only"
+                    type="radio"
+                    name=${`generic-schedule-mode-${this.appliance?.id ?? "unknown"}`}
+                    value=${mode}
+                    .checked=${checked}
+                    aria-label=${presentation.label}
+                    @change=${() => this._handleModeChange(mode)}
+                />
+                <span class=${`chip action preview-chip selectable ${presentation.toneClass}${checked ? " selected" : ""}`}>
+                    <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
+                    <span class="chip-label">${presentation.label}</span>
+                </span>
+            </label>
         `;
     }
 

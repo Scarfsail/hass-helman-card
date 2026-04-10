@@ -38,8 +38,6 @@ const DEFAULT_CHARGE_TARGET_SOC = 100;
 const DEFAULT_DISCHARGE_TARGET_SOC = 15;
 let nextDialogHistoryEntryId = 0;
 
-type ScheduleDialogTabId = "inverter" | "appliances";
-
 @customElement("scheduling-range-edit-dialog")
 export class SchedulingRangeEditDialog extends LitElement {
     static styles = [
@@ -65,79 +63,34 @@ export class SchedulingRangeEditDialog extends LitElement {
                 line-height: 1.35;
             }
 
-            .action-options,
-            .appliance-sections {
-                display: flex;
-                flex-direction: column;
-            }
-
             .action-options {
-                gap: 8px;
-            }
-
-            .appliance-sections {
-                gap: 12px;
-            }
-
-            .dialog-tabs {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 8px;
             }
 
-            .dialog-tab {
-                display: inline-flex;
-                align-items: center;
+            .appliance-sections {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .inverter-action-detail {
+                display: flex;
+                flex-direction: column;
                 gap: 8px;
-                min-width: 0;
-                padding: 8px 12px;
-                position: relative;
-                border-radius: 999px;
-                border: 1px solid var(--divider-color);
-                background: var(--card-background-color);
-                color: inherit;
-                cursor: pointer;
-                transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
             }
 
-            .dialog-tab:hover:not(:disabled) {
-                border-color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 32%, var(--divider-color));
+            .inverter-action-detail .target-field {
+                width: min(180px, 100%);
             }
 
-            .dialog-tab.configured {
-                --dialog-tab-accent: var(--schedule-action-tone-accent, var(--primary-color));
-                border-color: var(--schedule-action-tone-border, color-mix(in srgb, var(--dialog-tab-accent) 30%, var(--divider-color)));
-                background: var(--schedule-action-tone-bg, color-mix(in srgb, var(--dialog-tab-accent) 14%, transparent));
-                color: var(--schedule-action-tone-color, color-mix(in srgb, var(--dialog-tab-accent) 82%, var(--primary-text-color)));
-            }
-
-            .dialog-tab.active {
-                border-color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 48%, var(--divider-color));
-                background: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 18%, var(--card-background-color));
-                color: color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 88%, var(--primary-text-color));
+            .panel.inverter-panel-highlight {
+                border-color: var(--schedule-action-tone-border, var(--divider-color));
+                background: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 14%, var(--secondary-background-color));
                 box-shadow:
-                    inset 0 0 0 1px color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 22%, transparent),
-                    0 0 0 2px color-mix(in srgb, var(--dialog-tab-accent, var(--primary-color)) 24%, transparent);
-                font-weight: 700;
-            }
-
-            .dialog-tab.unconfigured {
-                color: var(--secondary-text-color);
-            }
-
-            .dialog-tab-icon {
-                flex: 0 0 auto;
-                --mdc-icon-size: 1rem;
-                color: var(--schedule-action-tone-icon, currentColor);
-            }
-
-            .dialog-tab-label {
-                min-width: 0;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-                font-size: 0.85rem;
-                font-weight: 600;
+                    inset 0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 14%, transparent),
+                    0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 6%, transparent);
             }
 
             .dialog-panel {
@@ -192,7 +145,6 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     @state() private _actionKind: ScheduleAction["kind"] | null = null;
     @state() private _targetSocInput = "";
-    @state() private _activeTabId: ScheduleDialogTabId = "inverter";
     @state() private _initialDomains: ScheduleDialogState["initialDomains"] = null;
     @state() private _inverterEdited = false;
     @state() private _draftApplianceActions: Record<string, ScheduleApplianceAction | null> = {};
@@ -253,15 +205,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                         </div>
                     </div>
 
-                    <div class="dialog-tabs" role="tablist" aria-label=${this.localize("scheduling.dialog.tabs")}>
-                        ${this._renderInverterTab()}
-                        ${this._renderAppliancesTab()}
-                    </div>
-
                     <div class="dialog-panel">
-                        ${this._activeTabId === "inverter"
-                            ? this._renderInverterPanel()
-                            : this._renderAppliancesPanel()}
+                        ${this._renderInverterPanel()}
+                        ${this._renderAppliancesPanel()}
                     </div>
 
                     <div class="field-help">
@@ -292,7 +238,6 @@ export class SchedulingRangeEditDialog extends LitElement {
             ]),
         );
         this._initialDomains = initialDomains;
-        this._activeTabId = "inverter";
         this._inverterEdited = false;
         this._actionKind = initialDomains?.inverter.kind ?? "empty";
         this._targetSocInput = initialDomains?.inverter.targetSoc?.toString() ?? "";
@@ -367,77 +312,18 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .localize=${this.localize}
                 radioName="schedule-action-kind"
                 @schedule-action-option-select=${this._handleActionOptionSelect}
-            >
-                ${checked && this._isTargetActionKind(actionKind) ? html`
-                    <ha-textfield
-                        class="target-field"
-                        id="schedule-target-soc"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="1"
-                        no-spinner
-                        .label=${this.localize("scheduling.dialog.target_soc")}
-                        .suffix=${"%"}
-                        .value=${this._targetSocInput}
-                        @input=${this._handleTargetSocInput}
-                    ></ha-textfield>
-                ` : nothing}
-            </scheduling-action-option-card>
-        `;
-    }
-
-    private _renderInverterTab() {
-        const action = this._actionKind === null
-            ? { kind: "empty" as const }
-            : this._buildActionOptionPreview(this._actionKind);
-        const presentation = getScheduleActionPresentation(action, this.localize, "table");
-        const configured = this._actionKind !== null && this._actionKind !== "empty";
-        const active = this._activeTabId === "inverter";
-        const title = configured
-            ? this.localize("scheduling.dialog.tab.configured")
-            : this.localize("scheduling.dialog.tab.not_configured");
-        return html`
-            <button
-                class=${`dialog-tab ${configured ? `configured ${presentation.toneClass}` : "unconfigured action-tone-empty"}${active ? " active" : ""}`}
-                type="button"
-                role="tab"
-                aria-selected=${active ? "true" : "false"}
-                title=${title}
-                @click=${() => this._setActiveTab("inverter")}
-            >
-                <ha-icon class="dialog-tab-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
-                <span class="dialog-tab-label">${this.localize("scheduling.dialog.inverter")}</span>
-            </button>
-        `;
-    }
-
-    private _renderAppliancesTab() {
-        const configured = this._hasConfiguredApplianceActions();
-        const active = this._activeTabId === "appliances";
-        const title = configured
-            ? this.localize("scheduling.dialog.tab.configured")
-            : this.localize("scheduling.dialog.tab.not_configured");
-        return html`
-            <button
-                class=${`dialog-tab ${configured ? "configured action-tone-charge" : "unconfigured action-tone-neutral"}${active ? " active" : ""}`}
-                type="button"
-                role="tab"
-                aria-selected=${active ? "true" : "false"}
-                title=${title}
-                @click=${() => this._setActiveTab("appliances")}
-            >
-                <ha-icon class="dialog-tab-icon" .icon=${"mdi:power-plug"} aria-hidden="true"></ha-icon>
-                <span class="dialog-tab-label">${this.localize("scheduling.dialog.appliances")}</span>
-            </button>
+            ></scheduling-action-option-card>
         `;
     }
 
     private _renderInverterPanel() {
+        const panelClasses = this._inverterPanelClasses();
         return html`
-            <div class="field">
-                <div class="field-label">${this.localize("scheduling.dialog.inverter")}</div>
-                <div class="action-options">
+            <div class=${panelClasses}>
+                <div class="panel-header-inline">
+                    <div class="panel-title">${this.localize("scheduling.dialog.inverter")}</div>
+                </div>
+                <div class="action-options" role="radiogroup" aria-label=${this.localize("scheduling.dialog.inverter")}>
                     ${this._renderActionOption("empty")}
                     ${this._renderActionOption("normal")}
                     ${this._renderActionOption("charge_to_target_soc")}
@@ -446,6 +332,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                     ${this._renderActionOption("stop_discharging")}
                     ${this._renderActionOption("stop_export")}
                 </div>
+                ${this._renderInverterActionDetail()}
                 ${this._actionKind === null ? html`
                     <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>
                 ` : nothing}
@@ -454,6 +341,10 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _renderAppliancesPanel() {
+        if (this.appliances.length === 0) {
+            return nothing;
+        }
+
         return html`
             <div class="appliance-sections">
                 ${this.appliances.map((appliance) => this._renderApplianceSection(appliance))}
@@ -516,6 +407,30 @@ export class SchedulingRangeEditDialog extends LitElement {
             <div class="unsupported-appliance">
                 <div class="panel-title">${appliance.name}</div>
                 <div class="field-help">${this.localize("scheduling.dialog.appliance.unsupported_authoring")}</div>
+            </div>
+        `;
+    }
+
+    private _renderInverterActionDetail() {
+        if (this._actionKind === null || !this._isTargetActionKind(this._actionKind)) {
+            return nothing;
+        }
+
+        return html`
+            <div class="inverter-action-detail">
+                <ha-textfield
+                    class="target-field"
+                    id="schedule-target-soc"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    no-spinner
+                    .label=${this.localize("scheduling.dialog.target_soc")}
+                    .suffix=${"%"}
+                    .value=${this._targetSocInput}
+                    @input=${this._handleTargetSocInput}
+                ></ha-textfield>
             </div>
         `;
     }
@@ -697,10 +612,6 @@ export class SchedulingRangeEditDialog extends LitElement {
         return isTargetScheduleAction({ kind: actionKind });
     }
 
-    private _setActiveTab(tabId: ScheduleDialogTabId): void {
-        this._activeTabId = tabId;
-    }
-
     private _updateInverterEditedState(): void {
         const currentAction = this._buildEditedAction();
         const initialAction = this._initialDomains?.inverter ?? null;
@@ -747,8 +658,14 @@ export class SchedulingRangeEditDialog extends LitElement {
             : !areScheduleApplianceActionsEqual(normalizedNextAction, normalizedInitialAction);
     }
 
-    private _hasConfiguredApplianceActions(): boolean {
-        return this.appliances.some((appliance) => this._draftApplianceActions[appliance.id] !== null);
+    private _inverterPanelClasses(): string {
+        if (this._actionKind === null || this._actionKind === "empty") {
+            return "panel";
+        }
+
+        const action = this._buildActionOptionPreview(this._actionKind);
+        const presentation = getScheduleActionPresentation(action, this.localize);
+        return `panel inverter-panel-highlight ${presentation.toneClass}`;
     }
 
     private _closeDialogElement(): void {

@@ -127,6 +127,49 @@ export const schedulingSharedStyles = css`
         color: var(--schedule-action-tone-color, var(--primary-text-color));
     }
 
+    .chip.action.selectable {
+        cursor: pointer;
+        transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .chip.action.selectable:hover {
+        border-color: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 40%, var(--divider-color));
+    }
+
+    .chip.action.selectable.selected {
+        border-color: color-mix(in srgb, var(--primary-color) 48%, var(--divider-color));
+        background: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 10%, var(--card-background-color));
+        box-shadow:
+            inset 0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 18%, transparent),
+            0 0 0 2px color-mix(in srgb, var(--primary-color) 28%, transparent),
+            0 0 10px color-mix(in srgb, var(--primary-color) 20%, transparent);
+    }
+
+    .compact-action-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .compact-action-option {
+        display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
+        cursor: pointer;
+    }
+
+    .compact-action-option:focus-within {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 999px;
+    }
+
+    .compact-action-detail {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
     .chip.now {
         background: color-mix(in srgb, var(--primary-color) 18%, transparent);
         color: var(--primary-color);

@@ -32,59 +32,18 @@ export class SchedulingEvChargerEditor extends LitElement {
 
             .action-options {
                 display: flex;
-                flex-direction: column;
+                flex-wrap: wrap;
                 gap: 8px;
             }
 
-            .action-option-card {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                padding: 10px;
-                border: 1px solid var(--divider-color);
-                border-radius: 12px;
-                background: var(--card-background-color);
-                cursor: pointer;
-                transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+            .action-detail-fields {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 8px 12px;
             }
 
-            .action-option-card:hover {
-                border-color: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 40%, var(--divider-color));
-            }
-
-            .action-option-card.selected {
-                border-color: var(--schedule-action-tone-accent, var(--primary-color));
-                background: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 10%, var(--card-background-color));
-                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 18%, transparent);
-            }
-
-            .action-option-card:focus-within {
-                outline: 2px solid var(--primary-color);
-                outline-offset: 2px;
-            }
-
-            .action-option-header {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .action-option-radio {
-                flex-shrink: 0;
-                margin-top: 0;
-            }
-
-            .action-option-copy {
-                display: flex;
+            .action-detail-fields .field {
                 min-width: 0;
-                flex: 1;
-            }
-
-            .action-option-detail {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                padding-left: 24px;
             }
 
             .preview-chip {
@@ -115,8 +74,8 @@ export class SchedulingEvChargerEditor extends LitElement {
             }
 
             @media (max-width: 600px) {
-                .action-option-detail {
-                    padding-left: 0;
+                .action-detail-fields {
+                    grid-template-columns: 1fr;
                 }
             }
         `,
@@ -151,71 +110,35 @@ export class SchedulingEvChargerEditor extends LitElement {
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.ev_charger")}</div>
                 </div>
 
-                <div class="action-options">
+                <div class="action-options compact-action-options">
                     ${this._renderModeOption("none")}
                     ${this._renderModeOption("off")}
-                    ${this._renderModeOption("charge", html`
-                        <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.appliance.mode")}</div>
-                            <select class="select-input" .value=${this._useMode} @change=${this._handleUseModeChange}>
-                                ${this.appliance.scheduleCapabilities.useModes.map((mode) => html`
-                                    <option value=${mode} ?selected=${this._useMode === mode}>${this._formatUseMode(mode)}</option>
-                                `)}
-                            </select>
-                        </div>
-
-                        ${needsEcoGear ? html`
-                            <div class="field">
-                                <div class="field-label">${this.localize("scheduling.dialog.appliance.eco_gear")}</div>
-                                <select class="select-input" .value=${this._ecoGear} @change=${this._handleEcoGearChange}>
-                                    ${this.appliance.scheduleCapabilities.ecoGears.map((gear) => html`
-                                        <option value=${gear} ?selected=${this._ecoGear === gear}>${gear}</option>
-                                    `)}
-                                </select>
-                            </div>
-                        ` : nothing}
-
-                        <div class="field">
-                            <div class="field-label">${this.localize("scheduling.dialog.appliance.vehicle")}</div>
-                            <select class="select-input" .value=${this._vehicleId} @change=${this._handleVehicleChange}>
-                                ${this.appliance.vehicles.map((vehicle) => html`
-                                    <option value=${vehicle.id} ?selected=${this._vehicleId === vehicle.id}>${vehicle.name}</option>
-                                `)}
-                            </select>
-                        </div>
-                    `)}
+                    ${this._renderModeOption("charge")}
                 </div>
+                ${this._renderSelectedDetail(needsEcoGear)}
             </div>
         `;
     }
 
-    private _renderModeOption(mode: EvChargerEditorMode, detailContent = nothing) {
+    private _renderModeOption(mode: EvChargerEditorMode) {
         const checked = this._mode === mode;
         const presentation = this._buildModePresentation(mode);
         return html`
-            <div class=${`action-option-card ${presentation.toneClass}${checked ? " selected" : ""}`} @click=${() => this._handleModeChange(mode)}>
-                <label class="action-option-header">
-                    <input
-                        class="action-option-radio"
-                        type="radio"
-                        name=${`ev-schedule-mode-${this.appliance?.id ?? "unknown"}`}
-                        value=${mode}
-                        .checked=${checked}
-                        @change=${() => this._handleModeChange(mode)}
-                    />
-                    <div class="action-option-copy">
-                        <span class=${`chip action preview-chip ${presentation.toneClass}`}>
-                            <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
-                            <span class="chip-label">${presentation.label}</span>
-                        </span>
-                    </div>
-                </label>
-                ${checked && detailContent !== nothing ? html`
-                    <div class="action-option-detail" @click=${this._stopPropagation}>
-                        ${detailContent}
-                    </div>
-                ` : nothing}
-            </div>
+            <label class="compact-action-option">
+                <input
+                    class="sr-only"
+                    type="radio"
+                    name=${`ev-schedule-mode-${this.appliance?.id ?? "unknown"}`}
+                    value=${mode}
+                    .checked=${checked}
+                    aria-label=${presentation.label}
+                    @change=${() => this._handleModeChange(mode)}
+                />
+                <span class=${`chip action preview-chip selectable ${presentation.toneClass}${checked ? " selected" : ""}`}>
+                    <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
+                    <span class="chip-label">${presentation.label}</span>
+                </span>
+            </label>
         `;
     }
 
@@ -278,10 +201,6 @@ export class SchedulingEvChargerEditor extends LitElement {
     private _handleEcoGearChange(event: Event): void {
         this._ecoGear = (event.currentTarget as HTMLSelectElement).value;
         this._emitChange();
-    }
-
-    private _stopPropagation(event: Event): void {
-        event.stopPropagation();
     }
 
     private _emitChange(): void {
@@ -374,6 +293,45 @@ export class SchedulingEvChargerEditor extends LitElement {
             label: this.localize("scheduling.dialog.appliance.charge"),
             toneClass: "action-tone-charge",
         };
+    }
+
+    private _renderSelectedDetail(needsEcoGear: boolean) {
+        if (!this.appliance || this._mode !== "charge") {
+            return nothing;
+        }
+
+        return html`
+            <div class="compact-action-detail action-detail-fields">
+                <div class="field">
+                    <div class="field-label">${this.localize("scheduling.dialog.appliance.mode")}</div>
+                    <select class="select-input" .value=${this._useMode} @change=${this._handleUseModeChange}>
+                        ${this.appliance.scheduleCapabilities.useModes.map((mode) => html`
+                            <option value=${mode} ?selected=${this._useMode === mode}>${this._formatUseMode(mode)}</option>
+                        `)}
+                    </select>
+                </div>
+
+                ${needsEcoGear ? html`
+                    <div class="field">
+                        <div class="field-label">${this.localize("scheduling.dialog.appliance.eco_gear")}</div>
+                        <select class="select-input" .value=${this._ecoGear} @change=${this._handleEcoGearChange}>
+                            ${this.appliance.scheduleCapabilities.ecoGears.map((gear) => html`
+                                <option value=${gear} ?selected=${this._ecoGear === gear}>${gear}</option>
+                            `)}
+                        </select>
+                    </div>
+                ` : nothing}
+
+                <div class="field">
+                    <div class="field-label">${this.localize("scheduling.dialog.appliance.vehicle")}</div>
+                    <select class="select-input" .value=${this._vehicleId} @change=${this._handleVehicleChange}>
+                        ${this.appliance.vehicles.map((vehicle) => html`
+                            <option value=${vehicle.id} ?selected=${this._vehicleId === vehicle.id}>${vehicle.name}</option>
+                        `)}
+                    </select>
+                </div>
+            </div>
+        `;
     }
 
     private _panelHighlightClass(): string {
