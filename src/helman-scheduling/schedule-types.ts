@@ -306,7 +306,7 @@ export function isScheduleApplianceActionEnabled(action: ScheduleApplianceAction
     }
 
     if (isScheduleClimateApplianceAction(action)) {
-        return true;
+        return action.mode !== "off";
     }
 
     return null;

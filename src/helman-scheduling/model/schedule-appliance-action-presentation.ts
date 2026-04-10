@@ -38,8 +38,8 @@ export function getScheduleApplianceActionPresentation({
             }
             : {
                 icon: appliance.icon,
-                label: localize("scheduling.dialog.appliance.no_action"),
-                toneClass: "action-tone-neutral",
+                label: localize("scheduling.appliance.generic.action.off"),
+                toneClass: "action-tone-stop",
             };
     }
 
@@ -47,7 +47,7 @@ export function getScheduleApplianceActionPresentation({
         return {
             icon: appliance.icon,
             label: formatScheduleClimateModeLabel(action.mode, localize),
-            toneClass: "action-tone-charge",
+            toneClass: action.mode === "off" ? "action-tone-stop" : "action-tone-charge",
         };
     }
 
@@ -67,6 +67,8 @@ export function formatScheduleClimateModeLabel(
             return localize("scheduling.appliance.climate.mode.heat");
         case "cool":
             return localize("scheduling.appliance.climate.mode.cool");
+        case "off":
+            return localize("scheduling.appliance.climate.mode.off");
         default:
             return mode;
     }

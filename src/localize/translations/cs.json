@@ -180,6 +180,7 @@
       "climate": {
         "projected_energy": "Odhadovaná energie klimatizace",
         "mode": {
+          "off": "Vypnout",
           "heat": "Topení",
           "cool": "Chlazení"
         }
@@ -277,6 +278,7 @@
       "appliance": {
         "no_action": "Bez akce",
         "turn_on": "Zapnout",
+        "turn_off": "Vypnout",
         "no_charge": "Nenabíjet",
         "charge": "Nabíjet",
         "vehicle": "Vozidlo",

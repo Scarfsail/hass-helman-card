@@ -37,6 +37,15 @@ export const schedulingSharedStyles = css`
             0 0 0 1px color-mix(in srgb, var(--success-color, #2e7d32) 6%, transparent);
     }
 
+    .panel.panel-highlight-stop,
+    .appliance-panel.panel-highlight-stop {
+        border-color: color-mix(in srgb, var(--error-color, #c62828) 48%, var(--divider-color));
+        background: color-mix(in srgb, var(--error-color, #c62828) 14%, var(--secondary-background-color));
+        box-shadow:
+            inset 0 0 0 1px color-mix(in srgb, var(--error-color, #c62828) 14%, transparent),
+            0 0 0 1px color-mix(in srgb, var(--error-color, #c62828) 6%, transparent);
+    }
+
     .panel-subtitle,
     .muted,
     .field-help {

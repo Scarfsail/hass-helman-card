@@ -22,7 +22,6 @@ import {
     areScheduleApplianceActionsEqual,
     cloneScheduleApplianceAction,
     cloneScheduleDomains,
-    isScheduleApplianceActionEnabled,
     isTargetScheduleAction,
     type ScheduleAction,
 } from "../schedule-types";
@@ -722,9 +721,7 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _normalizeDraftApplianceAction(
         action: ScheduleApplianceAction,
     ): ScheduleApplianceAction | null {
-        return isScheduleApplianceActionEnabled(action) === true
-            ? cloneScheduleApplianceAction(action)
-            : null;
+        return cloneScheduleApplianceAction(action);
     }
 
     private _isApplianceActionEdited(

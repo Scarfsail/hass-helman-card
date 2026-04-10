@@ -8,11 +8,11 @@ import { isScheduleEvChargerAction } from "../schedule-types";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
-type EvChargerEditorMode = "none" | "charge";
+type EvChargerEditorMode = "none" | "off" | "charge";
 type EvChargerOptionPresentation = {
     icon: string;
     label: string;
-    toneClass: "action-tone-neutral" | "action-tone-charge";
+    toneClass: "action-tone-neutral" | "action-tone-charge" | "action-tone-stop";
 };
 
 @customElement("scheduling-ev-charger-editor")
@@ -145,7 +145,7 @@ export class SchedulingEvChargerEditor extends LitElement {
 
         const needsEcoGear = this._mode === "charge" && this._useMode === "ECO";
         return html`
-            <div class=${`appliance-panel${this.action !== null ? " panel-highlight-success" : ""}`}>
+            <div class=${`appliance-panel${this._panelHighlightClass()}`}>
                 <div class="appliance-header panel-header-inline">
                     <div class="panel-title">${this.appliance.name}</div>
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.ev_charger")}</div>
@@ -153,6 +153,7 @@ export class SchedulingEvChargerEditor extends LitElement {
 
                 <div class="action-options">
                     ${this._renderModeOption("none")}
+                    ${this._renderModeOption("off")}
                     ${this._renderModeOption("charge", html`
                         <div class="field">
                             <div class="field-label">${this.localize("scheduling.dialog.appliance.mode")}</div>
@@ -235,7 +236,7 @@ export class SchedulingEvChargerEditor extends LitElement {
             return;
         }
 
-        this._mode = action.charge ? "charge" : "none";
+        this._mode = action.charge ? "charge" : "off";
         this._vehicleId = action.vehicleId ?? this.appliance.vehicles[0]?.id ?? "";
         this._useMode = action.useMode ?? this.appliance.scheduleCapabilities.useModes[0] ?? "Fast";
         this._ecoGear = action.ecoGear ?? this.appliance.scheduleCapabilities.ecoGears[0] ?? "";
@@ -305,6 +306,14 @@ export class SchedulingEvChargerEditor extends LitElement {
             return { applianceId: this.appliance.id, action: null, valid: true };
         }
 
+        if (this._mode === "off") {
+            return {
+                applianceId: this.appliance.id,
+                action: { charge: false },
+                valid: true,
+            };
+        }
+
         const validVehicle = this.appliance.scheduleCapabilities.requiresVehicleSelection
             ? this.appliance.vehicles.some((vehicle) => vehicle.id === this._vehicleId)
             : true;
@@ -352,10 +361,28 @@ export class SchedulingEvChargerEditor extends LitElement {
             };
         }
 
+        if (mode === "off") {
+            return {
+                icon: "mdi:car-electric",
+                label: this.localize("scheduling.dialog.appliance.no_charge"),
+                toneClass: "action-tone-stop",
+            };
+        }
+
         return {
             icon: "mdi:car-electric",
             label: this.localize("scheduling.dialog.appliance.charge"),
             toneClass: "action-tone-charge",
         };
+    }
+
+    private _panelHighlightClass(): string {
+        if (this._mode === "charge") {
+            return " panel-highlight-success";
+        }
+        if (this._mode === "off") {
+            return " panel-highlight-stop";
+        }
+        return "";
     }
 }

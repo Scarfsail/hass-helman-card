@@ -33,7 +33,6 @@ import {
     getScheduleActionIdentityKey,
     getScheduleApplianceActionIdentityKey,
     isScheduleClimateApplianceAction,
-    isScheduleApplianceActionEnabled,
     isScheduleBackedDisplaySlot,
     isScheduleEvChargerAction,
     isScheduleGenericApplianceAction,
@@ -452,10 +451,6 @@ function _buildDistinctApplianceItems(
         return Object.entries(slot.scheduleSlot.domains.appliances).flatMap(([applianceId, action]) => {
             const appliance = getScheduleApplianceById(appliances, applianceId);
             const applianceKind = _resolveApplianceKind(appliance, action);
-            if (applianceKind === "generic" && isScheduleApplianceActionEnabled(action) !== true) {
-                return [];
-            }
-
             return [{
                 slotId: slot.scheduleSlot.id,
                 applianceId,

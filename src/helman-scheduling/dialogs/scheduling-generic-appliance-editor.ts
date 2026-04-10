@@ -8,11 +8,11 @@ import { isScheduleGenericApplianceAction } from "../schedule-types";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
-type GenericApplianceEditorMode = "none" | "on";
+type GenericApplianceEditorMode = "none" | "off" | "on";
 type GenericApplianceOptionPresentation = {
     icon: string;
     label: string;
-    toneClass: "action-tone-neutral" | "action-tone-charge";
+    toneClass: "action-tone-neutral" | "action-tone-charge" | "action-tone-stop";
 };
 
 @customElement("scheduling-generic-appliance-editor")
@@ -128,7 +128,7 @@ export class SchedulingGenericApplianceEditor extends LitElement {
         }
 
         return html`
-            <div class=${`appliance-panel${this.action !== null ? " panel-highlight-success" : ""}`}>
+            <div class=${`appliance-panel${this._panelHighlightClass()}`}>
                 <div class="appliance-header panel-header-inline">
                     <div class="panel-title">${this.appliance.name}</div>
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.generic")}</div>
@@ -136,6 +136,7 @@ export class SchedulingGenericApplianceEditor extends LitElement {
 
                 <div class="action-options">
                     ${this._renderModeOption("none")}
+                    ${this._renderModeOption("off")}
                     ${this._renderModeOption("on")}
                 </div>
             </div>
@@ -173,7 +174,7 @@ export class SchedulingGenericApplianceEditor extends LitElement {
             return;
         }
 
-        this._mode = action.on ? "on" : "none";
+        this._mode = action.on ? "on" : "off";
     }
 
     private _handleModeChange(mode: GenericApplianceEditorMode): void {
@@ -200,7 +201,9 @@ export class SchedulingGenericApplianceEditor extends LitElement {
 
         return {
             applianceId: this.appliance.id,
-            action: this._mode === "on" ? { on: true } : null,
+            action: this._mode === "none"
+                ? null
+                : { on: this._mode === "on" },
             valid: true,
         };
     }
@@ -214,10 +217,28 @@ export class SchedulingGenericApplianceEditor extends LitElement {
             };
         }
 
+        if (mode === "off") {
+            return {
+                icon: "mdi:power-plug-off",
+                label: this.localize("scheduling.dialog.appliance.turn_off"),
+                toneClass: "action-tone-stop",
+            };
+        }
+
         return {
             icon: "mdi:power-plug",
             label: this.localize("scheduling.dialog.appliance.turn_on"),
             toneClass: "action-tone-charge",
         };
+    }
+
+    private _panelHighlightClass(): string {
+        if (this._mode === "on") {
+            return " panel-highlight-success";
+        }
+        if (this._mode === "off") {
+            return " panel-highlight-stop";
+        }
+        return "";
     }
 }

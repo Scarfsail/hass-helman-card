@@ -14,7 +14,10 @@ import {
 } from "../schedule-types";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 
-type ClimateApplianceEditorMode = "none" | string;
+const CLIMATE_OFF_ACTION_MODE = "off";
+const CLIMATE_OFF_EDITOR_MODE = "__off__";
+
+type ClimateApplianceEditorMode = "none" | typeof CLIMATE_OFF_EDITOR_MODE | string;
 type ClimateApplianceOptionPresentation = {
     icon: string;
     label: string;
@@ -134,7 +137,7 @@ export class SchedulingClimateApplianceEditor extends LitElement {
         }
 
         return html`
-            <div class=${`appliance-panel${this.action !== null ? " panel-highlight-success" : ""}`}>
+            <div class=${`appliance-panel${this._panelHighlightClass()}`}>
                 <div class="appliance-header panel-header-inline">
                     <div class="panel-title">${this.appliance.name}</div>
                     <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.climate")}</div>
@@ -142,6 +145,7 @@ export class SchedulingClimateApplianceEditor extends LitElement {
 
                 <div class="action-options">
                     ${this._renderModeOption("none")}
+                    ${this._renderModeOption(CLIMATE_OFF_EDITOR_MODE)}
                     ${this.appliance.scheduleCapabilities.modes.map((mode) => this._renderModeOption(mode))}
                 </div>
             </div>
@@ -176,6 +180,11 @@ export class SchedulingClimateApplianceEditor extends LitElement {
     private _applyAction(action: ScheduleApplianceAction | null): void {
         if (!this.appliance || action === null || !isScheduleClimateApplianceAction(action)) {
             this._mode = "none";
+            return;
+        }
+
+        if (action.mode === CLIMATE_OFF_ACTION_MODE) {
+            this._mode = CLIMATE_OFF_EDITOR_MODE;
             return;
         }
 
@@ -214,6 +223,14 @@ export class SchedulingClimateApplianceEditor extends LitElement {
             };
         }
 
+        if (this._mode === CLIMATE_OFF_EDITOR_MODE) {
+            return {
+                applianceId: this.appliance.id,
+                action: { mode: CLIMATE_OFF_ACTION_MODE },
+                valid: true,
+            };
+        }
+
         const valid = this.appliance.scheduleCapabilities.modes.includes(this._mode);
         return {
             applianceId: this.appliance.id,
@@ -231,10 +248,28 @@ export class SchedulingClimateApplianceEditor extends LitElement {
             };
         }
 
+        if (mode === CLIMATE_OFF_EDITOR_MODE) {
+            return {
+                icon: this.appliance.icon,
+                label: formatScheduleClimateModeLabel(CLIMATE_OFF_ACTION_MODE, this.localize),
+                toneClass: "action-tone-stop",
+            };
+        }
+
         return {
             icon: this.appliance.icon,
             label: formatScheduleClimateModeLabel(mode, this.localize),
             toneClass: "action-tone-charge",
         };
+    }
+
+    private _panelHighlightClass(): string {
+        if (this._mode === CLIMATE_OFF_EDITOR_MODE) {
+            return " panel-highlight-stop";
+        }
+        if (this._mode !== "none") {
+            return " panel-highlight-success";
+        }
+        return "";
     }
 }
