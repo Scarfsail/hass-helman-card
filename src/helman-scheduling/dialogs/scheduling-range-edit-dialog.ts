@@ -294,7 +294,7 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._initialDomains = initialDomains;
         this._activeTabId = "inverter";
         this._inverterEdited = false;
-        this._actionKind = initialDomains?.inverter.kind ?? null;
+        this._actionKind = initialDomains?.inverter.kind ?? "empty";
         this._targetSocInput = initialDomains?.inverter.targetSoc?.toString() ?? "";
         this._draftApplianceActions = draftApplianceActions;
         this._applianceValidity = Object.fromEntries(
@@ -388,15 +388,22 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _renderInverterTab() {
-        const action = this._buildEditedAction() ?? { kind: "normal" as const };
+        const action = this._actionKind === null
+            ? { kind: "empty" as const }
+            : this._buildActionOptionPreview(this._actionKind);
         const presentation = getScheduleActionPresentation(action, this.localize, "table");
+        const configured = this._actionKind !== null && this._actionKind !== "empty";
         const active = this._activeTabId === "inverter";
+        const title = configured
+            ? this.localize("scheduling.dialog.tab.configured")
+            : this.localize("scheduling.dialog.tab.not_configured");
         return html`
             <button
-                class=${`dialog-tab configured ${presentation.toneClass}${active ? " active" : ""}`}
+                class=${`dialog-tab ${configured ? `configured ${presentation.toneClass}` : "unconfigured action-tone-empty"}${active ? " active" : ""}`}
                 type="button"
                 role="tab"
                 aria-selected=${active ? "true" : "false"}
+                title=${title}
                 @click=${() => this._setActiveTab("inverter")}
             >
                 <ha-icon class="dialog-tab-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
@@ -431,6 +438,7 @@ export class SchedulingRangeEditDialog extends LitElement {
             <div class="field">
                 <div class="field-label">${this.localize("scheduling.dialog.inverter")}</div>
                 <div class="action-options">
+                    ${this._renderActionOption("empty")}
                     ${this._renderActionOption("normal")}
                     ${this._renderActionOption("charge_to_target_soc")}
                     ${this._renderActionOption("discharge_to_target_soc")}

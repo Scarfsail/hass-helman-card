@@ -259,6 +259,7 @@ export interface GetForecastRequest {
 }
 
 export type ScheduleActionKind =
+    | "empty"
     | "normal"
     | "charge_to_target_soc"
     | "discharge_to_target_soc"

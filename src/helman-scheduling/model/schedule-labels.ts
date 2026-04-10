@@ -8,6 +8,8 @@ export function getScheduleActionKindLabel(
     localize: LocalizeFunction,
 ): string {
     switch (actionKind) {
+        case "empty":
+            return localize("scheduling.action_kind.empty");
         case "normal":
             return localize("scheduling.action_kind.normal");
         case "charge_to_target_soc":
@@ -29,6 +31,8 @@ export function getScheduleActionLabel(
     variant: ScheduleActionLabelVariant = "default",
 ): string {
     switch (action.kind) {
+        case "empty":
+            return localize(variant === "table" ? "scheduling.action_table.empty" : "scheduling.action.empty");
         case "normal":
             return localize(variant === "table" ? "scheduling.action_table.normal" : "scheduling.action.normal");
         case "charge_to_target_soc":

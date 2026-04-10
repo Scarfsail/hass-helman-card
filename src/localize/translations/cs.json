@@ -138,6 +138,7 @@
       "now": "Teď"
     },
     "action": {
+      "empty": "Bez zásahu",
       "normal": "Normální",
       "charge_to_target_soc": "Nabíjet do",
       "discharge_to_target_soc": "Vybíjet do",
@@ -146,6 +147,7 @@
       "stop_export": "Zastavit export"
     },
     "action_table": {
+      "empty": "Bez zásahu",
       "normal": "Normální",
       "charge_to_target_soc": "Do",
       "discharge_to_target_soc": "Do",
@@ -154,6 +156,7 @@
       "stop_export": "Neexportovat"
     },
     "action_kind": {
+      "empty": "Bez naplánovaného zásahu",
       "normal": "Normální režim",
       "charge_to_target_soc": "Nabíjet do cílového SoC",
       "discharge_to_target_soc": "Vybíjet do cílového SoC",

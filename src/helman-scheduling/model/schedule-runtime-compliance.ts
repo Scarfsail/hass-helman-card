@@ -176,6 +176,20 @@ function _buildInverterIssue({
         });
     }
 
+    const isSkippedNoop = runtime.actionKind === "noop" && runtime.outcome === "skipped";
+    if (slot.domains.inverter.kind === "empty" && isSkippedNoop) {
+        return null;
+    }
+
+    if (
+        slot.domains.inverter.kind === "empty"
+        && (runtime.actionKind === "slot_stop" || runtime.actionKind === "apply")
+        && runtime.outcome === "success"
+        && runtime.executedAction?.kind === "normal"
+    ) {
+        return null;
+    }
+
     if (runtime.executedAction) {
         if (areScheduleActionsEqual(slot.domains.inverter, runtime.executedAction)) {
             return null;

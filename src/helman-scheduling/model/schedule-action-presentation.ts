@@ -5,7 +5,7 @@ import {
     type ScheduleActionLabelVariant,
 } from "./schedule-labels";
 
-type ScheduleActionTone = "neutral" | "charge" | "discharge" | "stop";
+type ScheduleActionTone = "empty" | "neutral" | "normal" | "charge" | "discharge" | "stop";
 type ScheduleActionToneClass = `action-tone-${ScheduleActionTone}`;
 
 export interface ScheduleActionPresentation {
@@ -29,8 +29,10 @@ export function getScheduleActionPresentation(
 
 function _getScheduleActionTone(actionKind: ScheduleAction["kind"]): ScheduleActionTone {
     switch (actionKind) {
+        case "empty":
+            return "empty";
         case "normal":
-            return "neutral";
+            return "normal";
         case "charge_to_target_soc":
             return "charge";
         case "discharge_to_target_soc":
@@ -44,6 +46,8 @@ function _getScheduleActionTone(actionKind: ScheduleAction["kind"]): ScheduleAct
 
 function _getScheduleActionIcon(actionKind: ScheduleAction["kind"]): string {
     switch (actionKind) {
+        case "empty":
+            return "mdi:minus-circle-outline";
         case "normal":
             return "mdi:circle-outline";
         case "charge_to_target_soc":

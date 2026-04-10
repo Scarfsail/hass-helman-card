@@ -75,7 +75,9 @@ export const schedulingSharedStyles = css`
         white-space: nowrap;
     }
 
+    .action-tone-empty,
     .action-tone-neutral,
+    .action-tone-normal,
     .action-tone-charge,
     .action-tone-discharge,
     .action-tone-stop {
@@ -85,10 +87,26 @@ export const schedulingSharedStyles = css`
         --schedule-action-tone-icon: var(--schedule-action-tone-color);
     }
 
+    .action-tone-empty {
+        --schedule-action-tone-accent: var(--schedule-action-empty-color, var(--secondary-text-color));
+        --schedule-action-tone-bg: color-mix(in srgb, var(--schedule-action-tone-accent) 7%, transparent);
+        --schedule-action-tone-border: color-mix(in srgb, var(--schedule-action-tone-accent) 16%, var(--divider-color));
+        --schedule-action-tone-color: var(--disabled-text-color, var(--secondary-text-color));
+        --schedule-action-tone-icon: color-mix(in srgb, var(--disabled-text-color, var(--secondary-text-color)) 84%, var(--primary-text-color));
+    }
+
     .action-tone-neutral {
         --schedule-action-tone-accent: var(--schedule-action-neutral-color, var(--secondary-text-color));
         --schedule-action-tone-color: var(--secondary-text-color);
         --schedule-action-tone-icon: color-mix(in srgb, var(--secondary-text-color) 88%, var(--primary-text-color));
+    }
+
+    .action-tone-normal {
+        --schedule-action-tone-accent: var(--schedule-action-normal-color, #ffffff);
+        --schedule-action-tone-bg: color-mix(in srgb, var(--schedule-action-tone-accent) 12%, var(--card-background-color));
+        --schedule-action-tone-border: color-mix(in srgb, var(--schedule-action-tone-accent) 44%, var(--divider-color));
+        --schedule-action-tone-color: var(--primary-text-color);
+        --schedule-action-tone-icon: color-mix(in srgb, var(--schedule-action-tone-accent) 86%, var(--primary-text-color));
     }
 
     .action-tone-charge {
