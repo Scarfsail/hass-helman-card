@@ -3,6 +3,8 @@ import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import "../components/scheduling-action-option-card";
+import "../components/scheduling-action-chip";
+import "../components/scheduling-appliance-chip";
 import "./scheduling-ev-charger-editor";
 import "./scheduling-generic-appliance-editor";
 import "./scheduling-climate-appliance-editor";
@@ -16,12 +18,16 @@ import type {
     ScheduleApplianceAction,
     ScheduleDialogResult,
     ScheduleDialogState,
+    ScheduleSelectionValueSummary,
 } from "../schedule-types";
 import {
     areScheduleActionsEqual,
     areScheduleApplianceActionsEqual,
     cloneScheduleApplianceAction,
-    cloneScheduleDomains,
+    cloneScheduleInverterAction,
+    isScheduleClimateApplianceAction,
+    isScheduleEvChargerAction,
+    isScheduleGenericApplianceAction,
     isTargetScheduleAction,
     type ScheduleAction,
 } from "../schedule-types";
@@ -145,11 +151,13 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     @state() private _actionKind: ScheduleAction["kind"] | null = null;
     @state() private _targetSocInput = "";
-    @state() private _initialDomains: ScheduleDialogState["initialDomains"] = null;
+    @state() private _selectionSummary: ScheduleDialogState["selectionSummary"] | null = null;
     @state() private _inverterEdited = false;
     @state() private _draftApplianceActions: Record<string, ScheduleApplianceAction | null> = {};
     @state() private _applianceValidity: Record<string, boolean> = {};
     @state() private _editedApplianceIds: string[] = [];
+    @state() private _overwriteMixedInverter = false;
+    @state() private _overwriteMixedAppliances: Record<string, boolean> = {};
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -228,29 +236,29 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _applyDialogState(dialogState: ScheduleDialogState): void {
-        const initialDomains = dialogState.initialDomains === null
-            ? null
-            : cloneScheduleDomains(dialogState.initialDomains);
+        const selectionSummary = dialogState.selectionSummary;
         const draftApplianceActions = Object.fromEntries(
-            Object.entries(initialDomains?.appliances ?? {}).map(([applianceId, action]) => [
+            Object.entries(selectionSummary.appliances).map(([applianceId, summary]) => [
                 applianceId,
-                this._normalizeDraftApplianceAction(action),
+                this._cloneDraftApplianceAction(summary.seedValue),
             ]),
         );
-        this._initialDomains = initialDomains;
+        this._selectionSummary = selectionSummary;
         this._inverterEdited = false;
-        this._actionKind = initialDomains?.inverter.kind ?? "empty";
-        this._targetSocInput = initialDomains?.inverter.targetSoc?.toString() ?? "";
+        this._overwriteMixedInverter = selectionSummary.inverter.state === "uniform";
+        this._actionKind = selectionSummary.inverter.seedValue.kind;
+        this._targetSocInput = selectionSummary.inverter.seedValue.targetSoc?.toString() ?? "";
         this._draftApplianceActions = draftApplianceActions;
         this._applianceValidity = Object.fromEntries(
             Object.keys(this._draftApplianceActions).map((applianceId) => [applianceId, true]),
         );
-        this._editedApplianceIds = Object.entries(initialDomains?.appliances ?? {}).flatMap(
-            ([applianceId, action]) => {
-                const draftAction = draftApplianceActions[applianceId] ?? null;
-                return this._isApplianceActionEdited(action, draftAction) ? [applianceId] : [];
-            },
+        this._overwriteMixedAppliances = Object.fromEntries(
+            Object.entries(selectionSummary.appliances).map(([applianceId, summary]) => [
+                applianceId,
+                summary.state === "uniform",
+            ]),
         );
+        this._editedApplianceIds = [];
     }
 
     private _title(): string {
@@ -318,22 +326,30 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _renderInverterPanel() {
         const panelClasses = this._inverterPanelClasses();
+        const selectionSummary = this._selectionSummary?.inverter ?? null;
+        const showEditor = this._isInverterEditorActive();
+        const isMixed = selectionSummary?.state === "mixed";
         return html`
             <div class=${panelClasses}>
-                <div class="panel-header-inline">
+                <div class=${isMixed ? "mixed-summary-header" : "panel-header-inline"}>
                     <div class="panel-title">${this.localize("scheduling.dialog.inverter")}</div>
+                    ${isMixed ? this._renderMixedInverterToggle() : nothing}
                 </div>
-                <div class="action-options" role="radiogroup" aria-label=${this.localize("scheduling.dialog.inverter")}>
-                    ${this._renderActionOption("empty")}
-                    ${this._renderActionOption("normal")}
-                    ${this._renderActionOption("charge_to_target_soc")}
-                    ${this._renderActionOption("discharge_to_target_soc")}
-                    ${this._renderActionOption("stop_charging")}
-                    ${this._renderActionOption("stop_discharging")}
-                    ${this._renderActionOption("stop_export")}
-                </div>
-                ${this._renderInverterActionDetail()}
-                ${this._actionKind === null ? html`
+                ${isMixed ? this._renderMixedInverterSummary(selectionSummary) : nothing}
+                ${isMixed && showEditor ? html`<div class="mixed-editor-divider"></div>` : nothing}
+                ${showEditor ? html`
+                    <div class="action-options" role="radiogroup" aria-label=${this.localize("scheduling.dialog.inverter")}>
+                        ${this._renderActionOption("empty")}
+                        ${this._renderActionOption("normal")}
+                        ${this._renderActionOption("charge_to_target_soc")}
+                        ${this._renderActionOption("discharge_to_target_soc")}
+                        ${this._renderActionOption("stop_charging")}
+                        ${this._renderActionOption("stop_discharging")}
+                        ${this._renderActionOption("stop_export")}
+                    </div>
+                    ${this._renderInverterActionDetail()}
+                ` : nothing}
+                ${showEditor && this._actionKind === null ? html`
                     <div class="field-help">${this.localize("scheduling.dialog.choose_action")}</div>
                 ` : nothing}
             </div>
@@ -341,13 +357,15 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _renderAppliancesPanel() {
-        if (this.appliances.length === 0) {
+        const missingMixedAppliances = this._buildMissingMixedApplianceIds();
+        if (this.appliances.length === 0 && missingMixedAppliances.length === 0) {
             return nothing;
         }
 
         return html`
             <div class="appliance-sections">
                 ${this.appliances.map((appliance) => this._renderApplianceSection(appliance))}
+                ${missingMixedAppliances.map((applianceId) => this._renderMissingApplianceSummary(applianceId))}
             </div>
         `;
     }
@@ -357,46 +375,99 @@ export class SchedulingRangeEditDialog extends LitElement {
             return this._renderUnsupportedApplianceSection(appliance);
         }
 
+        const selectionSummary = this._selectionSummary?.appliances[appliance.id] ?? null;
+        const overwriteEnabled = this._isApplianceEditorActive(appliance.id);
+        const isMixed = selectionSummary?.state === "mixed";
+        return this._renderApplianceEditor(
+            appliance,
+            isMixed
+                ? this._renderMixedApplianceToggle(appliance.id, overwriteEnabled)
+                : nothing,
+            isMixed
+                ? this._renderMixedApplianceSummary(appliance, selectionSummary)
+                : nothing,
+            isMixed,
+            !isMixed || overwriteEnabled,
+        );
+    }
+
+    private _renderApplianceEditor(
+        appliance: ScheduleApplianceMetadata,
+        mixedHeaderControl: unknown,
+        mixedBody: unknown,
+        mixed: boolean,
+        showControls: boolean,
+    ) {
         switch (appliance.kind) {
             case "ev_charger":
-                return this._renderEvChargerSection(appliance);
+                return this._renderEvChargerSection(appliance, mixedHeaderControl, mixedBody, mixed, showControls);
             case "climate":
-                return this._renderClimateSection(appliance);
+                return this._renderClimateSection(appliance, mixedHeaderControl, mixedBody, mixed, showControls);
             case "generic":
-                return this._renderGenericSection(appliance);
+                return this._renderGenericSection(appliance, mixedHeaderControl, mixedBody, mixed, showControls);
             default:
                 return this._renderUnsupportedApplianceSection(appliance);
         }
     }
 
-    private _renderEvChargerSection(appliance: ScheduleEvChargerApplianceMetadata) {
+    private _renderEvChargerSection(
+        appliance: ScheduleEvChargerApplianceMetadata,
+        mixedHeaderControl: unknown,
+        mixedBody: unknown,
+        mixed: boolean,
+        showControls: boolean,
+    ) {
         return html`
             <scheduling-ev-charger-editor
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .mixedHeaderControl=${mixedHeaderControl}
+                .mixedBody=${mixedBody}
+                .mixed=${mixed}
+                .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
             ></scheduling-ev-charger-editor>
         `;
     }
 
-    private _renderGenericSection(appliance: ScheduleGenericApplianceMetadata) {
+    private _renderGenericSection(
+        appliance: ScheduleGenericApplianceMetadata,
+        mixedHeaderControl: unknown,
+        mixedBody: unknown,
+        mixed: boolean,
+        showControls: boolean,
+    ) {
         return html`
             <scheduling-generic-appliance-editor
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .mixedHeaderControl=${mixedHeaderControl}
+                .mixedBody=${mixedBody}
+                .mixed=${mixed}
+                .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
             ></scheduling-generic-appliance-editor>
         `;
     }
 
-    private _renderClimateSection(appliance: ScheduleClimateApplianceMetadata) {
+    private _renderClimateSection(
+        appliance: ScheduleClimateApplianceMetadata,
+        mixedHeaderControl: unknown,
+        mixedBody: unknown,
+        mixed: boolean,
+        showControls: boolean,
+    ) {
         return html`
             <scheduling-climate-appliance-editor
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .mixedHeaderControl=${mixedHeaderControl}
+                .mixedBody=${mixedBody}
+                .mixed=${mixed}
+                .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
             ></scheduling-climate-appliance-editor>
         `;
@@ -407,6 +478,98 @@ export class SchedulingRangeEditDialog extends LitElement {
             <div class="unsupported-appliance">
                 <div class="panel-title">${appliance.name}</div>
                 <div class="field-help">${this.localize("scheduling.dialog.appliance.unsupported_authoring")}</div>
+            </div>
+        `;
+    }
+
+    private _renderMissingApplianceSummary(applianceId: string) {
+        const summary = this._selectionSummary?.appliances[applianceId];
+        if (!summary || summary.state !== "mixed") {
+            return nothing;
+        }
+
+        const appliance = this._buildFallbackApplianceChipMetadata(applianceId, summary);
+        return html`
+            <div class="panel">
+                <div class="mixed-summary-copy">
+                    <div class="panel-title">${appliance.name}</div>
+                    <div class="field-help">${this.localize("scheduling.dialog.appliance.missing_metadata")}</div>
+                    <div class="field-label">${this.localize("scheduling.dialog.existing_actions")}</div>
+                </div>
+                <div class="mixed-summary-chips">
+                    ${summary.distinctValues.map((option) => html`
+                        <scheduling-appliance-chip
+                            .appliance=${appliance}
+                            .action=${option.value}
+                            .localize=${this.localize}
+                            size="compact"
+                        ></scheduling-appliance-chip>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderMixedInverterToggle() {
+        return html`
+            <label class="toggle-control">
+                <span>${this.localize("scheduling.dialog.overwrite_existing_actions")}</span>
+                <ha-switch
+                    .checked=${this._overwriteMixedInverter}
+                    @change=${this._handleInverterOverwriteChange}
+                ></ha-switch>
+            </label>
+        `;
+    }
+
+    private _renderMixedInverterSummary(
+        summary: ScheduleSelectionValueSummary<ScheduleAction>,
+    ) {
+        return html`
+            <div class="mixed-summary">
+                <div class="field-help">${this.localize("scheduling.dialog.multiple_actions_defined")}</div>
+                <div class="mixed-summary-chips">
+                    ${summary.distinctValues.map((option) => html`
+                        <scheduling-action-chip
+                            .action=${option.value}
+                            .localize=${this.localize}
+                            size="compact"
+                        ></scheduling-action-chip>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderMixedApplianceToggle(applianceId: string, overwriteEnabled: boolean) {
+        return html`
+            <label class="toggle-control">
+                <span>${this.localize("scheduling.dialog.overwrite_existing_actions")}</span>
+                <ha-switch
+                    .checked=${overwriteEnabled}
+                    @change=${(event: Event) => this._handleApplianceOverwriteChange(applianceId, event)}
+                ></ha-switch>
+            </label>
+        `;
+    }
+
+    private _renderMixedApplianceSummary(
+        appliance: ScheduleApplianceMetadata,
+        summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null>,
+    ) {
+        return html`
+            <div class="mixed-summary">
+                <div class="field-help">${this.localize("scheduling.dialog.multiple_actions_defined")}</div>
+                <div class="mixed-summary-chips">
+                    ${summary.distinctValues.map((option) => html`
+                        <scheduling-appliance-chip
+                            .appliance=${appliance}
+                            .action=${option.value}
+                            .localize=${this.localize}
+                            size="compact"
+                        ></scheduling-appliance-chip>
+                    `)}
+                </div>
             </div>
         `;
     }
@@ -440,11 +603,15 @@ export class SchedulingRangeEditDialog extends LitElement {
             return false;
         }
 
-        if (this._actionKind === null) {
+        if (Object.entries(this._applianceValidity).some(([applianceId, valid]) => !valid && this._isApplianceEditorActive(applianceId))) {
             return false;
         }
 
-        if (Object.values(this._applianceValidity).some((valid) => !valid)) {
+        if (!this._isInverterEditorActive()) {
+            return true;
+        }
+
+        if (this._actionKind === null) {
             return false;
         }
 
@@ -484,6 +651,35 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._updateInverterEditedState();
     }
 
+    private _handleInverterOverwriteChange(event: Event): void {
+        const checked = (event.currentTarget as { checked: boolean }).checked;
+        this._overwriteMixedInverter = checked;
+        this._resetInverterDraft();
+        this._updateInverterEditedState();
+    }
+
+    private _handleApplianceOverwriteChange(applianceId: string, event: Event): void {
+        const checked = (event.currentTarget as { checked: boolean }).checked;
+        const nextOverwriteMixedAppliances = {
+            ...this._overwriteMixedAppliances,
+            [applianceId]: checked,
+        };
+        const nextDraftApplianceActions = {
+            ...this._draftApplianceActions,
+            [applianceId]: this._buildApplianceSeedDraft(applianceId),
+        };
+        this._overwriteMixedAppliances = nextOverwriteMixedAppliances;
+        this._draftApplianceActions = nextDraftApplianceActions;
+        this._applianceValidity = {
+            ...this._applianceValidity,
+            [applianceId]: true,
+        };
+        this._editedApplianceIds = this._buildEditedApplianceIds(
+            nextDraftApplianceActions,
+            nextOverwriteMixedAppliances,
+        );
+    }
+
     private _handleCancel(): void {
         this.open = false;
     }
@@ -500,11 +696,15 @@ export class SchedulingRangeEditDialog extends LitElement {
             ...this._applianceValidity,
             [applianceId]: valid,
         };
-        this._draftApplianceActions = {
+        const nextDraftApplianceActions = {
             ...this._draftApplianceActions,
-            [applianceId]: action === null ? null : cloneScheduleApplianceAction(action),
+            [applianceId]: this._cloneDraftApplianceAction(action),
         };
-        this._editedApplianceIds = this._computeEditedApplianceIds(applianceId, action);
+        this._draftApplianceActions = nextDraftApplianceActions;
+        this._editedApplianceIds = this._buildEditedApplianceIds(
+            nextDraftApplianceActions,
+            this._overwriteMixedAppliances,
+        );
     }
 
     private _handleSubmit(): void {
@@ -538,7 +738,7 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _buildEditedDomains() {
-        const inverter = this._buildEditedAction();
+        const inverter = this._buildEffectiveInverterAction();
         if (inverter === null) {
             return null;
         }
@@ -553,7 +753,7 @@ export class SchedulingRangeEditDialog extends LitElement {
         };
     }
 
-    private _buildEditedAction(): ScheduleAction | null {
+    private _buildCurrentInverterAction(): ScheduleAction | null {
         if (this._actionKind === null) {
             return null;
         }
@@ -575,6 +775,19 @@ export class SchedulingRangeEditDialog extends LitElement {
             kind: this._actionKind,
             targetSoc,
         };
+    }
+
+    private _buildEffectiveInverterAction(): ScheduleAction | null {
+        const selectionSummary = this._selectionSummary?.inverter;
+        if (!selectionSummary) {
+            return null;
+        }
+
+        if (!this._isInverterEditorActive()) {
+            return cloneScheduleInverterAction(selectionSummary.seedValue);
+        }
+
+        return this._buildCurrentInverterAction();
     }
 
     private _buildActionOptionPreview(actionKind: ScheduleAction["kind"]): ScheduleAction {
@@ -613,53 +826,67 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _updateInverterEditedState(): void {
-        const currentAction = this._buildEditedAction();
-        const initialAction = this._initialDomains?.inverter ?? null;
-        this._inverterEdited = currentAction === null || initialAction === null
-            ? currentAction !== initialAction
-            : !areScheduleActionsEqual(currentAction, initialAction);
-    }
-
-    private _computeEditedApplianceIds(
-        applianceId: string,
-        nextAction: ScheduleApplianceAction | null,
-    ): string[] {
-        const initialAction = this._initialDomains?.appliances[applianceId] ?? null;
-        const isEdited = this._isApplianceActionEdited(initialAction, nextAction);
-
-        const nextEditedIds = new Set(this._editedApplianceIds);
-        if (isEdited) {
-            nextEditedIds.add(applianceId);
-        } else {
-            nextEditedIds.delete(applianceId);
+        const selectionSummary = this._selectionSummary?.inverter;
+        if (!selectionSummary) {
+            this._inverterEdited = false;
+            return;
         }
 
-        return [...nextEditedIds];
-    }
+        if (selectionSummary.state === "mixed") {
+            this._inverterEdited = this._overwriteMixedInverter;
+            return;
+        }
 
-    private _normalizeDraftApplianceAction(
-        action: ScheduleApplianceAction,
-    ): ScheduleApplianceAction | null {
-        return cloneScheduleApplianceAction(action);
+        const currentAction = this._buildCurrentInverterAction();
+        this._inverterEdited = currentAction === null
+            ? false
+            : !areScheduleActionsEqual(currentAction, selectionSummary.seedValue);
     }
 
     private _isApplianceActionEdited(
-        initialAction: ScheduleApplianceAction | null,
+        applianceId: string,
         nextAction: ScheduleApplianceAction | null,
+        overwriteMixedAppliances: Record<string, boolean> = this._overwriteMixedAppliances,
     ): boolean {
-        const normalizedInitialAction = initialAction === null
-            ? null
-            : this._normalizeDraftApplianceAction(initialAction);
-        const normalizedNextAction = nextAction === null
-            ? null
-            : this._normalizeDraftApplianceAction(nextAction);
+        const summary = this._selectionSummary?.appliances[applianceId];
+        if (!summary) {
+            return false;
+        }
+
+        if (summary.state === "mixed") {
+            return overwriteMixedAppliances[applianceId] ?? false;
+        }
+
+        const normalizedInitialAction = this._cloneDraftApplianceAction(summary.seedValue);
+        const normalizedNextAction = this._cloneDraftApplianceAction(nextAction);
         return normalizedNextAction === null || normalizedInitialAction === null
             ? normalizedNextAction !== normalizedInitialAction
             : !areScheduleApplianceActionsEqual(normalizedNextAction, normalizedInitialAction);
     }
 
+    private _buildEditedApplianceIds(
+        draftApplianceActions: Record<string, ScheduleApplianceAction | null>,
+        overwriteMixedAppliances: Record<string, boolean> = this._overwriteMixedAppliances,
+    ): string[] {
+        return Object.keys(this._selectionSummary?.appliances ?? {}).flatMap((applianceId) =>
+            this._isApplianceActionEdited(
+                applianceId,
+                draftApplianceActions[applianceId] ?? null,
+                overwriteMixedAppliances,
+            )
+                ? [applianceId]
+                : [],
+        );
+    }
+
+    private _cloneDraftApplianceAction(
+        action: ScheduleApplianceAction | null,
+    ): ScheduleApplianceAction | null {
+        return action === null ? null : cloneScheduleApplianceAction(action);
+    }
+
     private _inverterPanelClasses(): string {
-        if (this._actionKind === null || this._actionKind === "empty") {
+        if (!this._isInverterEditorActive() || this._actionKind === null || this._actionKind === "empty") {
             return "panel";
         }
 
@@ -729,5 +956,62 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _clearHistoryEntry(): void {
         this._historyEntryActive = false;
         this._historyEntryId = null;
+    }
+
+    private _isInverterEditorActive(): boolean {
+        return this._selectionSummary !== null
+            && (
+                this._selectionSummary.inverter.state === "uniform"
+                || this._overwriteMixedInverter
+            );
+    }
+
+    private _isApplianceEditorActive(applianceId: string): boolean {
+        const summary = this._selectionSummary?.appliances[applianceId];
+        return summary === undefined || summary.state === "uniform" || (this._overwriteMixedAppliances[applianceId] ?? false);
+    }
+
+    private _resetInverterDraft(): void {
+        const seedValue = this._selectionSummary?.inverter.seedValue;
+        if (!seedValue) {
+            return;
+        }
+
+        this._actionKind = seedValue.kind;
+        this._targetSocInput = seedValue.targetSoc?.toString() ?? "";
+    }
+
+    private _buildApplianceSeedDraft(applianceId: string): ScheduleApplianceAction | null {
+        return this._cloneDraftApplianceAction(
+            this._selectionSummary?.appliances[applianceId]?.seedValue ?? null,
+        );
+    }
+
+    private _buildMissingMixedApplianceIds(): string[] {
+        const knownApplianceIds = new Set(this.appliances.map((appliance) => appliance.id));
+        return Object.entries(this._selectionSummary?.appliances ?? {})
+            .flatMap(([applianceId, summary]) =>
+                !knownApplianceIds.has(applianceId) && summary.state === "mixed"
+                    ? [applianceId]
+                    : [],
+            );
+    }
+
+    private _buildFallbackApplianceChipMetadata(
+        applianceId: string,
+        summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null>,
+    ): Pick<ScheduleApplianceMetadata, "id" | "name" | "kind" | "icon"> {
+        const firstAction = summary.distinctValues.find((option) => option.value !== null)?.value ?? null;
+        if (firstAction !== null && isScheduleEvChargerAction(firstAction)) {
+            return { id: applianceId, name: applianceId, kind: "ev_charger", icon: "mdi:car-electric" };
+        }
+        if (firstAction !== null && isScheduleClimateApplianceAction(firstAction)) {
+            return { id: applianceId, name: applianceId, kind: "climate", icon: "mdi:air-conditioner" };
+        }
+        if (firstAction !== null && isScheduleGenericApplianceAction(firstAction)) {
+            return { id: applianceId, name: applianceId, kind: "generic", icon: "mdi:power-plug" };
+        }
+
+        return { id: applianceId, name: applianceId, kind: "generic", icon: "mdi:flash-outline" };
     }
 }

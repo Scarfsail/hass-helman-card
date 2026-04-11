@@ -28,6 +28,48 @@ export const schedulingSharedStyles = css`
         gap: 4px 8px;
     }
 
+    .toggle-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--secondary-text-color);
+        font-size: 0.84rem;
+        white-space: nowrap;
+    }
+
+    .mixed-summary {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .mixed-summary-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px 12px;
+    }
+
+    .mixed-summary-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .mixed-summary-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .mixed-editor-divider {
+        border-top: 1px solid var(--divider-color);
+        margin-top: 2px;
+        padding-top: 10px;
+    }
+
     .panel.panel-highlight-success,
     .appliance-panel.panel-highlight-success {
         border-color: color-mix(in srgb, var(--success-color, #2e7d32) 48%, var(--divider-color));

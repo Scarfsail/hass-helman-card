@@ -278,6 +278,9 @@
         "not_configured": "Akce není nastavená"
       },
       "choose_action": "Vyberte akci, která se má použít na vybrané sloty.",
+      "multiple_actions_defined": "Ve vybraných slotech je nastaveno více různých akcí.",
+      "existing_actions": "Aktuální akce",
+      "overwrite_existing_actions": "Přepsat jednou akcí",
       "appliance": {
         "no_action": "Bez zásahu",
         "turn_on": "Zapnout",
@@ -287,6 +290,7 @@
         "vehicle": "Vozidlo",
         "mode": "Režim",
         "eco_gear": "ECO stupeň",
+        "missing_metadata": "Metadata pro tento spotřebič nejsou k dispozici, proto lze akce jen zobrazit.",
         "unsupported_authoring": "Autorování pro tento typ spotřebiče zatím není v plánování dostupné."
       },
       "appliance_kind": {

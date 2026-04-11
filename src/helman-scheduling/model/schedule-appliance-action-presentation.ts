@@ -22,9 +22,17 @@ export function getScheduleApplianceActionPresentation({
     localize,
 }: {
     appliance: Pick<ScheduleApplianceMetadata, "kind" | "icon">;
-    action: ScheduleApplianceAction;
+    action: ScheduleApplianceAction | null;
     localize: LocalizeFunction;
 }): ScheduleApplianceActionPresentation {
+    if (action === null) {
+        return {
+            icon: appliance.icon,
+            label: localize("scheduling.dialog.appliance.no_action"),
+            toneClass: "action-tone-neutral",
+        };
+    }
+
     if (appliance.kind === "ev_charger" && isScheduleEvChargerAction(action)) {
         return _getEvChargerActionPresentation(appliance.icon, action, localize);
     }

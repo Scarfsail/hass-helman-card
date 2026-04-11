@@ -25,6 +25,7 @@ import {
     type ScheduleHeaderModel,
 } from "./model/schedule-header-model";
 import { getScheduleErrorLabel } from "./model/schedule-labels";
+import { buildScheduleRangeEditSelectionSummary } from "./model/schedule-range-edit-selection-summary";
 import {
     applyNormalizedScheduleCurrentState,
     buildNormalizedScheduleStructure,
@@ -63,7 +64,6 @@ import type {
     ScheduleSlotToggleDetail,
     ScheduleTimelineModel,
 } from "./schedule-types";
-import { cloneScheduleDomains } from "./schedule-types";
 import { schedulingSharedStyles } from "./styles/scheduling-shared-styles";
 
 const EMPTY_SCHEDULE_OWNER_SNAPSHOT: ScheduleOwnerSnapshot = {
@@ -539,7 +539,10 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
         this._dialogState = {
             selectedSlots,
-            initialDomains: this._resolveInitialDialogDomains(selectedSlots),
+            selectionSummary: buildScheduleRangeEditSelectionSummary({
+                selectedSlots,
+                appliances: this._appliances,
+            }),
         };
         this._dialogOpen = true;
     }
@@ -831,17 +834,6 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         }
 
         return left.every((slotId, index) => slotId === right[index]);
-    }
-
-    private _resolveInitialDialogDomains(
-        selectedSlots: readonly ScheduleDialogState["selectedSlots"][number][],
-    ): ScheduleDialogState["initialDomains"] {
-        const firstSlot = selectedSlots[0];
-        if (!firstSlot) {
-            return null;
-        }
-
-        return cloneScheduleDomains(firstSlot.domains);
     }
 
     private _collectTimelineDayKeys(): string[] {

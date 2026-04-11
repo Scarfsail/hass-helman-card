@@ -77,6 +77,10 @@ export class SchedulingClimateApplianceEditor extends LitElement {
     @property({ attribute: false }) public appliance?: ScheduleClimateApplianceMetadata;
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ attribute: false }) public action: ScheduleApplianceAction | null = null;
+    @property({ attribute: false }) public mixedHeaderControl: unknown = nothing;
+    @property({ attribute: false }) public mixedBody: unknown = nothing;
+    @property({ type: Boolean }) public mixed = false;
+    @property({ type: Boolean }) public showControls = true;
 
     @state() private _mode: ClimateApplianceEditorMode = "none";
 
@@ -94,16 +98,22 @@ export class SchedulingClimateApplianceEditor extends LitElement {
 
         return html`
             <div class=${`appliance-panel${this._panelHighlightClass()}`}>
-                <div class="appliance-header panel-header-inline">
-                    <div class="panel-title">${this.appliance.name}</div>
-                    <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.climate")}</div>
+                <div class="appliance-header mixed-summary-header">
+                    <div class="panel-header-inline">
+                        <div class="panel-title">${this.appliance.name}</div>
+                        <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.climate")}</div>
+                    </div>
+                    ${this.mixed ? this.mixedHeaderControl : nothing}
                 </div>
-
-                <div class="action-options compact-action-options">
-                    ${this._renderModeOption("none")}
-                    ${this._renderModeOption(CLIMATE_OFF_EDITOR_MODE)}
-                    ${this.appliance.scheduleCapabilities.modes.map((mode) => this._renderModeOption(mode))}
-                </div>
+                ${this.mixed ? this.mixedBody : nothing}
+                ${this.mixed && this.showControls ? html`<div class="mixed-editor-divider"></div>` : nothing}
+                ${this.showControls ? html`
+                    <div class="action-options compact-action-options">
+                        ${this._renderModeOption("none")}
+                        ${this._renderModeOption(CLIMATE_OFF_EDITOR_MODE)}
+                        ${this.appliance.scheduleCapabilities.modes.map((mode) => this._renderModeOption(mode))}
+                    </div>
+                ` : nothing}
             </div>
         `;
     }
@@ -217,6 +227,9 @@ export class SchedulingClimateApplianceEditor extends LitElement {
     }
 
     private _panelHighlightClass(): string {
+        if (!this.showControls) {
+            return "";
+        }
         if (this._mode === CLIMATE_OFF_EDITOR_MODE) {
             return " panel-highlight-stop";
         }

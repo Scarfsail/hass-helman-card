@@ -68,6 +68,10 @@ export class SchedulingGenericApplianceEditor extends LitElement {
     @property({ attribute: false }) public appliance?: ScheduleGenericApplianceMetadata;
     @property({ attribute: false }) public localize!: LocalizeFunction;
     @property({ attribute: false }) public action: ScheduleApplianceAction | null = null;
+    @property({ attribute: false }) public mixedHeaderControl: unknown = nothing;
+    @property({ attribute: false }) public mixedBody: unknown = nothing;
+    @property({ type: Boolean }) public mixed = false;
+    @property({ type: Boolean }) public showControls = true;
 
     @state() private _mode: GenericApplianceEditorMode = "none";
 
@@ -85,16 +89,22 @@ export class SchedulingGenericApplianceEditor extends LitElement {
 
         return html`
             <div class=${`appliance-panel${this._panelHighlightClass()}`}>
-                <div class="appliance-header panel-header-inline">
-                    <div class="panel-title">${this.appliance.name}</div>
-                    <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.generic")}</div>
+                <div class="appliance-header mixed-summary-header">
+                    <div class="panel-header-inline">
+                        <div class="panel-title">${this.appliance.name}</div>
+                        <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.generic")}</div>
+                    </div>
+                    ${this.mixed ? this.mixedHeaderControl : nothing}
                 </div>
-
-                <div class="action-options compact-action-options">
-                    ${this._renderModeOption("none")}
-                    ${this._renderModeOption("off")}
-                    ${this._renderModeOption("on")}
-                </div>
+                ${this.mixed ? this.mixedBody : nothing}
+                ${this.mixed && this.showControls ? html`<div class="mixed-editor-divider"></div>` : nothing}
+                ${this.showControls ? html`
+                    <div class="action-options compact-action-options">
+                        ${this._renderModeOption("none")}
+                        ${this._renderModeOption("off")}
+                        ${this._renderModeOption("on")}
+                    </div>
+                ` : nothing}
             </div>
         `;
     }
@@ -186,6 +196,9 @@ export class SchedulingGenericApplianceEditor extends LitElement {
     }
 
     private _panelHighlightClass(): string {
+        if (!this.showControls) {
+            return "";
+        }
         if (this._mode === "on") {
             return " panel-highlight-success";
         }

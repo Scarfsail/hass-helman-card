@@ -102,9 +102,25 @@ export interface ScheduleDialogOpenDetail {
     slotIds?: string[];
 }
 
+export interface ScheduleSelectionValueOption<TValue> {
+    key: string;
+    value: TValue;
+}
+
+export interface ScheduleSelectionValueSummary<TValue> {
+    state: "uniform" | "mixed";
+    seedValue: TValue;
+    distinctValues: ScheduleSelectionValueOption<TValue>[];
+}
+
+export interface ScheduleRangeEditSelectionSummary {
+    inverter: ScheduleSelectionValueSummary<ScheduleAction>;
+    appliances: Record<string, ScheduleSelectionValueSummary<ScheduleApplianceAction | null>>;
+}
+
 export interface ScheduleDialogState {
     selectedSlots: ScheduleSlot[];
-    initialDomains: ScheduleDomains | null;
+    selectionSummary: ScheduleRangeEditSelectionSummary;
 }
 
 export interface ScheduleDialogResult {

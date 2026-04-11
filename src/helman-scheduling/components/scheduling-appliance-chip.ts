@@ -90,7 +90,7 @@ export class SchedulingApplianceChip extends LitElement {
     ];
 
     @property({ attribute: false }) public appliance?: SchedulingApplianceChipMetadata;
-    @property({ attribute: false }) public action?: ScheduleApplianceAction;
+    @property({ attribute: false }) public action: ScheduleApplianceAction | null = null;
     @property({ attribute: false }) public projectionBadge: ScheduleApplianceProjectionBadge | null = null;
     @property({ attribute: false }) public localize?: LocalizeFunction;
     @property({ type: String }) public size: "compact" | "regular" = "regular";
@@ -128,7 +128,7 @@ export class SchedulingApplianceChip extends LitElement {
             `;
         }
 
-        if (!this.appliance || !this.action || !this.localize) {
+        if (!this.appliance || this.action === undefined || !this.localize) {
             return nothing;
         }
 
