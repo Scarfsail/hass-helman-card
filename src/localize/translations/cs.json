@@ -207,6 +207,13 @@
       "applied": "Použito",
       "error": "Chyba běhu"
     },
+    "authorship": {
+      "user": "uživatel",
+      "automation": "automatizace",
+      "mixed": "Smíšené autorství",
+      "set_by_user": "Nastavil uživatel",
+      "set_by_automation": "Nastavila automatizace"
+    },
     "actions": {
       "refresh": "Obnovit",
       "select_interval": "Vybrat celý interval",
@@ -281,6 +288,10 @@
       "multiple_actions_defined": "Ve vybraných slotech je nastaveno více různých akcí.",
       "existing_actions": "Aktuální akce",
       "overwrite_existing_actions": "Přepsat jednou akcí",
+      "automation_owns_action": "Automatizace nyní vlastní tuto akci.",
+      "mixed_authorship_summary": "Vybrané sloty obsahují akce od uživatele i automatizace.",
+      "keep_existing": "Ponechat beze změny",
+      "replace_with_manual_action": "Nahradit ruční akcí",
       "appliance": {
         "no_action": "Bez zásahu",
         "turn_on": "Zapnout",

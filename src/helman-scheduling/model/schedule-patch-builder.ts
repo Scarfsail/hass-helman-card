@@ -20,7 +20,7 @@ export function buildScheduleSlotPatches({
     const patches: ScheduleSlotPatch[] = [];
     for (const slot of selectedSlots) {
         const nextDomains = _buildNextDomains(slot, result);
-        if (areScheduleDomainsEqual(slot.domains, nextDomains)) {
+        if (!_requiresForcedPatch(slot, result) && areScheduleDomainsEqual(slot.domains, nextDomains)) {
             continue;
         }
 
@@ -57,4 +57,12 @@ function _buildNextDomains(
 
 function _cloneDomains(domains: ScheduleDialogResult["domains"]): ScheduleDialogResult["domains"] {
     return cloneScheduleDomains(domains);
+}
+
+function _requiresForcedPatch(slot: ScheduleSlot, result: ScheduleDialogResult): boolean {
+    if (result.forceTakeoverInverter && slot.authorship.inverter !== "user") {
+        return true;
+    }
+
+    return result.forceTakeoverApplianceIds.some((applianceId) => slot.authorship.appliances[applianceId] === "automation");
 }

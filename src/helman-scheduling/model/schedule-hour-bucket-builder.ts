@@ -7,6 +7,10 @@ import {
     mergeScheduleApplianceProjectionBadges,
     type ScheduleApplianceProjectionIndex,
 } from "./schedule-appliance-projection";
+import {
+    mergeScheduleAuthorshipSummaries,
+    summarizeScheduleAuthorship,
+} from "./schedule-authorship";
 import { getScheduleApplianceById } from "./schedule-appliance-metadata";
 import {
     buildScheduleRuntimeComplianceModel,
@@ -411,7 +415,7 @@ function _buildDistinctInverterItems(
     slots: readonly ScheduleDisplaySlot[],
 ): ScheduleTableActionItemModel[] {
     const actionItems: ScheduleTableActionItemModel[] = [];
-    const seenKeys = new Set<string>();
+    const itemsByKey = new Map<string, ScheduleTableActionItemModel>();
 
     for (const slot of slots) {
         if (!isScheduleBackedDisplaySlot(slot)) {
@@ -419,17 +423,24 @@ function _buildDistinctInverterItems(
         }
 
         const key = getScheduleActionIdentityKey(slot.scheduleSlot.domains.inverter);
-        if (seenKeys.has(key)) {
+        const existing = itemsByKey.get(key);
+        if (existing) {
+            existing.authorship = mergeScheduleAuthorshipSummaries([
+                existing.authorship,
+                summarizeScheduleAuthorship([slot.scheduleSlot.authorship.inverter]),
+            ]);
             continue;
         }
 
-        seenKeys.add(key);
-        actionItems.push({
+        const item = {
             kind: "inverter",
             key,
             action: slot.scheduleSlot.domains.inverter,
             firstSlotId: slot.scheduleSlot.id,
-        });
+            authorship: summarizeScheduleAuthorship([slot.scheduleSlot.authorship.inverter]),
+        } satisfies ScheduleTableActionItemModel;
+        itemsByKey.set(key, item);
+        actionItems.push(item);
     }
 
     return actionItems;
@@ -455,6 +466,7 @@ function _buildDistinctApplianceItems(
                 slotId: slot.scheduleSlot.id,
                 applianceId,
                 action,
+                authorship: slot.scheduleSlot.authorship.appliances[applianceId] ?? null,
                 appliance,
                 applianceKind,
                 order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,
@@ -487,6 +499,10 @@ function _buildDistinctApplianceItems(
                 existing.projectionBadge,
                 projectionBadge,
             );
+            existing.authorship = mergeScheduleAuthorshipSummaries([
+                existing.authorship,
+                summarizeScheduleAuthorship([entry.authorship]),
+            ]);
             continue;
         }
 
@@ -502,6 +518,7 @@ function _buildDistinctApplianceItems(
             action: entry.action,
             firstSlotId: entry.slotId,
             projectionBadge,
+            authorship: summarizeScheduleAuthorship([entry.authorship]),
         } satisfies ScheduleTableApplianceActionItemModel;
         itemsByKey.set(key, item);
         items.push(item);
@@ -525,6 +542,7 @@ function _buildApplianceSummaryItem(
         projectionBadge: aggregateScheduleApplianceEnergyProjectionBadges(
             items.map((item) => item.projectionBadge),
         ),
+        authorship: mergeScheduleAuthorshipSummaries(items.map((item) => item.authorship)),
     };
 }
 

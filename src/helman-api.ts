@@ -267,9 +267,12 @@ export type ScheduleActionKind =
     | "stop_discharging"
     | "stop_export";
 
+export type ScheduleSetBy = "user" | "automation";
+
 export interface ScheduleActionDTO {
     kind: ScheduleActionKind;
     targetSoc?: number;
+    setBy?: ScheduleSetBy;
 }
 
 export type EvChargerUseMode = "Fast" | "ECO";
@@ -280,14 +283,17 @@ export interface ScheduleEvChargerActionDTO {
     vehicleId?: string;
     useMode?: EvChargerUseMode;
     ecoGear?: string;
+    setBy?: ScheduleSetBy;
 }
 
 export interface ScheduleGenericApplianceActionDTO {
     on: boolean;
+    setBy?: ScheduleSetBy;
 }
 
 export interface ScheduleClimateApplianceActionDTO {
     mode: ClimateApplianceMode;
+    setBy?: ScheduleSetBy;
 }
 
 export type ScheduleApplianceActionDTO =

@@ -3,6 +3,7 @@ import type { ScheduleApplianceProjectionBadge } from "./model/schedule-applianc
 import type { ScheduleRuntimeComplianceModel } from "./model/schedule-runtime-compliance";
 import type {
     ScheduleAction,
+    ScheduleActionAuthorshipSummary,
     ScheduleApplianceAction,
     ScheduleDisplaySlot,
     ScheduleSlot,
@@ -78,6 +79,7 @@ export interface ScheduleTableInverterActionItemModel {
     key: string;
     action: ScheduleAction;
     firstSlotId: string;
+    authorship: ScheduleActionAuthorshipSummary;
 }
 
 export interface ScheduleTableApplianceActionItemModel {
@@ -92,6 +94,7 @@ export interface ScheduleTableApplianceActionItemModel {
     action: ScheduleApplianceAction;
     firstSlotId: string;
     projectionBadge: ScheduleApplianceProjectionBadge | null;
+    authorship: ScheduleActionAuthorshipSummary;
 }
 
 export interface ScheduleTableApplianceSummaryActionItemModel {
@@ -100,6 +103,7 @@ export interface ScheduleTableApplianceSummaryActionItemModel {
     firstSlotId: string;
     items: ScheduleTableApplianceActionItemModel[];
     projectionBadge: Extract<ScheduleApplianceProjectionBadge, { kind: "energy" }> | null;
+    authorship: ScheduleActionAuthorshipSummary;
 }
 
 export type ScheduleTableActionItemModel =

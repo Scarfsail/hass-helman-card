@@ -4,7 +4,7 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleActionLabelVariant } from "../model/schedule-labels";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
-import type { ScheduleAction } from "../schedule-types";
+import type { ScheduleAction, ScheduleActionAuthorshipSummary } from "../schedule-types";
 import "./scheduling-action-chip";
 
 export interface ScheduleActionOptionSelectDetail {
@@ -18,6 +18,7 @@ export class SchedulingActionOptionCard extends LitElement {
     @property({ type: Boolean }) public checked = false;
     @property({ type: String }) public radioName = "";
     @property({ type: String }) public labelVariant: ScheduleActionLabelVariant = "default";
+    @property({ attribute: false }) public authorship: ScheduleActionAuthorshipSummary | null = null;
 
     protected createRenderRoot(): Element | ShadowRoot {
         return this;
@@ -42,6 +43,7 @@ export class SchedulingActionOptionCard extends LitElement {
                 />
                 <scheduling-action-chip
                     .action=${this.action}
+                    .authorship=${this.checked ? this.authorship : null}
                     .localize=${this.localize}
                     .labelVariant=${this.labelVariant}
                     .interactive=${true}

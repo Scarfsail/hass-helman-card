@@ -32,6 +32,7 @@ import {
 } from "../schedule-table-types";
 import type {
     ScheduleDialogOpenDetail,
+    ScheduleActionAuthorshipSummary,
     ScheduleSlotToggleDetail,
 } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
@@ -1514,7 +1515,7 @@ export class SchedulingSlotTable extends LitElement {
         slotIds?: readonly string[],
     ) {
         const visibleItems = this._getVisibleActionItems(actionCell.items);
-        const actionLabel = this._buildActionCellLabel(actionCell);
+        const actionLabel = this._buildActionCellLabel({ ...actionCell, items: visibleItems });
         const ariaLabel = actionLabel.length > 0
             ? `${this.localize("scheduling.table.action_label")} ${rangeLabel}. ${actionLabel}`
             : `${this.localize("scheduling.table.action_label")} ${rangeLabel}`;
@@ -1539,12 +1540,15 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _renderActionItem(item: ScheduleTableActionItemModel) {
+        const titleText = this._buildActionItemLabel(item, item.kind === "appliance_summary");
         if (item.kind === "inverter") {
             return html`
                 <scheduling-action-chip
                     .action=${item.action}
+                    .authorship=${item.authorship}
                     .localize=${this.localize}
                     .labelVariant=${"table"}
+                    .titleText=${titleText}
                     size="compact"
                     ?iconOnly=${true}
                 ></scheduling-action-chip>
@@ -1554,8 +1558,10 @@ export class SchedulingSlotTable extends LitElement {
         if (item.kind === "appliance_summary") {
             return html`
                 <scheduling-appliance-chip
+                    .authorship=${item.authorship}
                     .projectionBadge=${item.projectionBadge}
                     .localize=${this.localize}
+                    .titleText=${titleText}
                     size="compact"
                     ?iconOnly=${true}
                     ?summary=${true}
@@ -1567,8 +1573,10 @@ export class SchedulingSlotTable extends LitElement {
             <scheduling-appliance-chip
                 .appliance=${item.appliance}
                 .action=${item.action}
+                .authorship=${item.authorship}
                 .projectionBadge=${item.projectionBadge}
                 .localize=${this.localize}
+                .titleText=${titleText}
                 size="compact"
                 ?iconOnly=${true}
             ></scheduling-appliance-chip>
@@ -1823,16 +1831,26 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _buildActionCellLabel(actionCell: ScheduleTableActionCellModel): string {
-        return actionCell.items.map((item) => this._buildActionItemLabel(item)).join(", ");
+        return actionCell.items.map((item) => this._buildActionItemLabel(item, item.kind === "appliance_summary")).join(", ");
     }
 
-    private _buildActionItemLabel(item: ScheduleTableActionItemModel): string {
+    private _buildActionItemLabel(item: ScheduleTableActionItemModel, includeAuthorshipCounts = false): string {
         if (item.kind === "inverter") {
-            return getScheduleActionLabel(item.action, this.localize);
+            return [
+                getScheduleActionLabel(item.action, this.localize),
+                this._buildAuthorshipLabel(item.authorship, includeAuthorshipCounts),
+            ].filter((part) => part.length > 0).join(", ");
         }
 
         if (item.kind === "appliance_summary") {
-            return item.items.map((summaryItem) => this._buildActionItemLabel(summaryItem)).join(", ");
+            const parts = [
+                this.localize("scheduling.dialog.appliances"),
+                this._buildAuthorshipLabel(item.authorship, includeAuthorshipCounts),
+            ];
+            if (item.projectionBadge !== null) {
+                parts.push(this._buildProjectionBadgeLabel(item.projectionBadge));
+            }
+            return parts.filter((part) => part.length > 0).join(", ");
         }
 
         const presentation = getScheduleApplianceActionPresentation({
@@ -1840,11 +1858,19 @@ export class SchedulingSlotTable extends LitElement {
             action: item.action,
             localize: this.localize,
         });
+        const authorshipLabel = this._buildAuthorshipLabel(item.authorship, includeAuthorshipCounts);
         if (item.projectionBadge === null) {
-            return `${item.appliance.name} · ${presentation.label}`;
+            return [item.appliance.name, presentation.label, authorshipLabel]
+                .filter((part) => part.length > 0)
+                .join(" · ");
         }
 
-        return `${item.appliance.name} · ${presentation.label} · ${this._buildProjectionBadgeLabel(item.projectionBadge)}`;
+        return [
+            item.appliance.name,
+            presentation.label,
+            this._buildProjectionBadgeLabel(item.projectionBadge),
+            authorshipLabel,
+        ].filter((part) => part.length > 0).join(" · ");
     }
 
     private _buildProjectionBadgeLabel(
@@ -1853,6 +1879,30 @@ export class SchedulingSlotTable extends LitElement {
         return projectionBadge === null
             ? ""
             : getScheduleApplianceProjectionBadgeLabel(projectionBadge, this.localize);
+    }
+
+    private _buildAuthorshipLabel(
+        authorship: ScheduleActionAuthorshipSummary | null,
+        includeCounts: boolean,
+    ): string {
+        if (authorship === null || authorship.state === "none") {
+            return "";
+        }
+
+        const baseLabel = authorship.state === "user"
+            ? this.localize("scheduling.authorship.set_by_user")
+            : authorship.state === "automation"
+            ? this.localize("scheduling.authorship.set_by_automation")
+            : this.localize("scheduling.authorship.mixed");
+        if (!includeCounts || authorship.state !== "mixed") {
+            return baseLabel;
+        }
+
+        return [
+            baseLabel,
+            `${this.localize("scheduling.authorship.user")}: ${authorship.counts.user}`,
+            `${this.localize("scheduling.authorship.automation")}: ${authorship.counts.automation}`,
+        ].join(", ");
     }
 
     private _buildGridGaugeTitle(point: SlotForecastPoint): string {

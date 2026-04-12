@@ -25,7 +25,11 @@ import {
     type ScheduleHeaderModel,
 } from "./model/schedule-header-model";
 import { getScheduleErrorLabel } from "./model/schedule-labels";
-import { buildScheduleRangeEditSelectionSummary } from "./model/schedule-range-edit-selection-summary";
+import {
+    buildScheduleRangeEditAuthorshipSummary,
+    buildScheduleRangeEditSelectionSummary,
+} from "./model/schedule-range-edit-selection-summary";
+import { InvalidScheduleAuthorshipError } from "./model/schedule-authorship";
 import {
     applyNormalizedScheduleCurrentState,
     buildNormalizedScheduleStructure,
@@ -154,6 +158,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
     @state() private _expandedHourKeys: string[] = [];
     @state() private _expandedApplianceActions = false;
     @state() private _nowMs = Date.now();
+    @state() private _invalidScheduleAuthorship = false;
 
     public set hass(value: HomeAssistant) {
         const previous = this._hass;
@@ -220,11 +225,32 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         const nowChanged = changedProperties.has("_nowMs");
 
         if (scheduleChanged) {
-            this._normalizedSchedule = buildNormalizedScheduleStructure({
-                schedule: this._ownerSnapshot.schedule,
-                timeZone: this._hass.config.time_zone ?? "UTC",
-                locale: this._locale,
-            });
+            try {
+                this._normalizedSchedule = buildNormalizedScheduleStructure({
+                    schedule: this._ownerSnapshot.schedule,
+                    timeZone: this._hass.config.time_zone ?? "UTC",
+                    locale: this._locale,
+                });
+                this._invalidScheduleAuthorship = false;
+            } catch (error) {
+                if (!(error instanceof InvalidScheduleAuthorshipError)) {
+                    throw error;
+                }
+
+                console.error(error.message, error);
+                this._invalidScheduleAuthorship = true;
+                this._normalizedSchedule = EMPTY_NORMALIZED_SCHEDULE;
+                this._timelineModel = EMPTY_SCHEDULE_TIMELINE;
+                this._slotForecastProjection = EMPTY_SLOT_FORECAST_PROJECTION;
+                this._slotForecastProjectionKey = "";
+                this._tableModel = EMPTY_SCHEDULE_TABLE_MODEL;
+                this._slotForecastMap = EMPTY_SLOT_FORECAST_MAP;
+                this._selectedSlotIds = [];
+                this._selectionAnchorSlotIds = null;
+                this._dialogState = null;
+                this._dialogOpen = false;
+                this._pendingDialogPatches = null;
+            }
 
             const validSlotIds = new Set(this._normalizedSchedule.slots.map((slot) => slot.id));
             const nextSelectedSlotIds = this._selectedSlotIds.filter((id) => validSlotIds.has(id));
@@ -244,7 +270,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             }
         }
 
-        if (scheduleChanged || nowChanged) {
+        if (!this._invalidScheduleAuthorship && (scheduleChanged || nowChanged)) {
             this._normalizedSchedule = applyNormalizedScheduleCurrentState(
                 this._normalizedSchedule,
                 this._hass.config.time_zone ?? "UTC",
@@ -253,7 +279,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         }
 
         let slotTopologyChanged = false;
-        if (scheduleChanged || forecastChanged) {
+        if (!this._invalidScheduleAuthorship && (scheduleChanged || forecastChanged)) {
             this._timelineModel = buildScheduleTimelineStructure({
                 normalizedSchedule: this._normalizedSchedule,
                 forecast: this._forecast,
@@ -265,7 +291,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             this._slotForecastProjectionKey = nextProjectionKey;
         }
 
-        if (scheduleChanged || forecastChanged || nowChanged) {
+        if (!this._invalidScheduleAuthorship && (scheduleChanged || forecastChanged || nowChanged)) {
             this._timelineModel = applyScheduleTimelineCurrentState(
                 this._timelineModel,
                 new Date(this._nowMs),
@@ -276,21 +302,24 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
             this._pruneDayExpansionOverrides(this._collectTimelineDayKeys());
         }
 
-        if (forecastChanged || slotTopologyChanged) {
+        if (!this._invalidScheduleAuthorship && (forecastChanged || slotTopologyChanged)) {
             this._slotForecastProjection = buildSlotForecastProjection(this._forecast, this._timelineModel.slots);
         }
 
-        if (forecastChanged || slotTopologyChanged || nowChanged) {
+        if (!this._invalidScheduleAuthorship && (forecastChanged || slotTopologyChanged || nowChanged)) {
             this._slotForecastMap = materializeSlotForecastMap(this._slotForecastProjection, this._timelineModel.slots);
         }
 
         if (
-            scheduleChanged
-            || forecastChanged
-            || changedProperties.has("_appliances")
-            || changedProperties.has("_applianceProjectionIndex")
-            || changedProperties.has("_expandedHourKeys")
-            || nowChanged
+            !this._invalidScheduleAuthorship
+            && (
+                scheduleChanged
+                || forecastChanged
+                || changedProperties.has("_appliances")
+                || changedProperties.has("_applianceProjectionIndex")
+                || changedProperties.has("_expandedHourKeys")
+                || nowChanged
+            )
         ) {
             this._tableModel = buildScheduleTableModel({
                 slots: this._timelineModel.slots,
@@ -343,6 +372,8 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
 
                     ${this._ownerSnapshot.schedule === null
                         ? this._renderEmptyState()
+                        : this._invalidScheduleAuthorship
+                        ? nothing
                         : html`
                             <scheduling-slot-table
                                 .tableModel=${this._tableModel}
@@ -540,6 +571,10 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         this._dialogState = {
             selectedSlots,
             selectionSummary: buildScheduleRangeEditSelectionSummary({
+                selectedSlots,
+                appliances: this._appliances,
+            }),
+            authorshipSummary: buildScheduleRangeEditAuthorshipSummary({
                 selectedSlots,
                 appliances: this._appliances,
             }),

@@ -1,9 +1,12 @@
 import type { ScheduleApplianceMetadata } from "./schedule-appliance-metadata";
+import { summarizeScheduleAuthorship } from "./schedule-authorship";
 import type {
     ScheduleAction,
     ScheduleApplianceAction,
+    ScheduleRangeEditAuthorshipSummary,
     ScheduleDialogState,
     ScheduleSelectionValueSummary,
+    ScheduleSetBy,
     ScheduleSlot,
 } from "../schedule-types";
 import {
@@ -28,6 +31,19 @@ export function buildScheduleRangeEditSelectionSummary({
     };
 }
 
+export function buildScheduleRangeEditAuthorshipSummary({
+    selectedSlots,
+    appliances,
+}: {
+    selectedSlots: readonly ScheduleSlot[];
+    appliances: readonly Pick<ScheduleApplianceMetadata, "id">[];
+}): ScheduleDialogState["authorshipSummary"] {
+    return {
+        inverter: summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.authorship.inverter)),
+        appliances: _buildApplianceAuthorshipSummaries(selectedSlots, appliances),
+    };
+}
+
 function _buildInverterSummary(
     selectedSlots: readonly ScheduleSlot[],
 ): ScheduleSelectionValueSummary<ScheduleAction> {
@@ -36,12 +52,17 @@ function _buildInverterSummary(
         return {
             state: "uniform",
             seedValue: { kind: "empty" },
-            distinctValues: [{ key: getScheduleActionIdentityKey({ kind: "empty" }), value: { kind: "empty" } }],
+            distinctValues: [{
+                key: getScheduleActionIdentityKey({ kind: "empty" }),
+                value: { kind: "empty" },
+                authorship: summarizeScheduleAuthorship([]),
+            }],
         };
     }
 
     return _buildSelectionSummary({
         values: selectedSlots.map((slot) => slot.domains.inverter),
+        authorships: selectedSlots.map((slot) => slot.authorship.inverter),
         cloneValue: (action) => cloneScheduleInverterAction(action),
         getKey: (action) => getScheduleActionIdentityKey(action),
     });
@@ -62,18 +83,38 @@ function _buildApplianceSummaries(
         applianceId,
         _buildSelectionSummary({
             values: selectedSlots.map((slot) => slot.domains.appliances[applianceId] ?? null),
+            authorships: selectedSlots.map((slot) => slot.authorship.appliances[applianceId] ?? null),
             cloneValue: (action) => action === null ? null : cloneScheduleApplianceAction(action),
             getKey: (action) => action === null ? NO_APPLIANCE_ACTION_KEY : getScheduleApplianceActionIdentityKey(action),
         }),
     ]));
 }
 
+function _buildApplianceAuthorshipSummaries(
+    selectedSlots: readonly ScheduleSlot[],
+    appliances: readonly Pick<ScheduleApplianceMetadata, "id">[],
+): ScheduleRangeEditAuthorshipSummary["appliances"] {
+    const orderedApplianceIds = [
+        ...appliances.map((appliance) => appliance.id),
+        ...[...new Set(selectedSlots.flatMap((slot) => Object.keys(slot.domains.appliances)))]
+            .filter((applianceId) => !appliances.some((appliance) => appliance.id === applianceId))
+            .sort((left, right) => left.localeCompare(right)),
+    ];
+
+    return Object.fromEntries(orderedApplianceIds.map((applianceId) => [
+        applianceId,
+        summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.authorship.appliances[applianceId] ?? null)),
+    ]));
+}
+
 function _buildSelectionSummary<TValue>({
     values,
+    authorships,
     cloneValue,
     getKey,
 }: {
     values: readonly TValue[];
+    authorships: readonly (ScheduleSetBy | null)[];
     cloneValue: (value: TValue) => TValue;
     getKey: (value: TValue) => string;
 }): ScheduleSelectionValueSummary<TValue> {
@@ -84,9 +125,13 @@ function _buildSelectionSummary<TValue>({
 
     const distinctValues: ScheduleSelectionValueSummary<TValue>["distinctValues"] = [];
     const seenKeys = new Set<string>();
+    const authorshipsByKey = new Map<string, Array<ScheduleSetBy | null>>();
 
-    for (const value of values) {
+    for (const [index, value] of values.entries()) {
         const key = getKey(value);
+        const optionAuthorships = authorshipsByKey.get(key) ?? [];
+        optionAuthorships.push(authorships[index] ?? null);
+        authorshipsByKey.set(key, optionAuthorships);
         if (seenKeys.has(key)) {
             continue;
         }
@@ -95,7 +140,12 @@ function _buildSelectionSummary<TValue>({
         distinctValues.push({
             key,
             value: cloneValue(value),
+            authorship: null,
         });
+    }
+
+    for (const option of distinctValues) {
+        option.authorship = summarizeScheduleAuthorship(authorshipsByKey.get(option.key) ?? []);
     }
 
     return {

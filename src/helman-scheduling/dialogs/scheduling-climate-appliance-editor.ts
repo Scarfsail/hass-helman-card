@@ -12,6 +12,7 @@ import type { ScheduleApplianceAction } from "../schedule-types";
 import {
     isScheduleClimateApplianceAction,
 } from "../schedule-types";
+import type { ScheduleActionAuthorshipSummary } from "../schedule-types";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 
 const CLIMATE_OFF_ACTION_MODE = "off";
@@ -79,6 +80,7 @@ export class SchedulingClimateApplianceEditor extends LitElement {
     @property({ attribute: false }) public action: ScheduleApplianceAction | null = null;
     @property({ attribute: false }) public mixedHeaderControl: unknown = nothing;
     @property({ attribute: false }) public mixedBody: unknown = nothing;
+    @property({ attribute: false }) public selectedAuthorship: ScheduleActionAuthorshipSummary | null = null;
     @property({ type: Boolean }) public mixed = false;
     @property({ type: Boolean }) public showControls = true;
 
@@ -132,7 +134,7 @@ export class SchedulingClimateApplianceEditor extends LitElement {
                     aria-label=${presentation.label}
                     @change=${() => this._handleModeChange(mode)}
                 />
-                <span class=${`chip action preview-chip selectable ${presentation.toneClass}${checked ? " selected" : ""}`}>
+                <span class=${this._buildPreviewChipClasses(presentation.toneClass, checked)}>
                     <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
                     <span class="chip-label">${presentation.label}</span>
                 </span>
@@ -237,5 +239,19 @@ export class SchedulingClimateApplianceEditor extends LitElement {
             return " panel-highlight-success";
         }
         return "";
+    }
+
+    private _buildPreviewChipClasses(
+        toneClass: ClimateApplianceOptionPresentation["toneClass"],
+        checked: boolean,
+    ): string {
+        const classes = ["chip", "action", "preview-chip", "selectable", toneClass];
+        if (checked) {
+            classes.push("selected");
+            if (this.selectedAuthorship) {
+                classes.push("authorship-decorated", `authorship-${this.selectedAuthorship.state}`);
+            }
+        }
+        return classes.join(" ");
     }
 }

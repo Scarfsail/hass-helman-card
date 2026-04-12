@@ -169,6 +169,35 @@ export const schedulingSharedStyles = css`
         color: var(--schedule-action-tone-color, var(--primary-text-color));
     }
 
+    .chip.action.authorship-decorated {
+        border-color: color-mix(
+            in srgb,
+            var(--schedule-authorship-color, transparent) 76%,
+            var(--schedule-action-tone-border, var(--divider-color))
+        );
+        box-shadow:
+            inset 0 0 0 1px color-mix(in srgb, var(--schedule-authorship-color, transparent) 24%, transparent),
+            0 0 0 1px color-mix(in srgb, var(--schedule-authorship-color, transparent) 34%, transparent),
+            0 0 12px color-mix(in srgb, var(--schedule-authorship-color, transparent) 28%, transparent),
+            0 0 18px color-mix(in srgb, var(--schedule-authorship-color, transparent) 16%, transparent);
+    }
+
+    .chip.action.authorship-user {
+        --schedule-authorship-color: var(--schedule-authorship-user-color, #c49012);
+    }
+
+    .chip.action.authorship-automation {
+        --schedule-authorship-color: var(--schedule-authorship-automation-color, #2563eb);
+    }
+
+    .chip.action.authorship-mixed {
+        --schedule-authorship-color: var(--schedule-authorship-mixed-color, #ea7a18);
+    }
+
+    .chip.action.authorship-none {
+        --schedule-authorship-color: var(--schedule-authorship-none-color, #7b8798);
+    }
+
     .chip.action.selectable {
         cursor: pointer;
         transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
@@ -179,12 +208,22 @@ export const schedulingSharedStyles = css`
     }
 
     .chip.action.selectable.selected {
-        border-color: color-mix(in srgb, var(--primary-color) 48%, var(--divider-color));
-        background: color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 10%, var(--card-background-color));
+        border-color: var(--schedule-action-tone-border, color-mix(in srgb, var(--primary-color) 28%, transparent));
+        background: var(--schedule-action-tone-bg, color-mix(in srgb, var(--primary-color) 16%, transparent));
+        box-shadow: none;
+    }
+
+    .chip.action.authorship-decorated.selectable.selected {
+        border-color: color-mix(
+            in srgb,
+            var(--schedule-authorship-color, transparent) 82%,
+            var(--schedule-action-tone-border, var(--divider-color))
+        );
         box-shadow:
-            inset 0 0 0 1px color-mix(in srgb, var(--schedule-action-tone-accent, var(--primary-color)) 18%, transparent),
-            0 0 0 2px color-mix(in srgb, var(--primary-color) 28%, transparent),
-            0 0 10px color-mix(in srgb, var(--primary-color) 20%, transparent);
+            inset 0 0 0 1px color-mix(in srgb, var(--schedule-authorship-color, transparent) 28%, transparent),
+            0 0 0 1px color-mix(in srgb, var(--schedule-authorship-color, transparent) 42%, transparent),
+            0 0 12px color-mix(in srgb, var(--schedule-authorship-color, transparent) 32%, transparent),
+            0 0 20px color-mix(in srgb, var(--schedule-authorship-color, transparent) 20%, transparent);
     }
 
     .compact-action-options {
@@ -201,9 +240,7 @@ export const schedulingSharedStyles = css`
     }
 
     .compact-action-option:focus-within {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 2px;
-        border-radius: 999px;
+        outline: none;
     }
 
     .compact-action-detail {

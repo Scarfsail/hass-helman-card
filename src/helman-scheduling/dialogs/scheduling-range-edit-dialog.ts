@@ -9,6 +9,7 @@ import "./scheduling-ev-charger-editor";
 import "./scheduling-generic-appliance-editor";
 import "./scheduling-climate-appliance-editor";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
+import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../model/schedule-labels";
 import type {
     ScheduleApplianceAction,
+    ScheduleActionAuthorshipSummary,
     ScheduleDialogResult,
     ScheduleDialogState,
     ScheduleSelectionValueSummary,
@@ -42,6 +44,20 @@ import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 const DIALOG_HISTORY_STATE_KEY = "__helmanSchedulingDialogId";
 const DEFAULT_CHARGE_TARGET_SOC = 100;
 const DEFAULT_DISCHARGE_TARGET_SOC = 15;
+const USER_DIALOG_AUTHORSHIP: ScheduleActionAuthorshipSummary = {
+    state: "user",
+    counts: {
+        user: 1,
+        automation: 0,
+    },
+};
+const NO_AUTHOR_DIALOG_AUTHORSHIP: ScheduleActionAuthorshipSummary = {
+    state: "none",
+    counts: {
+        user: 0,
+        automation: 0,
+    },
+};
 let nextDialogHistoryEntryId = 0;
 
 @customElement("scheduling-range-edit-dialog")
@@ -115,6 +131,29 @@ export class SchedulingRangeEditDialog extends LitElement {
                 background: var(--secondary-background-color);
             }
 
+            .decision-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .decision-button {
+                padding: 7px 12px;
+                border: 1px solid var(--divider-color);
+                border-radius: 999px;
+                background: var(--card-background-color);
+                color: inherit;
+                cursor: pointer;
+                font: inherit;
+                transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+            }
+
+            .decision-button.selected {
+                border-color: color-mix(in srgb, var(--primary-color) 44%, var(--divider-color));
+                background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color));
+                color: var(--primary-color);
+            }
+
             @media (max-width: 600px) {
                 .dialog-content {
                     min-width: 0;
@@ -156,8 +195,11 @@ export class SchedulingRangeEditDialog extends LitElement {
     @state() private _draftApplianceActions: Record<string, ScheduleApplianceAction | null> = {};
     @state() private _applianceValidity: Record<string, boolean> = {};
     @state() private _editedApplianceIds: string[] = [];
+    @state() private _authorshipSummary: ScheduleDialogState["authorshipSummary"] | null = null;
     @state() private _overwriteMixedInverter = false;
     @state() private _overwriteMixedAppliances: Record<string, boolean> = {};
+    @state() private _manualTakeoverInverter = false;
+    @state() private _manualTakeoverAppliances: Record<string, boolean> = {};
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -237,6 +279,7 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _applyDialogState(dialogState: ScheduleDialogState): void {
         const selectionSummary = dialogState.selectionSummary;
+        const authorshipSummary = dialogState.authorshipSummary;
         const draftApplianceActions = Object.fromEntries(
             Object.entries(selectionSummary.appliances).map(([applianceId, summary]) => [
                 applianceId,
@@ -244,8 +287,10 @@ export class SchedulingRangeEditDialog extends LitElement {
             ]),
         );
         this._selectionSummary = selectionSummary;
+        this._authorshipSummary = authorshipSummary;
         this._inverterEdited = false;
         this._overwriteMixedInverter = selectionSummary.inverter.state === "uniform";
+        this._manualTakeoverInverter = false;
         this._actionKind = selectionSummary.inverter.seedValue.kind;
         this._targetSocInput = selectionSummary.inverter.seedValue.targetSoc?.toString() ?? "";
         this._draftApplianceActions = draftApplianceActions;
@@ -257,6 +302,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                 applianceId,
                 summary.state === "uniform",
             ]),
+        );
+        this._manualTakeoverAppliances = Object.fromEntries(
+            Object.keys(selectionSummary.appliances).map((applianceId) => [applianceId, false]),
         );
         this._editedApplianceIds = [];
     }
@@ -316,6 +364,7 @@ export class SchedulingRangeEditDialog extends LitElement {
         return html`
             <scheduling-action-option-card
                 .action=${previewAction}
+                .authorship=${checked ? this._getEffectiveInverterAuthorship() : null}
                 .checked=${checked}
                 .localize=${this.localize}
                 radioName="schedule-action-kind"
@@ -327,16 +376,23 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _renderInverterPanel() {
         const panelClasses = this._inverterPanelClasses();
         const selectionSummary = this._selectionSummary?.inverter ?? null;
+        const authorshipSummary = this._authorshipSummary?.inverter ?? null;
+        const showTakeoverDecision = this._shouldShowInverterTakeoverDecision();
         const showEditor = this._isInverterEditorActive();
         const isMixed = selectionSummary?.state === "mixed";
         return html`
             <div class=${panelClasses}>
-                <div class=${isMixed ? "mixed-summary-header" : "panel-header-inline"}>
+                <div class=${showTakeoverDecision || isMixed ? "mixed-summary-header" : "panel-header-inline"}>
                     <div class="panel-title">${this.localize("scheduling.dialog.inverter")}</div>
-                    ${isMixed ? this._renderMixedInverterToggle() : nothing}
+                    ${isMixed
+                        ? this._renderMixedInverterToggle()
+                        : nothing}
                 </div>
+                ${showTakeoverDecision
+                    ? this._renderInverterAuthorshipSummary(selectionSummary, authorshipSummary)
+                    : nothing}
                 ${isMixed ? this._renderMixedInverterSummary(selectionSummary) : nothing}
-                ${isMixed && showEditor ? html`<div class="mixed-editor-divider"></div>` : nothing}
+                ${(showTakeoverDecision || isMixed) && showEditor ? html`<div class="mixed-editor-divider"></div>` : nothing}
                 ${showEditor ? html`
                     <div class="action-options" role="radiogroup" aria-label=${this.localize("scheduling.dialog.inverter")}>
                         ${this._renderActionOption("empty")}
@@ -376,18 +432,22 @@ export class SchedulingRangeEditDialog extends LitElement {
         }
 
         const selectionSummary = this._selectionSummary?.appliances[appliance.id] ?? null;
-        const overwriteEnabled = this._isApplianceEditorActive(appliance.id);
         const isMixed = selectionSummary?.state === "mixed";
+        const showTakeoverDecision = this._shouldShowApplianceTakeoverDecision(appliance.id);
+        const overwriteEnabled = this._isApplianceEditorActive(appliance.id);
         return this._renderApplianceEditor(
             appliance,
             isMixed
                 ? this._renderMixedApplianceToggle(appliance.id, overwriteEnabled)
                 : nothing,
-            isMixed
-                ? this._renderMixedApplianceSummary(appliance, selectionSummary)
-                : nothing,
-            isMixed,
-            !isMixed || overwriteEnabled,
+            html`
+                ${showTakeoverDecision
+                    ? this._renderApplianceAuthorshipSummary(appliance, selectionSummary)
+                    : nothing}
+                ${isMixed ? this._renderMixedApplianceSummary(appliance, selectionSummary) : nothing}
+            `,
+            isMixed || showTakeoverDecision,
+            (!showTakeoverDecision && !isMixed) || overwriteEnabled,
         );
     }
 
@@ -422,6 +482,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
                 .mixedHeaderControl=${mixedHeaderControl}
                 .mixedBody=${mixedBody}
                 .mixed=${mixed}
@@ -443,6 +504,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
                 .mixedHeaderControl=${mixedHeaderControl}
                 .mixedBody=${mixedBody}
                 .mixed=${mixed}
@@ -464,6 +526,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .appliance=${appliance}
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
+                .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
                 .mixedHeaderControl=${mixedHeaderControl}
                 .mixedBody=${mixedBody}
                 .mixed=${mixed}
@@ -501,11 +564,79 @@ export class SchedulingRangeEditDialog extends LitElement {
                         <scheduling-appliance-chip
                             .appliance=${appliance}
                             .action=${option.value}
+                            .authorship=${option.authorship}
                             .localize=${this.localize}
+                            .titleText=${this._buildDialogApplianceOptionTitle(appliance, option)}
                             size="compact"
                         ></scheduling-appliance-chip>
                     `)}
                 </div>
+            </div>
+        `;
+    }
+
+    private _renderTakeoverDecisionRow(
+        manualTakeover: boolean,
+        onSelect: (enabled: boolean) => void,
+        groupName: string,
+    ) {
+        return html`
+            <div class="decision-row" role="radiogroup" aria-label=${this.localize("scheduling.dialog.replace_with_manual_action")}>
+                <label class="compact-action-option">
+                    <input
+                        class="sr-only"
+                        type="radio"
+                        name=${groupName}
+                        .checked=${!manualTakeover}
+                        @change=${() => onSelect(false)}
+                    />
+                    <span class=${`decision-button${manualTakeover ? "" : " selected"}`}>
+                        ${this.localize("scheduling.dialog.keep_existing")}
+                    </span>
+                </label>
+                <label class="compact-action-option">
+                    <input
+                        class="sr-only"
+                        type="radio"
+                        name=${groupName}
+                        .checked=${manualTakeover}
+                        @change=${() => onSelect(true)}
+                    />
+                    <span class=${`decision-button${manualTakeover ? " selected" : ""}`}>
+                        ${this.localize("scheduling.dialog.replace_with_manual_action")}
+                    </span>
+                </label>
+            </div>
+        `;
+    }
+
+    private _renderInverterAuthorshipSummary(
+        selectionSummary: ScheduleSelectionValueSummary<ScheduleAction> | null,
+        authorshipSummary: ScheduleActionAuthorshipSummary | null,
+    ) {
+        if (selectionSummary === null || authorshipSummary === null) {
+            return nothing;
+        }
+
+        return html`
+            <div class="mixed-summary">
+                <div class="field-help">${this._buildAuthorshipDecisionCopy(authorshipSummary)}</div>
+                ${this._renderTakeoverDecisionRow(
+                    this._manualTakeoverInverter,
+                    this._handleInverterTakeoverDecision,
+                    "schedule-inverter-takeover",
+                )}
+                ${selectionSummary.state === "uniform" ? html`
+                    <div class="mixed-summary-chips">
+                        <scheduling-action-chip
+                            .action=${selectionSummary.seedValue}
+                            .authorship=${authorshipSummary}
+                            .localize=${this.localize}
+                            .titleText=${this._buildDialogInverterOptionTitle(selectionSummary.seedValue, authorshipSummary)}
+                            size="compact"
+                        ></scheduling-action-chip>
+                    </div>
+                ` : nothing}
             </div>
         `;
     }
@@ -532,7 +663,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                     ${summary.distinctValues.map((option) => html`
                         <scheduling-action-chip
                             .action=${option.value}
+                            .authorship=${option.authorship}
                             .localize=${this.localize}
+                            .titleText=${this._buildDialogInverterOptionTitle(option.value, option.authorship)}
                             size="compact"
                         ></scheduling-action-chip>
                     `)}
@@ -553,6 +686,43 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
+    private _renderApplianceAuthorshipSummary(
+        appliance: ScheduleApplianceMetadata,
+        summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null> | null,
+    ) {
+        const authorshipSummary = this._authorshipSummary?.appliances[appliance.id] ?? null;
+        if (summary === null || authorshipSummary === null) {
+            return nothing;
+        }
+
+        return html`
+            <div class="mixed-summary">
+                <div class="field-help">${this._buildAuthorshipDecisionCopy(authorshipSummary)}</div>
+                ${this._renderTakeoverDecisionRow(
+                    this._manualTakeoverAppliances[appliance.id] ?? false,
+                    (enabled) => this._handleApplianceTakeoverDecision(appliance.id, enabled),
+                    `schedule-appliance-takeover-${appliance.id}`,
+                )}
+                ${summary.state === "uniform" ? html`
+                    <div class="mixed-summary-chips">
+                        <scheduling-appliance-chip
+                            .appliance=${appliance}
+                            .action=${summary.seedValue}
+                            .authorship=${authorshipSummary}
+                            .localize=${this.localize}
+                            .titleText=${this._buildDialogApplianceOptionTitle(appliance, {
+                                key: "__seed__",
+                                value: summary.seedValue,
+                                authorship: authorshipSummary,
+                            })}
+                            size="compact"
+                        ></scheduling-appliance-chip>
+                    </div>
+                ` : nothing}
+            </div>
+        `;
+    }
+
     private _renderMixedApplianceSummary(
         appliance: ScheduleApplianceMetadata,
         summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null>,
@@ -565,7 +735,9 @@ export class SchedulingRangeEditDialog extends LitElement {
                         <scheduling-appliance-chip
                             .appliance=${appliance}
                             .action=${option.value}
+                            .authorship=${option.authorship}
                             .localize=${this.localize}
+                            .titleText=${this._buildDialogApplianceOptionTitle(appliance, option)}
                             size="compact"
                         ></scheduling-appliance-chip>
                     `)}
@@ -658,6 +830,11 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._updateInverterEditedState();
     }
 
+    private _handleInverterTakeoverDecision = (enabled: boolean): void => {
+        this._manualTakeoverInverter = enabled;
+        this._updateInverterEditedState();
+    };
+
     private _handleApplianceOverwriteChange(applianceId: string, event: Event): void {
         const checked = (event.currentTarget as { checked: boolean }).checked;
         const nextOverwriteMixedAppliances = {
@@ -677,6 +854,21 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._editedApplianceIds = this._buildEditedApplianceIds(
             nextDraftApplianceActions,
             nextOverwriteMixedAppliances,
+        );
+    }
+
+    private _handleApplianceTakeoverDecision(applianceId: string, enabled: boolean): void {
+        this._manualTakeoverAppliances = {
+            ...this._manualTakeoverAppliances,
+            [applianceId]: enabled,
+        };
+        this._editedApplianceIds = this._buildEditedApplianceIds(
+            this._draftApplianceActions,
+            this._overwriteMixedAppliances,
+            {
+                ...this._manualTakeoverAppliances,
+                [applianceId]: enabled,
+            },
         );
     }
 
@@ -734,6 +926,8 @@ export class SchedulingRangeEditDialog extends LitElement {
             domains,
             editedInverter: this._inverterEdited,
             editedApplianceIds: [...this._editedApplianceIds],
+            forceTakeoverInverter: this._shouldShowInverterTakeoverDecision() && this._isInverterEditorActive(),
+            forceTakeoverApplianceIds: this._buildForceTakeoverApplianceIds(),
         };
     }
 
@@ -819,6 +1013,31 @@ export class SchedulingRangeEditDialog extends LitElement {
             : DEFAULT_DISCHARGE_TARGET_SOC;
     }
 
+    private _getEffectiveInverterAuthorship(): ScheduleActionAuthorshipSummary | null {
+        const currentAction = this._buildCurrentInverterAction();
+        if (currentAction?.kind === "empty") {
+            return NO_AUTHOR_DIALOG_AUTHORSHIP;
+        }
+
+        if (currentAction !== null && this._inverterEdited) {
+            return USER_DIALOG_AUTHORSHIP;
+        }
+
+        return this._authorshipSummary?.inverter ?? null;
+    }
+
+    private _getEffectiveApplianceAuthorship(applianceId: string): ScheduleActionAuthorshipSummary | null {
+        if (this._draftApplianceActions[applianceId] === null) {
+            return NO_AUTHOR_DIALOG_AUTHORSHIP;
+        }
+
+        if (this._editedApplianceIds.includes(applianceId)) {
+            return USER_DIALOG_AUTHORSHIP;
+        }
+
+        return this._authorshipSummary?.appliances[applianceId] ?? null;
+    }
+
     private _isTargetActionKind(
         actionKind: ScheduleAction["kind"],
     ): actionKind is "charge_to_target_soc" | "discharge_to_target_soc" {
@@ -832,8 +1051,18 @@ export class SchedulingRangeEditDialog extends LitElement {
             return;
         }
 
+        if (this._shouldShowInverterTakeoverDecision() && !this._manualTakeoverInverter) {
+            this._inverterEdited = false;
+            return;
+        }
+
         if (selectionSummary.state === "mixed") {
             this._inverterEdited = this._overwriteMixedInverter;
+            return;
+        }
+
+        if (this._shouldShowInverterTakeoverDecision()) {
+            this._inverterEdited = true;
             return;
         }
 
@@ -847,14 +1076,23 @@ export class SchedulingRangeEditDialog extends LitElement {
         applianceId: string,
         nextAction: ScheduleApplianceAction | null,
         overwriteMixedAppliances: Record<string, boolean> = this._overwriteMixedAppliances,
+        manualTakeoverAppliances: Record<string, boolean> = this._manualTakeoverAppliances,
     ): boolean {
         const summary = this._selectionSummary?.appliances[applianceId];
         if (!summary) {
             return false;
         }
 
+        if (this._shouldShowApplianceTakeoverDecision(applianceId) && !(manualTakeoverAppliances[applianceId] ?? false)) {
+            return false;
+        }
+
         if (summary.state === "mixed") {
             return overwriteMixedAppliances[applianceId] ?? false;
+        }
+
+        if (this._shouldShowApplianceTakeoverDecision(applianceId)) {
+            return true;
         }
 
         const normalizedInitialAction = this._cloneDraftApplianceAction(summary.seedValue);
@@ -867,12 +1105,14 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _buildEditedApplianceIds(
         draftApplianceActions: Record<string, ScheduleApplianceAction | null>,
         overwriteMixedAppliances: Record<string, boolean> = this._overwriteMixedAppliances,
+        manualTakeoverAppliances: Record<string, boolean> = this._manualTakeoverAppliances,
     ): string[] {
         return Object.keys(this._selectionSummary?.appliances ?? {}).flatMap((applianceId) =>
             this._isApplianceActionEdited(
                 applianceId,
                 draftApplianceActions[applianceId] ?? null,
                 overwriteMixedAppliances,
+                manualTakeoverAppliances,
             )
                 ? [applianceId]
                 : [],
@@ -959,16 +1199,29 @@ export class SchedulingRangeEditDialog extends LitElement {
     }
 
     private _isInverterEditorActive(): boolean {
-        return this._selectionSummary !== null
-            && (
-                this._selectionSummary.inverter.state === "uniform"
-                || this._overwriteMixedInverter
-            );
+        if (this._selectionSummary === null) {
+            return false;
+        }
+
+        if (this._shouldShowInverterTakeoverDecision() && !this._manualTakeoverInverter) {
+            return false;
+        }
+
+        return this._selectionSummary.inverter.state === "uniform"
+            || this._overwriteMixedInverter;
     }
 
     private _isApplianceEditorActive(applianceId: string): boolean {
         const summary = this._selectionSummary?.appliances[applianceId];
-        return summary === undefined || summary.state === "uniform" || (this._overwriteMixedAppliances[applianceId] ?? false);
+        if (summary === undefined) {
+            return true;
+        }
+
+        if (this._shouldShowApplianceTakeoverDecision(applianceId) && !(this._manualTakeoverAppliances[applianceId] ?? false)) {
+            return false;
+        }
+
+        return summary.state === "uniform" || (this._overwriteMixedAppliances[applianceId] ?? false);
     }
 
     private _resetInverterDraft(): void {
@@ -985,6 +1238,78 @@ export class SchedulingRangeEditDialog extends LitElement {
         return this._cloneDraftApplianceAction(
             this._selectionSummary?.appliances[applianceId]?.seedValue ?? null,
         );
+    }
+
+    private _shouldShowInverterTakeoverDecision(): boolean {
+        const authorship = this._authorshipSummary?.inverter;
+        return authorship?.state === "automation" || authorship?.state === "mixed";
+    }
+
+    private _shouldShowApplianceTakeoverDecision(applianceId: string): boolean {
+        const authorship = this._authorshipSummary?.appliances[applianceId];
+        return authorship?.state === "automation" || authorship?.state === "mixed";
+    }
+
+    private _buildForceTakeoverApplianceIds(): string[] {
+        return Object.entries(this._manualTakeoverAppliances)
+            .flatMap(([applianceId, manualTakeover]) =>
+                manualTakeover
+                && this._shouldShowApplianceTakeoverDecision(applianceId)
+                && this._isApplianceEditorActive(applianceId)
+                    ? [applianceId]
+                    : [],
+            );
+    }
+
+    private _buildAuthorshipDecisionCopy(authorship: ScheduleActionAuthorshipSummary): string {
+        return authorship.state === "automation"
+            ? this.localize("scheduling.dialog.automation_owns_action")
+            : this.localize("scheduling.dialog.mixed_authorship_summary");
+    }
+
+    private _buildDialogInverterOptionTitle(
+        action: ScheduleAction,
+        authorship: ScheduleActionAuthorshipSummary | null,
+    ): string {
+        return [
+            getScheduleActionPresentation(action, this.localize).label,
+            action.kind === "empty" ? "" : this._buildDialogAuthorshipLabel(authorship),
+        ].filter((part) => part.length > 0).join(" · ");
+    }
+
+    private _buildDialogApplianceOptionTitle(
+        appliance: Pick<ScheduleApplianceMetadata, "name" | "kind" | "icon">,
+        option: { value: ScheduleApplianceAction | null; authorship: ScheduleActionAuthorshipSummary | null },
+    ): string {
+        const actionLabel = getScheduleApplianceActionPresentation({
+            appliance,
+            action: option.value,
+            localize: this.localize,
+        }).label;
+        return [
+            appliance.name,
+            actionLabel,
+            this._buildDialogAuthorshipLabel(option.authorship),
+        ].filter((part) => part.length > 0).join(" · ");
+    }
+
+    private _buildDialogAuthorshipLabel(authorship: ScheduleActionAuthorshipSummary | null): string {
+        if (authorship === null || authorship.state === "none") {
+            return "";
+        }
+
+        if (authorship.state === "user") {
+            return this.localize("scheduling.authorship.set_by_user");
+        }
+        if (authorship.state === "automation") {
+            return this.localize("scheduling.authorship.set_by_automation");
+        }
+
+        return [
+            this.localize("scheduling.authorship.mixed"),
+            `${this.localize("scheduling.authorship.user")}: ${authorship.counts.user}`,
+            `${this.localize("scheduling.authorship.automation")}: ${authorship.counts.automation}`,
+        ].join(", ");
     }
 
     private _buildMissingMixedApplianceIds(): string[] {

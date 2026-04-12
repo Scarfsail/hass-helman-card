@@ -4,19 +4,46 @@ import type {
     RuntimeOutcome,
     ScheduleApplianceActionDTO,
     ScheduleActionDTO,
-    ScheduleDomainsDTO,
     SchedulePayload,
     ScheduleRuntimeReason,
+    ScheduleSetBy as ScheduleSetByDTO,
 } from "../helman-api";
 
-export type ScheduleInverterAction = ScheduleActionDTO;
+type WithoutSetBy<TValue> = TValue extends unknown ? Omit<TValue, "setBy"> : never;
+
+export type ScheduleInverterAction = WithoutSetBy<ScheduleActionDTO>;
 export type ScheduleAction = ScheduleInverterAction;
 export type ScheduleActionKind = ScheduleInverterAction["kind"];
-export type ScheduleApplianceAction = ScheduleApplianceActionDTO;
+export type ScheduleApplianceAction = WithoutSetBy<ScheduleApplianceActionDTO>;
 export type ScheduleEvChargerAction = Extract<ScheduleApplianceAction, { charge: boolean }>;
 export type ScheduleGenericApplianceAction = Extract<ScheduleApplianceAction, { on: boolean }>;
 export type ScheduleClimateApplianceAction = Extract<ScheduleApplianceAction, { mode: string }>;
-export type ScheduleDomains = ScheduleDomainsDTO;
+export interface ScheduleDomains {
+    inverter: ScheduleInverterAction;
+    appliances: Record<string, ScheduleApplianceAction>;
+}
+
+export type ScheduleSetBy = ScheduleSetByDTO;
+
+export type ScheduleAuthorshipState = "none" | "user" | "automation" | "mixed";
+
+export interface ScheduleActionAuthorshipSummary {
+    state: ScheduleAuthorshipState;
+    counts: {
+        user: number;
+        automation: number;
+    };
+}
+
+export interface ScheduleSlotAuthorship {
+    inverter: ScheduleSetBy | null;
+    appliances: Record<string, ScheduleSetBy>;
+}
+
+export interface ScheduleRangeEditAuthorshipSummary {
+    inverter: ScheduleActionAuthorshipSummary;
+    appliances: Record<string, ScheduleActionAuthorshipSummary>;
+}
 
 export interface ScheduleInverterRuntime {
     actionKind: RuntimeActionKind;
@@ -51,6 +78,7 @@ export interface ScheduleSlot {
     endLabel: string | null;
     rangeLabel: string;
     domains: ScheduleDomains;
+    authorship: ScheduleSlotAuthorship;
     runtime: ScheduleRuntime | null;
     isCurrent: boolean;
 }
@@ -105,6 +133,7 @@ export interface ScheduleDialogOpenDetail {
 export interface ScheduleSelectionValueOption<TValue> {
     key: string;
     value: TValue;
+    authorship: ScheduleActionAuthorshipSummary | null;
 }
 
 export interface ScheduleSelectionValueSummary<TValue> {
@@ -121,12 +150,15 @@ export interface ScheduleRangeEditSelectionSummary {
 export interface ScheduleDialogState {
     selectedSlots: ScheduleSlot[];
     selectionSummary: ScheduleRangeEditSelectionSummary;
+    authorshipSummary: ScheduleRangeEditAuthorshipSummary;
 }
 
 export interface ScheduleDialogResult {
     domains: ScheduleDomains;
     editedInverter: boolean;
     editedApplianceIds: string[];
+    forceTakeoverInverter: boolean;
+    forceTakeoverApplianceIds: string[];
 }
 
 export interface ScheduleOwnerError {

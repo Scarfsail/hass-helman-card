@@ -4,7 +4,7 @@ import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import type { ScheduleActionLabelVariant } from "../model/schedule-labels";
-import type { ScheduleAction } from "../schedule-types";
+import type { ScheduleAction, ScheduleActionAuthorshipSummary } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 @customElement("scheduling-action-chip")
@@ -97,6 +97,8 @@ export class SchedulingActionChip extends LitElement {
     @property({ type: Boolean }) public iconOnly = false;
     @property({ type: Boolean }) public interactive = false;
     @property({ type: Boolean }) public selected = false;
+    @property({ attribute: false }) public authorship: ScheduleActionAuthorshipSummary | null = null;
+    @property({ type: String }) public titleText = "";
 
     render() {
         if (!this.action || !this.localize) {
@@ -105,12 +107,29 @@ export class SchedulingActionChip extends LitElement {
 
         const presentation = getScheduleActionPresentation(this.action, this.localize, this.labelVariant);
         const runtimeStateClass = this.surface === "runtime" ? ` runtime-${this.runtimeState}` : "";
-        const classes = `chip action ${presentation.toneClass}${this.size === "compact" ? " compact" : ""}${this.interactive ? " selectable" : ""}${this.selected ? " selected" : ""}${this.surface === "runtime" ? " runtime-surface" : ""}${runtimeStateClass}`;
+        const authorshipClass = this._buildAuthorshipClass();
+        const classes = `chip action ${presentation.toneClass}${this.size === "compact" ? " compact" : ""}${this.interactive ? " selectable" : ""}${this.selected ? " selected" : ""}${this.surface === "runtime" ? " runtime-surface" : ""}${runtimeStateClass}${authorshipClass}`;
         return html`
-            <span class=${classes}>
+            <span class=${classes} title=${this.titleText}>
                 <ha-icon class="chip-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
                 ${this.iconOnly ? nothing : html`<span class="chip-label">${presentation.label}</span>`}
             </span>
         `;
+    }
+
+    private _buildAuthorshipClass(): string {
+        if (this.authorship === null) {
+            return "";
+        }
+
+        if (this.authorship.state === "none") {
+            return this.selected ? " authorship-decorated authorship-none" : "";
+        }
+
+        if (this.action?.kind === "empty") {
+            return "";
+        }
+
+        return ` authorship-decorated authorship-${this.authorship.state}`;
     }
 }

@@ -13,8 +13,12 @@ import type {
 import {
     cloneScheduleInverterAction,
     cloneScheduleRuntime,
-    cloneScheduleDomains,
 } from "../schedule-types";
+import {
+    extractScheduleSlotAuthorship,
+    stripScheduleApplianceSetBy,
+    stripScheduleInverterSetBy,
+} from "./schedule-authorship";
 import {
     deriveScheduleGranularityMinutes,
     getScheduleDayKey,
@@ -192,7 +196,16 @@ function _normalizeSlot({
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,
         rangeLabel: labels.rangeLabel,
-        domains: cloneScheduleDomains(slot.domains),
+        domains: {
+            inverter: stripScheduleInverterSetBy(slot.domains.inverter),
+            appliances: Object.fromEntries(
+                Object.entries(slot.domains.appliances).map(([applianceId, action]) => [
+                    applianceId,
+                    stripScheduleApplianceSetBy(action),
+                ]),
+            ),
+        },
+        authorship: extractScheduleSlotAuthorship(slot.domains, slot.id),
         runtime: null,
     };
 }

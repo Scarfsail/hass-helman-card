@@ -6,7 +6,7 @@ import { getScheduleApplianceActionPresentation } from "../model/schedule-applia
 import type { ScheduleApplianceMetadata } from "../model/schedule-appliance-metadata";
 import type { ScheduleApplianceProjectionBadge } from "../model/schedule-appliance-projection";
 import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appliance-projection-presentation";
-import type { ScheduleApplianceAction } from "../schedule-types";
+import type { ScheduleActionAuthorshipSummary, ScheduleApplianceAction } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
 type SchedulingApplianceChipMetadata = Pick<ScheduleApplianceMetadata, "id" | "name" | "kind" | "icon">;
@@ -96,6 +96,8 @@ export class SchedulingApplianceChip extends LitElement {
     @property({ type: String }) public size: "compact" | "regular" = "regular";
     @property({ type: Boolean }) public iconOnly = false;
     @property({ type: Boolean }) public summary = false;
+    @property({ attribute: false }) public authorship: ScheduleActionAuthorshipSummary | null = null;
+    @property({ type: String }) public titleText = "";
 
     render() {
         if (this.summary) {
@@ -105,11 +107,12 @@ export class SchedulingApplianceChip extends LitElement {
                 "chip",
                 "action",
                 "action-tone-charge",
+                ...this._buildAuthorshipClasses(),
                 this.size === "compact" ? "compact" : "",
                 projectionBadge === null ? "" : "has-badge",
             ].filter((className) => className.length > 0).join(" ");
             return html`
-                <span class=${classes}>
+                <span class=${classes} title=${this._buildChipTitle(projectionBadge)}>
                     <span class="chip-icon-stack">
                         <ha-icon class="chip-icon" .icon=${"mdi:power-plug-outline"} aria-hidden="true"></ha-icon>
                         ${projectionBadge === null ? nothing : html`
@@ -138,11 +141,12 @@ export class SchedulingApplianceChip extends LitElement {
             "chip",
             "action",
             presentation.toneClass,
+            ...this._buildAuthorshipClasses(),
             this.size === "compact" ? "compact" : "",
             projectionBadge === null ? "" : "has-badge",
         ].filter((className) => className.length > 0).join(" ");
         return html`
-            <span class=${classes} title=${projectionBadge === null ? "" : this._buildProjectionBadgeTitle(projectionBadge)}>
+            <span class=${classes} title=${this._buildChipTitle(projectionBadge)}>
                 <span class="chip-icon-stack">
                     <ha-icon class="chip-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
                     ${projectionBadge === null ? nothing : html`
@@ -208,5 +212,20 @@ export class SchedulingApplianceChip extends LitElement {
         return this.localize
             ? getScheduleApplianceProjectionBadgeLabel(projectionBadge, this.localize)
             : "";
+    }
+
+    private _buildChipTitle(projectionBadge: ScheduleApplianceProjectionBadge | null): string {
+        return [
+            this.titleText,
+            projectionBadge === null ? "" : this._buildProjectionBadgeTitle(projectionBadge),
+        ].filter((part) => part.length > 0).join(" · ");
+    }
+
+    private _buildAuthorshipClasses(): string[] {
+        if (this.authorship === null || this.authorship.state === "none") {
+            return [];
+        }
+
+        return ["authorship-decorated", `authorship-${this.authorship.state}`];
     }
 }

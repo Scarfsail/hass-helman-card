@@ -3,7 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { nothing } from "lit-html";
 import type { LocalizeFunction } from "../../localize/localize";
 import type { ScheduleEvChargerApplianceMetadata } from "../model/schedule-appliance-metadata";
-import type { ScheduleApplianceAction } from "../schedule-types";
+import type { ScheduleActionAuthorshipSummary, ScheduleApplianceAction } from "../schedule-types";
 import { isScheduleEvChargerAction } from "../schedule-types";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
@@ -86,6 +86,7 @@ export class SchedulingEvChargerEditor extends LitElement {
     @property({ attribute: false }) public action: ScheduleApplianceAction | null = null;
     @property({ attribute: false }) public mixedHeaderControl: unknown = nothing;
     @property({ attribute: false }) public mixedBody: unknown = nothing;
+    @property({ attribute: false }) public selectedAuthorship: ScheduleActionAuthorshipSummary | null = null;
     @property({ type: Boolean }) public mixed = false;
     @property({ type: Boolean }) public showControls = true;
 
@@ -144,7 +145,7 @@ export class SchedulingEvChargerEditor extends LitElement {
                     aria-label=${presentation.label}
                     @change=${() => this._handleModeChange(mode)}
                 />
-                <span class=${`chip action preview-chip selectable ${presentation.toneClass}${checked ? " selected" : ""}`}>
+                <span class=${this._buildPreviewChipClasses(presentation.toneClass, checked)}>
                     <ha-icon class="preview-icon" .icon=${presentation.icon} aria-hidden="true"></ha-icon>
                     <span class="chip-label">${presentation.label}</span>
                 </span>
@@ -355,5 +356,19 @@ export class SchedulingEvChargerEditor extends LitElement {
             return " panel-highlight-stop";
         }
         return "";
+    }
+
+    private _buildPreviewChipClasses(
+        toneClass: EvChargerOptionPresentation["toneClass"],
+        checked: boolean,
+    ): string {
+        const classes = ["chip", "action", "preview-chip", "selectable", toneClass];
+        if (checked) {
+            classes.push("selected");
+            if (this.selectedAuthorship) {
+                classes.push("authorship-decorated", `authorship-${this.selectedAuthorship.state}`);
+            }
+        }
+        return classes.join(" ");
     }
 }
