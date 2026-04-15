@@ -28,15 +28,6 @@ export const schedulingSharedStyles = css`
         gap: 4px 8px;
     }
 
-    .toggle-control {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--secondary-text-color);
-        font-size: 0.84rem;
-        white-space: nowrap;
-    }
-
     .mixed-summary {
         display: flex;
         flex-direction: column;
@@ -48,6 +39,11 @@ export const schedulingSharedStyles = css`
         flex-wrap: wrap;
         align-items: center;
         gap: 6px 12px;
+    }
+
+    .decision-copy {
+        flex: 1 1 180px;
+        min-width: 0;
     }
 
     .mixed-summary-header {

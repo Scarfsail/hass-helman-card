@@ -5,7 +5,7 @@ import type { LocalizeFunction } from "../../localize/localize";
 import "../components/scheduling-action-option-card";
 import "../components/scheduling-action-chip";
 import "../components/scheduling-appliance-chip";
-import "../components/scheduling-takeover-decision";
+import "../components/scheduling-two-choice-row";
 import "./scheduling-ev-charger-editor";
 import "./scheduling-generic-appliance-editor";
 import "./scheduling-climate-appliance-editor";
@@ -16,7 +16,7 @@ import {
 import { getScheduleActionPresentation } from "../model/schedule-action-presentation";
 import { getScheduleApplianceActionPresentation } from "../model/schedule-appliance-action-presentation";
 import type { ScheduleActionOptionSelectDetail } from "../components/scheduling-action-option-card";
-import type { ScheduleTakeoverDecisionSelectDetail } from "../components/scheduling-takeover-decision";
+import type { ScheduleTwoChoiceRowSelectDetail } from "../components/scheduling-two-choice-row";
 import type { ScheduleApplianceActionChangeDetail } from "./schedule-appliance-editor-types";
 import {
     formatScheduleSlotCount,
@@ -461,16 +461,13 @@ export class SchedulingRangeEditDialog extends LitElement {
         const isMixed = selectionSummary?.state === "mixed";
         return html`
             <div class=${panelClasses}>
-                <div class=${showTakeoverDecision || isMixed ? "mixed-summary-header" : "panel-header-inline"}>
+                <div class="panel-header-inline">
                     <div class="panel-title">${this.localize("scheduling.dialog.inverter")}</div>
-                    ${isMixed
-                        ? this._renderMixedInverterToggle()
-                        : nothing}
                 </div>
                 ${showTakeoverDecision
                     ? this._renderInverterAuthorshipSummary(selectionSummary, authorshipSummary)
                     : nothing}
-                ${isMixed ? this._renderMixedInverterSummary(selectionSummary) : nothing}
+                ${isMixed ? this._renderMixedInverterSummary(selectionSummary, this._overwriteMixedInverter) : nothing}
                 ${(showTakeoverDecision || isMixed) && showEditor ? html`<div class="mixed-editor-divider"></div>` : nothing}
                 ${showEditor ? html`
                     <div class="action-options" role="radiogroup" aria-label=${this.localize("scheduling.dialog.inverter")}>
@@ -516,16 +513,12 @@ export class SchedulingRangeEditDialog extends LitElement {
         const overwriteEnabled = this._isApplianceEditorActive(appliance.id);
         return this._renderApplianceEditor(
             appliance,
-            isMixed
-                ? this._renderMixedApplianceToggle(appliance.id, overwriteEnabled)
-                : nothing,
             html`
                 ${showTakeoverDecision
                     ? this._renderApplianceAuthorshipSummary(appliance, selectionSummary)
                     : nothing}
-                ${isMixed ? this._renderMixedApplianceSummary(appliance, selectionSummary) : nothing}
+                ${isMixed ? this._renderMixedApplianceSummary(appliance, selectionSummary, overwriteEnabled) : nothing}
             `,
-            isMixed,
             isMixed || showTakeoverDecision,
             (!showTakeoverDecision && !isMixed) || overwriteEnabled,
         );
@@ -533,9 +526,7 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _renderApplianceEditor(
         appliance: ScheduleApplianceMetadata,
-        mixedHeaderControl: unknown,
-        mixedBody: unknown,
-        mixed: boolean,
+        summaryContent: unknown,
         showSummary: boolean,
         showControls: boolean,
     ) {
@@ -543,27 +534,21 @@ export class SchedulingRangeEditDialog extends LitElement {
             case "ev_charger":
                 return this._renderEvChargerSection(
                     appliance,
-                    mixedHeaderControl,
-                    mixedBody,
-                    mixed,
+                    summaryContent,
                     showSummary,
                     showControls,
                 );
             case "climate":
                 return this._renderClimateSection(
                     appliance,
-                    mixedHeaderControl,
-                    mixedBody,
-                    mixed,
+                    summaryContent,
                     showSummary,
                     showControls,
                 );
             case "generic":
                 return this._renderGenericSection(
                     appliance,
-                    mixedHeaderControl,
-                    mixedBody,
-                    mixed,
+                    summaryContent,
                     showSummary,
                     showControls,
                 );
@@ -574,9 +559,7 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _renderEvChargerSection(
         appliance: ScheduleEvChargerApplianceMetadata,
-        mixedHeaderControl: unknown,
-        mixedBody: unknown,
-        mixed: boolean,
+        summaryContent: unknown,
         showSummary: boolean,
         showControls: boolean,
     ) {
@@ -586,9 +569,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
                 .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
-                .mixedHeaderControl=${mixedHeaderControl}
-                .mixedBody=${mixedBody}
-                .mixed=${mixed}
+                .summaryContent=${summaryContent}
                 .showSummary=${showSummary}
                 .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
@@ -598,9 +579,7 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _renderGenericSection(
         appliance: ScheduleGenericApplianceMetadata,
-        mixedHeaderControl: unknown,
-        mixedBody: unknown,
-        mixed: boolean,
+        summaryContent: unknown,
         showSummary: boolean,
         showControls: boolean,
     ) {
@@ -610,9 +589,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
                 .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
-                .mixedHeaderControl=${mixedHeaderControl}
-                .mixedBody=${mixedBody}
-                .mixed=${mixed}
+                .summaryContent=${summaryContent}
                 .showSummary=${showSummary}
                 .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
@@ -622,9 +599,7 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _renderClimateSection(
         appliance: ScheduleClimateApplianceMetadata,
-        mixedHeaderControl: unknown,
-        mixedBody: unknown,
-        mixed: boolean,
+        summaryContent: unknown,
         showSummary: boolean,
         showControls: boolean,
     ) {
@@ -634,9 +609,7 @@ export class SchedulingRangeEditDialog extends LitElement {
                 .localize=${this.localize}
                 .action=${this._draftApplianceActions[appliance.id] ?? null}
                 .selectedAuthorship=${this._getEffectiveApplianceAuthorship(appliance.id)}
-                .mixedHeaderControl=${mixedHeaderControl}
-                .mixedBody=${mixedBody}
-                .mixed=${mixed}
+                .summaryContent=${summaryContent}
                 .showSummary=${showSummary}
                 .showControls=${showControls}
                 @schedule-appliance-action-change=${this._handleApplianceActionChange}
@@ -693,15 +666,14 @@ export class SchedulingRangeEditDialog extends LitElement {
 
         return html`
             <div class="mixed-summary">
-                <div class="decision-inline">
-                    <div class="field-help">${this._buildAuthorshipDecisionCopy(authorshipSummary)}</div>
-                    <scheduling-takeover-decision
-                        .localize=${this.localize}
-                        .manualTakeover=${this._manualTakeoverInverter}
-                        groupName="schedule-inverter-takeover"
-                        @schedule-takeover-select=${this._handleInverterTakeoverSelect}
-                    ></scheduling-takeover-decision>
-                </div>
+                ${this._renderDecisionRow(
+                    this._buildAuthorshipDecisionCopy(authorshipSummary),
+                    this._manualTakeoverInverter,
+                    "schedule-inverter-takeover",
+                    this.localize("scheduling.dialog.replace_with_manual_action"),
+                    this.localize("scheduling.dialog.replace_with_manual_action"),
+                    this._handleInverterTakeoverSelect,
+                )}
                 ${selectionSummary.state === "uniform" ? html`
                     <div class="mixed-summary-chips">
                         <scheduling-action-chip
@@ -717,24 +689,20 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
-    private _renderMixedInverterToggle() {
-        return html`
-            <label class="toggle-control">
-                <span>${this.localize("scheduling.dialog.overwrite_existing_actions")}</span>
-                <ha-switch
-                    .checked=${this._overwriteMixedInverter}
-                    @change=${this._handleInverterOverwriteChange}
-                ></ha-switch>
-            </label>
-        `;
-    }
-
     private _renderMixedInverterSummary(
         summary: ScheduleSelectionValueSummary<ScheduleAction>,
+        overwriteEnabled: boolean,
     ) {
         return html`
             <div class="mixed-summary">
-                <div class="field-help">${this.localize("scheduling.dialog.multiple_actions_defined")}</div>
+                ${this._renderDecisionRow(
+                    this.localize("scheduling.dialog.multiple_actions_defined"),
+                    overwriteEnabled,
+                    "schedule-inverter-overwrite",
+                    this.localize("scheduling.dialog.overwrite_existing_actions"),
+                    this.localize("scheduling.dialog.overwrite_existing_actions"),
+                    this._handleInverterOverwriteSelect,
+                )}
                 <div class="mixed-summary-chips">
                     ${summary.distinctValues.map((option) => html`
                         <scheduling-action-chip
@@ -750,18 +718,6 @@ export class SchedulingRangeEditDialog extends LitElement {
         `;
     }
 
-    private _renderMixedApplianceToggle(applianceId: string, overwriteEnabled: boolean) {
-        return html`
-            <label class="toggle-control">
-                <span>${this.localize("scheduling.dialog.overwrite_existing_actions")}</span>
-                <ha-switch
-                    .checked=${overwriteEnabled}
-                    @change=${(event: Event) => this._handleApplianceOverwriteChange(applianceId, event)}
-                ></ha-switch>
-            </label>
-        `;
-    }
-
     private _renderApplianceAuthorshipSummary(
         appliance: ScheduleApplianceMetadata,
         summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null> | null,
@@ -773,16 +729,15 @@ export class SchedulingRangeEditDialog extends LitElement {
 
         return html`
             <div class="mixed-summary">
-                <div class="decision-inline">
-                    <div class="field-help">${this._buildAuthorshipDecisionCopy(authorshipSummary)}</div>
-                    <scheduling-takeover-decision
-                        .localize=${this.localize}
-                        .manualTakeover=${this._manualTakeoverAppliances[appliance.id] ?? false}
-                        .groupName=${`schedule-appliance-takeover-${appliance.id}`}
-                        @schedule-takeover-select=${(event: CustomEvent<ScheduleTakeoverDecisionSelectDetail>) =>
-                            this._handleApplianceTakeoverSelect(appliance.id, event)}
-                    ></scheduling-takeover-decision>
-                </div>
+                ${this._renderDecisionRow(
+                    this._buildAuthorshipDecisionCopy(authorshipSummary),
+                    this._manualTakeoverAppliances[appliance.id] ?? false,
+                    `schedule-appliance-takeover-${appliance.id}`,
+                    this.localize("scheduling.dialog.replace_with_manual_action"),
+                    this.localize("scheduling.dialog.replace_with_manual_action"),
+                    (event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>) =>
+                        this._handleApplianceTakeoverSelect(appliance.id, event),
+                )}
                 ${summary.state === "uniform" ? html`
                     <div class="mixed-summary-chips">
                         <scheduling-appliance-chip
@@ -806,10 +761,19 @@ export class SchedulingRangeEditDialog extends LitElement {
     private _renderMixedApplianceSummary(
         appliance: ScheduleApplianceMetadata,
         summary: ScheduleSelectionValueSummary<ScheduleApplianceAction | null>,
+        overwriteEnabled: boolean,
     ) {
         return html`
             <div class="mixed-summary">
-                <div class="field-help">${this.localize("scheduling.dialog.multiple_actions_defined")}</div>
+                ${this._renderDecisionRow(
+                    this.localize("scheduling.dialog.multiple_actions_defined"),
+                    overwriteEnabled,
+                    `schedule-appliance-overwrite-${appliance.id}`,
+                    this.localize("scheduling.dialog.overwrite_existing_actions"),
+                    this.localize("scheduling.dialog.overwrite_existing_actions"),
+                    (event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>) =>
+                        this._handleApplianceOverwriteSelect(appliance.id, event),
+                )}
                 <div class="mixed-summary-chips">
                     ${summary.distinctValues.map((option) => html`
                         <scheduling-appliance-chip
@@ -823,6 +787,27 @@ export class SchedulingRangeEditDialog extends LitElement {
                     `)}
                 </div>
             </div>
+        `;
+    }
+
+    private _renderDecisionRow(
+        description: string,
+        value: boolean,
+        groupName: string,
+        trueLabel: string,
+        ariaLabel: string,
+        onSelect: (event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>) => void,
+    ) {
+        return html`
+            <scheduling-two-choice-row
+                .description=${description}
+                .falseLabel=${this.localize("scheduling.dialog.keep_existing")}
+                .trueLabel=${trueLabel}
+                .value=${value}
+                .groupName=${groupName}
+                .ariaLabel=${ariaLabel}
+                @schedule-two-choice-row-select=${onSelect}
+            ></scheduling-two-choice-row>
         `;
     }
 
@@ -903,12 +888,18 @@ export class SchedulingRangeEditDialog extends LitElement {
         this._updateInverterEditedState();
     }
 
-    private _handleInverterOverwriteChange(event: Event): void {
-        const checked = (event.currentTarget as { checked: boolean }).checked;
-        this._overwriteMixedInverter = checked;
+    private _handleInverterOverwriteDecision(enabled: boolean): void {
+        this._overwriteMixedInverter = enabled;
         this._resetInverterDraft();
         this._updateInverterEditedState();
     }
+
+    private _handleInverterOverwriteSelect = (
+        event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>,
+    ): void => {
+        event.stopPropagation();
+        this._handleInverterOverwriteDecision(event.detail.value);
+    };
 
     private _handleInverterTakeoverDecision = (enabled: boolean): void => {
         this._manualTakeoverInverter = enabled;
@@ -916,17 +907,16 @@ export class SchedulingRangeEditDialog extends LitElement {
     };
 
     private _handleInverterTakeoverSelect = (
-        event: CustomEvent<ScheduleTakeoverDecisionSelectDetail>,
+        event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>,
     ): void => {
         event.stopPropagation();
-        this._handleInverterTakeoverDecision(event.detail.enabled);
+        this._handleInverterTakeoverDecision(event.detail.value);
     };
 
-    private _handleApplianceOverwriteChange(applianceId: string, event: Event): void {
-        const checked = (event.currentTarget as { checked: boolean }).checked;
+    private _handleApplianceOverwriteDecision(applianceId: string, enabled: boolean): void {
         const nextOverwriteMixedAppliances = {
             ...this._overwriteMixedAppliances,
-            [applianceId]: checked,
+            [applianceId]: enabled,
         };
         const nextDraftApplianceActions = {
             ...this._draftApplianceActions,
@@ -942,6 +932,14 @@ export class SchedulingRangeEditDialog extends LitElement {
             nextDraftApplianceActions,
             nextOverwriteMixedAppliances,
         );
+    }
+
+    private _handleApplianceOverwriteSelect(
+        applianceId: string,
+        event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>,
+    ): void {
+        event.stopPropagation();
+        this._handleApplianceOverwriteDecision(applianceId, event.detail.value);
     }
 
     private _handleApplianceTakeoverDecision(applianceId: string, enabled: boolean): void {
@@ -961,10 +959,10 @@ export class SchedulingRangeEditDialog extends LitElement {
 
     private _handleApplianceTakeoverSelect(
         applianceId: string,
-        event: CustomEvent<ScheduleTakeoverDecisionSelectDetail>,
+        event: CustomEvent<ScheduleTwoChoiceRowSelectDetail>,
     ): void {
         event.stopPropagation();
-        this._handleApplianceTakeoverDecision(applianceId, event.detail.enabled);
+        this._handleApplianceTakeoverDecision(applianceId, event.detail.value);
     }
 
     private _handleCancel(): void {
