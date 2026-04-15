@@ -1,4 +1,5 @@
 import type { SlotForecastMap, SlotForecastPoint } from "./slot-forecast-model";
+import { getScheduleGridScaleMagnitude } from "./grid-surplus-display";
 import { collectScheduleHourForecasts } from "./schedule-hour-bucket-builder";
 import type {
     ScheduleTableDayAggregateModel,
@@ -29,6 +30,7 @@ export function aggregateScheduleHourForecast({
             : null,
         gridImportKwh: aggregate.gridImportKwh,
         gridExportKwh: aggregate.gridExportKwh,
+        availableSurplusKwh: aggregate.availableSurplusKwh,
         price: aggregate.price,
     };
 
@@ -37,6 +39,7 @@ export function aggregateScheduleHourForecast({
         && forecastPoint.gridNetKwh === null
         && forecastPoint.gridImportKwh === null
         && forecastPoint.gridExportKwh === null
+        && forecastPoint.availableSurplusKwh === null
         && forecastPoint.price === null
         ? null
         : forecastPoint;
@@ -60,6 +63,7 @@ export function aggregateScheduleDayForecast({
         && (aggregate?.solarWh ?? null) === null
         && (aggregate?.gridImportKwh ?? null) === null
         && (aggregate?.gridExportKwh ?? null) === null
+        && (aggregate?.availableSurplusKwh ?? null) === null
         && priceRange.priceHasData === false
         ? null
         : {
@@ -68,6 +72,7 @@ export function aggregateScheduleDayForecast({
             solarWh: aggregate?.solarWh ?? null,
             gridImportKwh: aggregate?.gridImportKwh ?? null,
             gridExportKwh: aggregate?.gridExportKwh ?? null,
+            availableSurplusKwh: aggregate?.availableSurplusKwh ?? null,
             priceHasData: priceRange.priceHasData,
             pricePositiveMin: priceRange.pricePositiveMin,
             pricePositiveMax: priceRange.pricePositiveMax,
@@ -134,12 +139,20 @@ export function buildScheduleTableForecastMeta({
             rowScale.solarMaxWh = Math.max(rowScale.solarMaxWh, point.solarWh);
         }
 
-        if (point.gridNetKwh !== null) {
+        if (
+            point.gridNetKwh !== null
+            || point.gridImportKwh !== null
+            || point.gridExportKwh !== null
+            || point.availableSurplusKwh !== null
+        ) {
             rowScale.gridMaxAbsKwh = Math.max(
                 rowScale.gridMaxAbsKwh,
-                Math.abs(point.gridNetKwh),
-                Math.abs(point.gridImportKwh ?? 0),
-                Math.abs(point.gridExportKwh ?? 0),
+                getScheduleGridScaleMagnitude({
+                    gridNetKwh: point.gridNetKwh,
+                    gridImportKwh: point.gridImportKwh,
+                    gridExportKwh: point.gridExportKwh,
+                    availableSurplusKwh: point.availableSurplusKwh,
+                }),
             );
         }
 
@@ -157,11 +170,19 @@ export function buildScheduleTableForecastMeta({
             dayAggregateScale.solarMaxWh = Math.max(dayAggregateScale.solarMaxWh, aggregate.solarWh);
         }
 
-        if (aggregate.gridImportKwh !== null || aggregate.gridExportKwh !== null) {
+        if (
+            aggregate.gridImportKwh !== null
+            || aggregate.gridExportKwh !== null
+            || aggregate.availableSurplusKwh !== null
+        ) {
             dayAggregateScale.gridMaxKwh = Math.max(
                 dayAggregateScale.gridMaxKwh,
-                Math.abs(aggregate.gridImportKwh ?? 0),
-                Math.abs(aggregate.gridExportKwh ?? 0),
+                getScheduleGridScaleMagnitude({
+                    gridNetKwh: null,
+                    gridImportKwh: aggregate.gridImportKwh,
+                    gridExportKwh: aggregate.gridExportKwh,
+                    availableSurplusKwh: aggregate.availableSurplusKwh,
+                }),
             );
         }
 
@@ -253,6 +274,7 @@ function _aggregateScheduleForecast({
     solarWh: number | null;
     gridImportKwh: number | null;
     gridExportKwh: number | null;
+    availableSurplusKwh: number | null;
     price: number | null;
 } | null {
     if (slots.length === 0) {
@@ -265,7 +287,9 @@ function _aggregateScheduleForecast({
     let hasSolar = false;
     let gridImportTotal = 0;
     let gridExportTotal = 0;
+    let availableSurplusTotal = 0;
     let hasGrid = false;
+    let hasAvailableSurplus = false;
     let priceTotal = 0;
     let priceCount = 0;
 
@@ -280,10 +304,19 @@ function _aggregateScheduleForecast({
             hasSolar = true;
         }
 
-        if (point.gridImportKwh !== null || point.gridExportKwh !== null) {
+        if (
+            point.gridImportKwh !== null
+            || point.gridExportKwh !== null
+            || point.availableSurplusKwh !== null
+        ) {
             gridImportTotal += point.gridImportKwh ?? 0;
             gridExportTotal += point.gridExportKwh ?? 0;
             hasGrid = true;
+        }
+
+        if (point.availableSurplusKwh !== null) {
+            availableSurplusTotal += point.availableSurplusKwh;
+            hasAvailableSurplus = true;
         }
 
         if (point.price !== null) {
@@ -297,6 +330,7 @@ function _aggregateScheduleForecast({
         solarWh: hasSolar ? solarTotal : null,
         gridImportKwh: hasGrid ? gridImportTotal : null,
         gridExportKwh: hasGrid ? gridExportTotal : null,
+        availableSurplusKwh: hasAvailableSurplus ? availableSurplusTotal : null,
         price: priceCount > 0 ? priceTotal / priceCount : null,
     };
 }

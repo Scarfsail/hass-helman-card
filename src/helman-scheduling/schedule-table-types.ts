@@ -161,6 +161,7 @@ export interface ScheduleTableDayAggregateModel {
     solarWh: number | null;
     gridImportKwh: number | null;
     gridExportKwh: number | null;
+    availableSurplusKwh: number | null;
     priceHasData: boolean;
     pricePositiveMin: number | null;
     pricePositiveMax: number | null;

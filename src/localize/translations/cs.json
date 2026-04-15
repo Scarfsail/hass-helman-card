@@ -127,9 +127,6 @@
       "refreshing": "Obnovuje se…",
       "updated": "Aktualizováno"
     },
-    "table": {
-      "caption": "Tabulka plánu"
-    },
     "day": {
       "today": "Dnes",
       "tomorrow": "Zítra"
@@ -260,9 +257,11 @@
       "price_label": "Prodejní cena",
       "net": "Netto",
       "import": "Import",
-      "export": "Export"
+      "export": "Export",
+      "surplus": "Přebytek"
     },
     "table": {
+      "caption": "Tabulka plánu",
       "time_label": "Čas",
       "action_label": "Akce",
       "soc_label": "SoC",

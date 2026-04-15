@@ -10,6 +10,10 @@ import type { ScheduleApplianceProjectionBadge } from "../model/schedule-applian
 import { getScheduleApplianceProjectionBadgeLabel } from "../model/schedule-appliance-projection-presentation";
 import { getScheduleActionLabel } from "../model/schedule-labels";
 import {
+    GRID_SURPLUS_DISPLAY_ZERO_THRESHOLD_KWH,
+    getScheduleGridPositiveDisplay,
+} from "../model/grid-surplus-display";
+import {
     type ScheduleRuntimeComplianceModel,
     type ScheduleRuntimeComplianceSeverity,
 } from "../model/schedule-runtime-compliance";
@@ -37,7 +41,7 @@ import type {
 } from "../schedule-types";
 import { schedulingSharedStyles } from "../styles/scheduling-shared-styles";
 
-const ZERO_KWH_DISPLAY_THRESHOLD = 0.05;
+const ZERO_KWH_DISPLAY_THRESHOLD = GRID_SURPLUS_DISPLAY_ZERO_THRESHOLD_KWH;
 
 function _formatSolarGaugeValue(wh: number): string {
     const kwh = wh / 1000;
@@ -365,6 +369,16 @@ export class SchedulingSlotTable extends LitElement {
                 text-shadow: none;
             }
 
+            .day-aggregate-gauge.grid.surplus {
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, #5f5f5f 20%, #1b1b1b),
+                    color-mix(in srgb, #4c4c4c 11%, #0d0d0d),
+                    color-mix(in srgb, #5f5f5f 20%, #1b1b1b)
+                );
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, #727272 30%, #292929);
+            }
+
             .day-aggregate-gauge.grid .day-aggregate-gauge-fill.import {
                 inset: 0 auto 0 auto;
                 right: 50%;
@@ -383,6 +397,16 @@ export class SchedulingSlotTable extends LitElement {
                     90deg,
                     color-mix(in srgb, var(--simple-card-grid-accent, #7dd3fc) 42%, white 2%),
                     color-mix(in srgb, var(--simple-card-grid-accent, #7dd3fc) 20%, transparent)
+                );
+                border-radius: 0 4px 4px 0;
+            }
+
+            .day-aggregate-gauge.grid .day-aggregate-gauge-fill.surplus {
+                inset: 0 auto 0 50%;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, #595959 76%, var(--primary-text-color)),
+                    color-mix(in srgb, #3a3a3a 56%, transparent)
                 );
                 border-radius: 0 4px 4px 0;
             }
@@ -406,6 +430,11 @@ export class SchedulingSlotTable extends LitElement {
 
             .day-aggregate-gauge-pair .day-aggregate-gauge-value.export {
                 color: color-mix(in srgb, var(--simple-card-grid-accent, #7dd3fc) 52%, var(--primary-text-color));
+                text-align: right;
+            }
+
+            .day-aggregate-gauge-pair .day-aggregate-gauge-value.surplus {
+                color: color-mix(in srgb, var(--secondary-text-color) 82%, #5b5b5b);
                 text-align: right;
             }
 
@@ -910,6 +939,17 @@ export class SchedulingSlotTable extends LitElement {
                     0 1px 1px rgba(24, 32, 52, 0.1);
             }
 
+            .slot-forecast-gauge.grid.surplus {
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, #656565 22%, #1c1c1d),
+                    color-mix(in srgb, #525252 13%, #0d0d0e),
+                    color-mix(in srgb, #656565 22%, #1c1c1d)
+                );
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, #787878 28%, #2c2c2d);
+                text-shadow: none;
+            }
+
             .slot-forecast-gauge.grid.negative {
                 justify-content: flex-start;
             }
@@ -940,9 +980,24 @@ export class SchedulingSlotTable extends LitElement {
                 border-radius: 0 4px 4px 0;
             }
 
+            .slot-forecast-gauge.grid .slot-forecast-gauge-fill.surplus {
+                inset: 0 auto 0 50%;
+                background: linear-gradient(
+                    90deg,
+                    color-mix(in srgb, #545454 80%, var(--primary-text-color)),
+                    color-mix(in srgb, #363636 62%, transparent)
+                );
+                border-radius: 0 4px 4px 0;
+            }
+
             .slot-forecast-gauge.grid .slot-forecast-gauge-text {
                 flex: 1 1 auto;
                 font-variant-numeric: tabular-nums;
+            }
+
+            .slot-forecast-gauge.grid .slot-forecast-gauge-text.surplus {
+                color: color-mix(in srgb, var(--secondary-text-color) 80%, #606060);
+                text-shadow: none;
             }
 
             .slot-forecast-gauge.price {
@@ -1298,18 +1353,24 @@ export class SchedulingSlotTable extends LitElement {
             `;
         }
 
+        const positiveDisplay = getScheduleGridPositiveDisplay({
+            exportKwh: aggregate.gridExportKwh,
+            availableSurplusKwh: aggregate.availableSurplusKwh,
+        });
         const hasImport = !_isZeroKwhDisplayValue(aggregate.gridImportKwh);
-        const hasExport = !_isZeroKwhDisplayValue(aggregate.gridExportKwh);
+        const hasPositiveDisplay = positiveDisplay.kind !== null;
         const importWidthPct = forecast.dayAggregateScale.gridMaxKwh > 0
+            && hasImport
             ? Math.min((aggregate.gridImportKwh / forecast.dayAggregateScale.gridMaxKwh) * 50, 50)
             : 0;
-        const exportWidthPct = forecast.dayAggregateScale.gridMaxKwh > 0
-            ? Math.min((aggregate.gridExportKwh / forecast.dayAggregateScale.gridMaxKwh) * 50, 50)
+        const positiveWidthPct = forecast.dayAggregateScale.gridMaxKwh > 0
+            && hasPositiveDisplay
+            ? Math.min((positiveDisplay.valueKwh / forecast.dayAggregateScale.gridMaxKwh) * 50, 50)
             : 0;
 
         return html`
             <div
-                class=${`day-aggregate-gauge grid${!hasImport && !hasExport ? " zero" : ""}`}
+                class=${`day-aggregate-gauge grid${positiveDisplay.kind === "surplus" ? " surplus" : ""}${!hasImport && !hasPositiveDisplay ? " zero" : ""}`}
                 role="img"
                 aria-label=${this._buildDayGridAggregateTitle(aggregate)}
                 title=${this._buildDayGridAggregateTitle(aggregate)}
@@ -1322,10 +1383,10 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                ${exportWidthPct > 0 ? html`
+                ${positiveWidthPct > 0 && positiveDisplay.kind !== null ? html`
                     <span
-                        class="day-aggregate-gauge-fill export"
-                        style=${`width:${exportWidthPct}%;`}
+                        class=${`day-aggregate-gauge-fill ${positiveDisplay.kind}`}
+                        style=${`width:${positiveWidthPct}%;`}
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
@@ -1335,9 +1396,9 @@ export class SchedulingSlotTable extends LitElement {
                             ${_formatKwhValue(aggregate.gridImportKwh)}
                         </span>
                     ` : nothing}
-                    ${hasExport ? html`
-                        <span class="day-aggregate-gauge-value export">
-                            ${_formatKwhValue(aggregate.gridExportKwh)}
+                    ${hasPositiveDisplay && positiveDisplay.kind !== null ? html`
+                        <span class=${`day-aggregate-gauge-value ${positiveDisplay.kind}`}>
+                            ${this._formatPositiveGridDisplayValue(positiveDisplay.valueKwh)}
                         </span>
                     ` : nothing}
                 </span>
@@ -1693,7 +1754,16 @@ export class SchedulingSlotTable extends LitElement {
         point: SlotForecastPoint | null,
         forecast: ScheduleTableModel["forecast"],
     ) {
-        if (!forecast.gridAvailable || point?.gridNetKwh === null || point?.gridNetKwh === undefined) {
+        if (
+            !forecast.gridAvailable
+            || !point
+            || (
+                point.gridNetKwh === null
+                && point.gridImportKwh === null
+                && point.gridExportKwh === null
+                && point.availableSurplusKwh === null
+            )
+        ) {
             return html`
                 <div class="slot-forecast-gauge grid unavailable" aria-hidden="true">
                 </div>
@@ -1701,19 +1771,29 @@ export class SchedulingSlotTable extends LitElement {
         }
 
         const importValue = point.gridImportKwh ?? 0;
-        const exportValue = point.gridExportKwh ?? 0;
+        const positiveDisplay = getScheduleGridPositiveDisplay({
+            exportKwh: point.gridExportKwh,
+            availableSurplusKwh: point.availableSurplusKwh,
+        });
         const hasImport = !_isZeroKwhDisplayValue(importValue);
-        const hasExport = !_isZeroKwhDisplayValue(exportValue);
-        const isZero = !hasImport && !hasExport && _isZeroKwhDisplayValue(point.gridNetKwh);
-        const displayValue = _isZeroKwhDisplayValue(point.gridNetKwh) ? 0 : point.gridNetKwh;
-        const direction = _getCenterOriginDirection(displayValue);
+        const hasPositiveDisplay = positiveDisplay.kind !== null;
+        const netValue = point.gridNetKwh ?? 0;
+        const displayValue = positiveDisplay.kind === "surplus"
+            ? positiveDisplay.valueKwh
+            : _isZeroKwhDisplayValue(netValue)
+            ? 0
+            : netValue;
+        const isZero = !hasImport && !hasPositiveDisplay && _isZeroKwhDisplayValue(netValue);
+        const direction = positiveDisplay.kind === "surplus"
+            ? "positive"
+            : _getCenterOriginDirection(displayValue);
         const importWidthPct = forecast.rowScale.gridMaxAbsKwh > 0 && hasImport
             ? Math.min((importValue / forecast.rowScale.gridMaxAbsKwh) * 50, 50)
             : 0;
-        const exportWidthPct = forecast.rowScale.gridMaxAbsKwh > 0 && hasExport
-            ? Math.min((exportValue / forecast.rowScale.gridMaxAbsKwh) * 50, 50)
+        const positiveWidthPct = forecast.rowScale.gridMaxAbsKwh > 0 && hasPositiveDisplay
+            ? Math.min((positiveDisplay.valueKwh / forecast.rowScale.gridMaxAbsKwh) * 50, 50)
             : 0;
-        const classes = `slot-forecast-gauge grid${direction ? ` ${direction}` : ""}${isZero ? " zero" : ""}`;
+        const classes = `slot-forecast-gauge grid${direction ? ` ${direction}` : ""}${positiveDisplay.kind === "surplus" ? " surplus" : ""}${isZero ? " zero" : ""}`;
 
         return html`
             <div
@@ -1730,15 +1810,19 @@ export class SchedulingSlotTable extends LitElement {
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
-                ${exportWidthPct > 0 ? html`
+                ${positiveWidthPct > 0 && positiveDisplay.kind !== null ? html`
                     <span
-                        class="slot-forecast-gauge-fill export"
-                        style=${`width:${exportWidthPct}%;`}
+                        class=${`slot-forecast-gauge-fill ${positiveDisplay.kind}`}
+                        style=${`width:${positiveWidthPct}%;`}
                         aria-hidden="true"
                     ></span>
                 ` : nothing}
                 ${!isZero ? html`
-                    <span class="slot-forecast-gauge-text">${this._formatVisibleGridNet(displayValue)}</span>
+                    <span class=${`slot-forecast-gauge-text${positiveDisplay.kind === "surplus" ? " surplus" : ""}`}>
+                        ${positiveDisplay.kind === "surplus"
+                            ? this._formatPositiveGridDisplayValue(displayValue)
+                            : this._formatVisibleGridNet(displayValue)}
+                    </span>
                 ` : nothing}
             </div>
         `;
@@ -1906,12 +1990,21 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _buildGridGaugeTitle(point: SlotForecastPoint): string {
-        return [
+        const titleParts = [
             this.localize("scheduling.forecast.grid_label"),
             `${this.localize("scheduling.forecast.net")}: ${this._formatSignedGridEnergy(point.gridNetKwh ?? 0)}`,
             `${this.localize("scheduling.forecast.import")}: ${this._formatGridEnergy(point.gridImportKwh ?? 0)}`,
             `${this.localize("scheduling.forecast.export")}: ${this._formatGridEnergy(point.gridExportKwh ?? 0)}`,
-        ].join(" · ");
+        ];
+        if (
+            point.availableSurplusKwh !== null
+            && !_isZeroKwhDisplayValue(point.availableSurplusKwh)
+        ) {
+            titleParts.push(
+                `${this.localize("scheduling.forecast.surplus")}: ${this._formatGridEnergy(point.availableSurplusKwh)}`,
+            );
+        }
+        return titleParts.join(" · ");
     }
 
     private _buildPriceGaugeTitle(price: number, unit: string | null): string {
@@ -1937,11 +2030,20 @@ export class SchedulingSlotTable extends LitElement {
     }
 
     private _buildDayGridAggregateTitle(aggregate: ScheduleTableDayAggregateModel): string {
-        return [
+        const titleParts = [
             this.localize("scheduling.forecast.grid_label"),
             `${this.localize("scheduling.forecast.import")}: ${this._formatGridEnergy(aggregate.gridImportKwh ?? 0)}`,
             `${this.localize("scheduling.forecast.export")}: ${this._formatGridEnergy(aggregate.gridExportKwh ?? 0)}`,
-        ].join(" · ");
+        ];
+        if (
+            aggregate.availableSurplusKwh !== null
+            && !_isZeroKwhDisplayValue(aggregate.availableSurplusKwh)
+        ) {
+            titleParts.push(
+                `${this.localize("scheduling.forecast.surplus")}: ${this._formatGridEnergy(aggregate.availableSurplusKwh)}`,
+            );
+        }
+        return titleParts.join(" · ");
     }
 
     private _buildDayPriceAggregateTitle(
@@ -1974,6 +2076,10 @@ export class SchedulingSlotTable extends LitElement {
     private _formatCompactGridNet(kwh: number): string {
         const prefix = kwh > 0 ? "+" : kwh < 0 ? "−" : "";
         return `${prefix}${_formatKwhValue(kwh)}`;
+    }
+
+    private _formatPositiveGridDisplayValue(kwh: number): string {
+        return `+${_formatKwhValue(kwh)}`;
     }
 
     private _formatSignedGridEnergy(kwh: number): string {

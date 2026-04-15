@@ -143,6 +143,7 @@ export interface GridForecastSlotDTO {
     durationHours: number;
     importedFromGridKwh: number;
     exportedToGridKwh: number;
+    availableSurplusKwh?: number;
     baseline?: GridForecastBaselineDTO;
 }
 

@@ -16,6 +16,7 @@ export interface SlotForecastPoint {
     gridNetKwh: number | null;
     gridImportKwh: number | null;
     gridExportKwh: number | null;
+    availableSurplusKwh: number | null;
     price: number | null;
 }
 
@@ -120,7 +121,10 @@ export function buildSlotForecastProjection(
     }
     const gridProjection = gridAvailable
         ? _buildGridProjection(forecast.grid, slots)
-        : { points: new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>(), maxAbsKwh: 0 };
+        : {
+            points: new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh" | "availableSurplusKwh">>(),
+            maxAbsKwh: 0,
+        };
 
     let solarMaxWh = 0;
     const points = new Map<string, SlotForecastPoint>();
@@ -141,6 +145,7 @@ export function buildSlotForecastProjection(
             gridNetKwh: gridPoint?.gridNetKwh ?? null,
             gridImportKwh: gridPoint?.gridImportKwh ?? null,
             gridExportKwh: gridPoint?.gridExportKwh ?? null,
+            availableSurplusKwh: gridPoint?.availableSurplusKwh ?? null,
             price: pricePoint?.price ?? null,
         });
     }
@@ -182,6 +187,7 @@ export function materializeSlotForecastMap(
             gridNetKwh: point?.gridNetKwh ?? null,
             gridImportKwh: point?.gridImportKwh ?? null,
             gridExportKwh: point?.gridExportKwh ?? null,
+            availableSurplusKwh: point?.availableSurplusKwh ?? null,
             price,
         });
     }
@@ -247,10 +253,10 @@ function _buildGridProjection(
     grid: GridForecastDTO,
     slots: readonly ScheduleDisplaySlot[],
 ): {
-    points: Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>;
+    points: Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh" | "availableSurplusKwh">>;
     maxAbsKwh: number;
 } {
-    const points = new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh">>();
+    const points = new Map<string, Pick<SlotForecastPoint, "gridNetKwh" | "gridImportKwh" | "gridExportKwh" | "availableSurplusKwh">>();
     const defaultSlotDurationMs = _getDefaultSlotDurationMs(slots);
     let maxAbsKwh = 0;
 
@@ -262,6 +268,8 @@ function _buildGridProjection(
 
         let importedKwh = 0;
         let exportedKwh = 0;
+        let availableSurplusKwh = 0;
+        let hasAvailableSurplus = false;
         let hasOverlap = false;
 
         for (const entry of grid.series) {
@@ -280,6 +288,14 @@ function _buildGridProjection(
             const overlapRatio = overlapMs / entryDurationMs;
             importedKwh += entry.importedFromGridKwh * overlapRatio;
             exportedKwh += entry.exportedToGridKwh * overlapRatio;
+            if (
+                entry.availableSurplusKwh !== undefined
+                && Number.isFinite(entry.availableSurplusKwh)
+                && entry.availableSurplusKwh >= 0
+            ) {
+                availableSurplusKwh += entry.availableSurplusKwh * overlapRatio;
+                hasAvailableSurplus = true;
+            }
             hasOverlap = true;
         }
 
@@ -288,11 +304,18 @@ function _buildGridProjection(
         }
 
         const netKwh = exportedKwh - importedKwh;
-        maxAbsKwh = Math.max(maxAbsKwh, Math.abs(netKwh));
+        maxAbsKwh = Math.max(
+            maxAbsKwh,
+            Math.abs(netKwh),
+            importedKwh,
+            exportedKwh,
+            hasAvailableSurplus ? availableSurplusKwh : 0,
+        );
         points.set(slot.id, {
             gridNetKwh: netKwh,
             gridImportKwh: importedKwh,
             gridExportKwh: exportedKwh,
+            availableSurplusKwh: hasAvailableSurplus ? availableSurplusKwh : null,
         });
     }
 
