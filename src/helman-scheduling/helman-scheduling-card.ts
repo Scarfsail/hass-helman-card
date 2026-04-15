@@ -61,9 +61,9 @@ import {
 import type {
     NormalizedScheduleModel,
     ScheduleDialogOpenDetail,
-    ScheduleDialogResult,
     ScheduleDialogState,
     ScheduleOwnerSnapshot,
+    ScheduleRangeEditIntent,
     ScheduleSlotPatch,
     ScheduleSlotToggleDetail,
     ScheduleTimelineModel,
@@ -595,7 +595,7 @@ export class HelmanSchedulingCard extends LitElement implements LovelaceCard {
         await this._scheduleOwner?.applySchedulePatches(pendingPatches);
     }
 
-    private _handleDialogSubmit(event: CustomEvent<ScheduleDialogResult>): void {
+    private _handleDialogSubmit(event: CustomEvent<ScheduleRangeEditIntent>): void {
         event.stopPropagation();
         if (!this._dialogState) {
             return;

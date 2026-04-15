@@ -422,12 +422,12 @@ function _buildDistinctInverterItems(
             continue;
         }
 
-        const key = getScheduleActionIdentityKey(slot.scheduleSlot.domains.inverter);
+        const key = getScheduleActionIdentityKey(slot.scheduleSlot.assignments.inverter.action);
         const existing = itemsByKey.get(key);
         if (existing) {
             existing.authorship = mergeScheduleAuthorshipSummaries([
                 existing.authorship,
-                summarizeScheduleAuthorship([slot.scheduleSlot.authorship.inverter]),
+                summarizeScheduleAuthorship([slot.scheduleSlot.assignments.inverter.setBy]),
             ]);
             continue;
         }
@@ -435,9 +435,9 @@ function _buildDistinctInverterItems(
         const item = {
             kind: "inverter",
             key,
-            action: slot.scheduleSlot.domains.inverter,
+            action: slot.scheduleSlot.assignments.inverter.action,
             firstSlotId: slot.scheduleSlot.id,
-            authorship: summarizeScheduleAuthorship([slot.scheduleSlot.authorship.inverter]),
+            authorship: summarizeScheduleAuthorship([slot.scheduleSlot.assignments.inverter.setBy]),
         } satisfies ScheduleTableActionItemModel;
         itemsByKey.set(key, item);
         actionItems.push(item);
@@ -459,14 +459,14 @@ function _buildDistinctApplianceItems(
             return [];
         }
 
-        return Object.entries(slot.scheduleSlot.domains.appliances).flatMap(([applianceId, action]) => {
+        return Object.entries(slot.scheduleSlot.assignments.appliances).flatMap(([applianceId, assignment]) => {
             const appliance = getScheduleApplianceById(appliances, applianceId);
-            const applianceKind = _resolveApplianceKind(appliance, action);
+            const applianceKind = _resolveApplianceKind(appliance, assignment.action);
             return [{
                 slotId: slot.scheduleSlot.id,
                 applianceId,
-                action,
-                authorship: slot.scheduleSlot.authorship.appliances[applianceId] ?? null,
+                action: assignment.action,
+                authorship: assignment.setBy,
                 appliance,
                 applianceKind,
                 order: applianceOrder.get(applianceId) ?? Number.MAX_SAFE_INTEGER,

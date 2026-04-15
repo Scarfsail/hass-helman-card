@@ -1,6 +1,7 @@
 import type {
+    ScheduleApplianceEditIntent,
     ScheduleDomains,
-    ScheduleDialogResult,
+    ScheduleRangeEditIntent,
     ScheduleSlot,
     ScheduleSlotPatch,
 } from "../schedule-types";
@@ -8,6 +9,7 @@ import {
     areScheduleDomainsEqual,
     cloneScheduleApplianceAction,
     cloneScheduleDomains,
+    cloneScheduleInverterAction,
 } from "../schedule-types";
 
 export function buildScheduleSlotPatches({
@@ -15,12 +17,13 @@ export function buildScheduleSlotPatches({
     result,
 }: {
     selectedSlots: readonly ScheduleSlot[];
-    result: ScheduleDialogResult;
+    result: ScheduleRangeEditIntent;
 }): ScheduleSlotPatch[] {
     const patches: ScheduleSlotPatch[] = [];
     for (const slot of selectedSlots) {
-        const nextDomains = _buildNextDomains(slot, result);
-        if (!_requiresForcedPatch(slot, result) && areScheduleDomainsEqual(slot.domains, nextDomains)) {
+        const currentDomains = _buildCurrentUserDomains(slot);
+        const nextDomains = _buildNextDomains(currentDomains, result);
+        if (!_requiresForcedPatch(slot, result) && areScheduleDomainsEqual(currentDomains, nextDomains)) {
             continue;
         }
 
@@ -33,36 +36,60 @@ export function buildScheduleSlotPatches({
     return patches;
 }
 
+function _buildCurrentUserDomains(slot: ScheduleSlot): ScheduleDomains {
+    return {
+        inverter: slot.assignments.inverter.setBy === "user"
+            ? cloneScheduleInverterAction(slot.assignments.inverter.action)
+            : { kind: "empty" },
+        appliances: Object.fromEntries(
+            Object.entries(slot.assignments.appliances).flatMap(([applianceId, assignment]) =>
+                assignment.setBy === "user"
+                    ? [[applianceId, cloneScheduleApplianceAction(assignment.action)]]
+                    : []
+            ),
+        ),
+    };
+}
+
 function _buildNextDomains(
-    slot: ScheduleSlot,
-    result: ScheduleDialogResult,
+    currentDomains: ScheduleDomains,
+    result: ScheduleRangeEditIntent,
 ): ScheduleDomains {
-    const nextDomains = cloneScheduleDomains(slot.domains);
-    if (result.editedInverter) {
-        nextDomains.inverter = _cloneDomains(result.domains).inverter;
+    const nextDomains = cloneScheduleDomains(currentDomains);
+    if (result.inverter.kind === "set_user") {
+        nextDomains.inverter = cloneScheduleInverterAction(result.inverter.action);
     }
 
-    for (const applianceId of result.editedApplianceIds) {
-        const action = result.domains.appliances[applianceId];
-        if (action === undefined) {
-            delete nextDomains.appliances[applianceId];
-            continue;
-        }
-
-        nextDomains.appliances[applianceId] = cloneScheduleApplianceAction(action);
+    for (const [applianceId, intent] of Object.entries(result.appliances)) {
+        _applyApplianceIntent(nextDomains, applianceId, intent);
     }
 
     return nextDomains;
 }
 
-function _cloneDomains(domains: ScheduleDialogResult["domains"]): ScheduleDialogResult["domains"] {
-    return cloneScheduleDomains(domains);
+function _applyApplianceIntent(
+    nextDomains: ScheduleDomains,
+    applianceId: string,
+    intent: ScheduleApplianceEditIntent,
+): void {
+    if (intent.kind === "keep") {
+        return;
+    }
+
+    if (intent.kind === "unset_user") {
+        delete nextDomains.appliances[applianceId];
+        return;
+    }
+
+    nextDomains.appliances[applianceId] = cloneScheduleApplianceAction(intent.action);
 }
 
-function _requiresForcedPatch(slot: ScheduleSlot, result: ScheduleDialogResult): boolean {
-    if (result.forceTakeoverInverter && slot.authorship.inverter !== "user") {
+function _requiresForcedPatch(slot: ScheduleSlot, result: ScheduleRangeEditIntent): boolean {
+    if (result.inverter.kind === "set_user" && slot.assignments.inverter.setBy !== "user") {
         return true;
     }
 
-    return result.forceTakeoverApplianceIds.some((applianceId) => slot.authorship.appliances[applianceId] === "automation");
+    return Object.entries(result.appliances).some(([applianceId, intent]) =>
+        intent.kind !== "keep" && slot.assignments.appliances[applianceId]?.setBy !== "user"
+    );
 }

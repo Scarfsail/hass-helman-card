@@ -39,7 +39,7 @@ export function buildScheduleRangeEditAuthorshipSummary({
     appliances: readonly Pick<ScheduleApplianceMetadata, "id">[];
 }): ScheduleDialogState["authorshipSummary"] {
     return {
-        inverter: summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.authorship.inverter)),
+        inverter: summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.assignments.inverter.setBy)),
         appliances: _buildApplianceAuthorshipSummaries(selectedSlots, appliances),
     };
 }
@@ -61,8 +61,8 @@ function _buildInverterSummary(
     }
 
     return _buildSelectionSummary({
-        values: selectedSlots.map((slot) => slot.domains.inverter),
-        authorships: selectedSlots.map((slot) => slot.authorship.inverter),
+        values: selectedSlots.map((slot) => slot.assignments.inverter.action),
+        authorships: selectedSlots.map((slot) => slot.assignments.inverter.setBy),
         cloneValue: (action) => cloneScheduleInverterAction(action),
         getKey: (action) => getScheduleActionIdentityKey(action),
     });
@@ -74,7 +74,7 @@ function _buildApplianceSummaries(
 ): Record<string, ScheduleSelectionValueSummary<ScheduleApplianceAction | null>> {
     const orderedApplianceIds = [
         ...appliances.map((appliance) => appliance.id),
-        ...[...new Set(selectedSlots.flatMap((slot) => Object.keys(slot.domains.appliances)))]
+        ...[...new Set(selectedSlots.flatMap((slot) => Object.keys(slot.assignments.appliances)))]
             .filter((applianceId) => !appliances.some((appliance) => appliance.id === applianceId))
             .sort((left, right) => left.localeCompare(right)),
     ];
@@ -82,8 +82,8 @@ function _buildApplianceSummaries(
     return Object.fromEntries(orderedApplianceIds.map((applianceId) => [
         applianceId,
         _buildSelectionSummary({
-            values: selectedSlots.map((slot) => slot.domains.appliances[applianceId] ?? null),
-            authorships: selectedSlots.map((slot) => slot.authorship.appliances[applianceId] ?? null),
+            values: selectedSlots.map((slot) => slot.assignments.appliances[applianceId]?.action ?? null),
+            authorships: selectedSlots.map((slot) => slot.assignments.appliances[applianceId]?.setBy ?? null),
             cloneValue: (action) => action === null ? null : cloneScheduleApplianceAction(action),
             getKey: (action) => action === null ? NO_APPLIANCE_ACTION_KEY : getScheduleApplianceActionIdentityKey(action),
         }),
@@ -96,14 +96,14 @@ function _buildApplianceAuthorshipSummaries(
 ): ScheduleRangeEditAuthorshipSummary["appliances"] {
     const orderedApplianceIds = [
         ...appliances.map((appliance) => appliance.id),
-        ...[...new Set(selectedSlots.flatMap((slot) => Object.keys(slot.domains.appliances)))]
+        ...[...new Set(selectedSlots.flatMap((slot) => Object.keys(slot.assignments.appliances)))]
             .filter((applianceId) => !appliances.some((appliance) => appliance.id === applianceId))
             .sort((left, right) => left.localeCompare(right)),
     ];
 
     return Object.fromEntries(orderedApplianceIds.map((applianceId) => [
         applianceId,
-        summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.authorship.appliances[applianceId] ?? null)),
+        summarizeScheduleAuthorship(selectedSlots.map((slot) => slot.assignments.appliances[applianceId]?.setBy ?? null)),
     ]));
 }
 

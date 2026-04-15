@@ -8,6 +8,7 @@ import {
     getScheduleReasonLabel,
 } from "./schedule-labels";
 import type {
+    ScheduleApplianceAction,
     ScheduleApplianceRuntime,
     ScheduleInverterRuntime,
     ScheduleSlot,
@@ -83,7 +84,7 @@ export function buildScheduleRuntimeComplianceModel({
     }
 
     const applianceIds = new Set([
-        ...Object.keys(slot.domains.appliances),
+        ...Object.keys(slot.assignments.appliances),
         ...Object.keys(slot.runtime.appliances),
     ]);
     const applianceOrder = new Map(
@@ -99,7 +100,7 @@ export function buildScheduleRuntimeComplianceModel({
     });
     for (const applianceId of sortedApplianceIds) {
         const appliance = getScheduleApplianceById(appliances, applianceId);
-        const plannedAction = slot.domains.appliances[applianceId] ?? null;
+        const plannedAction = slot.assignments.appliances[applianceId]?.action ?? null;
         const runtime = slot.runtime.appliances[applianceId] ?? null;
         if (plannedAction === null) {
             const unexpectedIssue = runtime
@@ -157,7 +158,7 @@ function _buildInverterIssue({
     localize: LocalizeFunction;
 }): ScheduleRuntimeComplianceIssue | null {
     const actorLabel = localize("scheduling.now.actor.inverter");
-    const expectedLabel = getScheduleActionLabel(slot.domains.inverter, localize);
+    const expectedLabel = getScheduleActionLabel(slot.assignments.inverter.action, localize);
     if (runtime === null) {
         return _createIssue({
             key: "inverter:missing",
@@ -177,12 +178,12 @@ function _buildInverterIssue({
     }
 
     const isSkippedNoop = runtime.actionKind === "noop" && runtime.outcome === "skipped";
-    if (slot.domains.inverter.kind === "empty" && isSkippedNoop) {
+    if (slot.assignments.inverter.action.kind === "empty" && isSkippedNoop) {
         return null;
     }
 
     if (
-        slot.domains.inverter.kind === "empty"
+        slot.assignments.inverter.action.kind === "empty"
         && (runtime.actionKind === "slot_stop" || runtime.actionKind === "apply")
         && runtime.outcome === "success"
         && runtime.executedAction?.kind === "normal"
@@ -191,7 +192,7 @@ function _buildInverterIssue({
     }
 
     if (runtime.executedAction) {
-        if (areScheduleActionsEqual(slot.domains.inverter, runtime.executedAction)) {
+        if (areScheduleActionsEqual(slot.assignments.inverter.action, runtime.executedAction)) {
             return null;
         }
 
@@ -211,7 +212,10 @@ function _buildInverterIssue({
         return null;
     }
 
-    if (runtime.reason === "target_soc_reached" && isTargetScheduleAction(slot.domains.inverter)) {
+    if (
+        runtime.reason === "target_soc_reached"
+        && isTargetScheduleAction(slot.assignments.inverter.action)
+    ) {
         return null;
     }
 
@@ -237,7 +241,7 @@ function _buildApplianceIssue({
 }: {
     applianceId: string;
     appliance: ScheduleApplianceMetadata | null;
-    plannedAction: ScheduleSlot["domains"]["appliances"][string];
+    plannedAction: ScheduleApplianceAction | null;
     runtime: ScheduleApplianceRuntime | null;
     localize: LocalizeFunction;
 }): ScheduleRuntimeComplianceIssue | null {
@@ -329,7 +333,7 @@ function _buildUnexpectedApplianceIssue({
 
 function _getExpectedApplianceLabel(
     appliance: ScheduleApplianceMetadata | null,
-    action: ScheduleSlot["domains"]["appliances"][string],
+    action: ScheduleApplianceAction,
     localize: LocalizeFunction,
 ): string {
     return getScheduleApplianceActionPresentation({

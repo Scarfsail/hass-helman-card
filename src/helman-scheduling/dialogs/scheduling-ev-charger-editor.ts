@@ -88,6 +88,7 @@ export class SchedulingEvChargerEditor extends LitElement {
     @property({ attribute: false }) public mixedBody: unknown = nothing;
     @property({ attribute: false }) public selectedAuthorship: ScheduleActionAuthorshipSummary | null = null;
     @property({ type: Boolean }) public mixed = false;
+    @property({ type: Boolean }) public showSummary = false;
     @property({ type: Boolean }) public showControls = true;
 
     @state() private _mode: EvChargerEditorMode = "none";
@@ -115,10 +116,10 @@ export class SchedulingEvChargerEditor extends LitElement {
                         <div class="panel-title">${this.appliance.name}</div>
                         <div class="field-help">${this.localize("scheduling.dialog.appliance_kind.ev_charger")}</div>
                     </div>
-                    ${this.mixed ? this.mixedHeaderControl : nothing}
+                    ${this.showSummary ? this.mixedHeaderControl : nothing}
                 </div>
-                ${this.mixed ? this.mixedBody : nothing}
-                ${this.mixed && this.showControls ? html`<div class="mixed-editor-divider"></div>` : nothing}
+                ${this.showSummary ? this.mixedBody : nothing}
+                ${this.showSummary && this.showControls ? html`<div class="mixed-editor-divider"></div>` : nothing}
                 ${this.showControls ? html`
                     <div class="action-options compact-action-options">
                         ${this._renderModeOption("none")}

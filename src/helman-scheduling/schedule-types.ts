@@ -25,6 +25,21 @@ export interface ScheduleDomains {
 
 export type ScheduleSetBy = ScheduleSetByDTO;
 
+export interface ScheduleInverterAssignment {
+    action: ScheduleInverterAction;
+    setBy: ScheduleSetBy | null;
+}
+
+export interface ScheduleApplianceAssignment {
+    action: ScheduleApplianceAction;
+    setBy: ScheduleSetBy | null;
+}
+
+export interface ScheduleAssignments {
+    inverter: ScheduleInverterAssignment;
+    appliances: Record<string, ScheduleApplianceAssignment>;
+}
+
 export type ScheduleAuthorshipState = "none" | "user" | "automation" | "mixed";
 
 export interface ScheduleActionAuthorshipSummary {
@@ -33,11 +48,6 @@ export interface ScheduleActionAuthorshipSummary {
         user: number;
         automation: number;
     };
-}
-
-export interface ScheduleSlotAuthorship {
-    inverter: ScheduleSetBy | null;
-    appliances: Record<string, ScheduleSetBy>;
 }
 
 export interface ScheduleRangeEditAuthorshipSummary {
@@ -77,8 +87,7 @@ export interface ScheduleSlot {
     timeLabel: string;
     endLabel: string | null;
     rangeLabel: string;
-    domains: ScheduleDomains;
-    authorship: ScheduleSlotAuthorship;
+    assignments: ScheduleAssignments;
     runtime: ScheduleRuntime | null;
     isCurrent: boolean;
 }
@@ -153,12 +162,18 @@ export interface ScheduleDialogState {
     authorshipSummary: ScheduleRangeEditAuthorshipSummary;
 }
 
-export interface ScheduleDialogResult {
-    domains: ScheduleDomains;
-    editedInverter: boolean;
-    editedApplianceIds: string[];
-    forceTakeoverInverter: boolean;
-    forceTakeoverApplianceIds: string[];
+export type ScheduleInverterEditIntent =
+    | { kind: "keep" }
+    | { kind: "set_user"; action: ScheduleAction };
+
+export type ScheduleApplianceEditIntent =
+    | { kind: "keep" }
+    | { kind: "set_user"; action: ScheduleApplianceAction }
+    | { kind: "unset_user" };
+
+export interface ScheduleRangeEditIntent {
+    inverter: ScheduleInverterEditIntent;
+    appliances: Record<string, ScheduleApplianceEditIntent>;
 }
 
 export interface ScheduleOwnerError {

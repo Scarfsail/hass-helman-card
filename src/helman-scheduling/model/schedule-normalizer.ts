@@ -15,9 +15,7 @@ import {
     cloneScheduleRuntime,
 } from "../schedule-types";
 import {
-    extractScheduleSlotAuthorship,
-    stripScheduleApplianceSetBy,
-    stripScheduleInverterSetBy,
+    extractScheduleSlotAssignments,
 } from "./schedule-authorship";
 import {
     deriveScheduleGranularityMinutes,
@@ -196,16 +194,7 @@ function _normalizeSlot({
         timeLabel: labels.timeLabel,
         endLabel: labels.endLabel,
         rangeLabel: labels.rangeLabel,
-        domains: {
-            inverter: stripScheduleInverterSetBy(slot.domains.inverter),
-            appliances: Object.fromEntries(
-                Object.entries(slot.domains.appliances).map(([applianceId, action]) => [
-                    applianceId,
-                    stripScheduleApplianceSetBy(action),
-                ]),
-            ),
-        },
-        authorship: extractScheduleSlotAuthorship(slot.domains, slot.id),
+        assignments: extractScheduleSlotAssignments(slot.domains, slot.id),
         runtime: null,
     };
 }

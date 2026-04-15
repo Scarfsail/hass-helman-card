@@ -43,6 +43,13 @@ export const schedulingSharedStyles = css`
         gap: 10px;
     }
 
+    .decision-inline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+    }
+
     .mixed-summary-header {
         display: flex;
         flex-wrap: wrap;
@@ -68,6 +75,34 @@ export const schedulingSharedStyles = css`
         border-top: 1px solid var(--divider-color);
         margin-top: 2px;
         padding-top: 10px;
+    }
+
+    .decision-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .decision-button {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 4px 10px;
+        border: 1px solid var(--divider-color);
+        border-radius: 999px;
+        background: var(--card-background-color);
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.78rem;
+        line-height: 1.2;
+        transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+    }
+
+    .decision-button.selected {
+        border-color: color-mix(in srgb, var(--primary-color) 44%, var(--divider-color));
+        background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color));
+        color: var(--primary-color);
     }
 
     .panel.panel-highlight-success,

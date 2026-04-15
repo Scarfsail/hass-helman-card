@@ -3,26 +3,35 @@ import type {
     ScheduleAction,
     ScheduleActionAuthorshipSummary,
     ScheduleApplianceAction,
+    ScheduleAssignments,
     ScheduleSetBy,
-    ScheduleSlotAuthorship,
 } from "../schedule-types";
 
 export class InvalidScheduleAuthorshipError extends Error {}
 
-export function extractScheduleSlotAuthorship(
+export function extractScheduleSlotAssignments(
     domains: ScheduleDomainsDTO,
     slotId: string,
-): ScheduleSlotAuthorship {
+): ScheduleAssignments {
     return {
-        inverter: _readSetBy(
-            domains.inverter.setBy,
-            `slot "${slotId}" inverter action`,
-            domains.inverter.kind === "empty",
-        ),
+        inverter: {
+            action: stripScheduleInverterSetBy(domains.inverter),
+            setBy: _readSetBy(
+                domains.inverter.setBy,
+                `slot "${slotId}" inverter action`,
+                domains.inverter.kind === "empty",
+            ),
+        },
         appliances: Object.fromEntries(
             Object.entries(domains.appliances).map(([applianceId, action]) => [
                 applianceId,
-                _readSetBy(action.setBy, `slot "${slotId}" appliance "${applianceId}" action`),
+                {
+                    action: stripScheduleApplianceSetBy(action),
+                    setBy: _readSetBy(
+                        action.setBy,
+                        `slot "${slotId}" appliance "${applianceId}" action`,
+                    ),
+                },
             ]),
         ),
     };
