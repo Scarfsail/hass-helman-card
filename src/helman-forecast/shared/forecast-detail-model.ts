@@ -81,7 +81,7 @@ function _groupSolarHoursByDay(
 ): Map<string, ForecastSolarHourPoint[]> {
     const dayMap = new Map<string, ForecastSolarHourPoint[]>();
     const actualHistory = solarForecast?.actualHistory ?? [];
-    const forecastPoints = solarForecast?.points ?? [];
+    const forecastPoints = solarForecast?.adjustedPoints ?? solarForecast?.points ?? [];
     const todayHours = _buildTodaySolarHours({
         actualHistory,
         forecastPoints,
