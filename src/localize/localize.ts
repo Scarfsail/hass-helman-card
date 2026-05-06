@@ -1,8 +1,10 @@
 import * as cs from './translations/cs.json';
+import * as en from './translations/en.json';
 import type { HomeAssistant } from '../../hass-frontend/src/types';
 
 const languages: Record<string, any> = {
     cs: cs,
+    en: en,
 };
 
 export type LocalizeFunction = (key: string) => string;

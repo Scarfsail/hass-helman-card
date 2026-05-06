@@ -235,6 +235,22 @@ Options:
 The standalone forecast card uses the same backend forecast configuration described above for solar, house, battery, and price data. These YAML options only control presentation of the unified Lovelace card.
 
 
+## Solar inspector card
+
+The solar bias correction inspector is available as `custom:helman-solar-inspector-card`.
+
+It uses the Helman backend `helman/solar_bias/inspector` WebSocket API and keeps the same inspector UI that was previously embedded in the integration config panel.
+
+```yaml
+type: custom:helman-solar-inspector-card
+transparent_background: false
+```
+
+Options:
+
+- `transparent_background`: removes card background and shadow.
+
+
 ## Scheduling card
 
 The manual scheduling card is available as `custom:helman-scheduling-card`.
