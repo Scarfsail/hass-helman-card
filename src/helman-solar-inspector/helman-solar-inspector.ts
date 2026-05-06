@@ -201,53 +201,47 @@ export class HelmanSolarInspector extends LitElement {
       height: 260px;
     }
 
-    .totals {
+    .metrics-section {
       display: grid;
       gap: 6px;
-      font-size: 0.9rem;
     }
 
-    .total-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .slot-details {
-      border: 1px solid var(--divider-color);
-      border-radius: 6px;
-      overflow: hidden;
-      background: var(--card-background-color);
-    }
-
-    .slot-summary {
-      padding: 12px;
-      border-bottom: 1px solid var(--divider-color);
-    }
-
-    .slot-metrics {
+    .metric-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 8px;
-      margin-top: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      min-width: 0;
     }
 
-    .slot-metric {
+    .metric-card {
       border: 1px solid var(--divider-color);
       border-radius: 6px;
-      padding: 8px;
+      padding: 6px 7px;
       min-width: 0;
+    }
+
+    .metric-card.placeholder {
+      visibility: hidden;
     }
 
     .metric-label {
       color: var(--secondary-text-color);
-      font-size: 0.78rem;
+      font-size: 0.72rem;
+      line-height: 1.15;
+      min-height: 1.7em;
     }
 
     .metric-value {
       color: var(--primary-text-color);
       font-weight: 700;
+      font-size: 0.92rem;
+      line-height: 1.2;
       overflow-wrap: anywhere;
+    }
+
+    .contribution-summary {
+      display: grid;
+      gap: 2px;
     }
 
     .contribution-table-wrap {
@@ -527,11 +521,15 @@ export class HelmanSolarInspector extends LitElement {
 
   private _renderTotals(payload: InspectorPayload) {
     return html`
-      <div class="totals">
+      <div class="metrics-section">
         <strong>${this._t("bias_correction.inspector.daily_totals")}</strong>
-        <div class="total-row"><span>${this._t("bias_correction.inspector.raw_forecast")}</span><span>${this._formatWh(payload.totals.rawWh)}</span></div>
-        <div class="total-row"><span>${this._t("bias_correction.inspector.corrected_forecast")}</span><span>${this._formatWh(payload.totals.correctedWh)}</span></div>
-        <div class="total-row"><span>${this._t("bias_correction.inspector.actual_production")}</span><span>${this._formatWh(payload.totals.actualWh)}</span></div>
+        <div class="metric-grid">
+          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(payload.totals.rawWh))}
+          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(payload.totals.correctedWh))}
+          ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(payload.totals.actualWh))}
+          ${this._renderMetricPlaceholder()}
+          ${this._renderMetricPlaceholder()}
+        </div>
       </div>
     `;
   }
@@ -545,29 +543,31 @@ export class HelmanSolarInspector extends LitElement {
     const actual = findPointForSlot(payload.series.actual, selectedSlot);
     const trainingSlot = findTrainingSlot(payload.trainingExplainability, selectedSlot);
     return html`
-      <div class="slot-details">
-        <div class="slot-summary">
-          <strong>${this._tFormat("bias_correction.inspector.selected_slot", { slot: selectedSlot })}</strong>
-          <div class="slot-metrics">
-            ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null))}
-            ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null))}
-            ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(actual?.valueWh ?? null))}
-            ${this._renderMetric(this._t("bias_correction.inspector.correction_impact"), this._formatSignedWh(impact?.impactWh ?? null))}
-            ${this._renderMetric(this._t("bias_correction.inspector.factor"), this._formatFactor(impact?.factor ?? trainingSlot?.factor ?? null))}
-          </div>
+      <div class="metrics-section">
+        <strong>${this._tFormat("bias_correction.inspector.selected_slot", { slot: selectedSlot })}</strong>
+        <div class="metric-grid">
+          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(actual?.valueWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.correction_impact"), this._formatSignedWh(impact?.impactWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.factor"), this._formatFactor(impact?.factor ?? trainingSlot?.factor ?? null))}
         </div>
-        ${this._renderContributionTable(payload, selectedSlot, trainingSlot)}
       </div>
+      ${this._renderContributionTable(payload, selectedSlot, trainingSlot)}
     `;
   }
 
   private _renderMetric(label: string, value: string) {
     return html`
-      <div class="slot-metric">
+      <div class="metric-card">
         <div class="metric-label">${label}</div>
         <div class="metric-value">${value}</div>
       </div>
     `;
+  }
+
+  private _renderMetricPlaceholder() {
+    return html`<div class="metric-card placeholder" aria-hidden="true"></div>`;
   }
 
   private _renderContributionTable(
@@ -586,7 +586,7 @@ export class HelmanSolarInspector extends LitElement {
     }
     const selectedTrainingDate = this._resolveSelectedTrainingDate(selectedSlot);
     return html`
-      <div class="slot-summary">
+      <div class="contribution-summary">
         <strong>${this._t("bias_correction.inspector.training_contribution")}</strong>
         <div class="day-state">
           ${this._tFormat("bias_correction.inspector.training_contribution_meta", {
