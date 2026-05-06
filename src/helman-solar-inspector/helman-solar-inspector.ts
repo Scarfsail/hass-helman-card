@@ -417,7 +417,12 @@ export class HelmanSolarInspector extends LitElement {
         .join(" ");
 
     return svg`
-      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label=${this._t("bias_correction.inspector.title")}>
+      <svg
+        viewBox="0 0 ${width} ${height}"
+        role="img"
+        aria-label=${this._t("bias_correction.inspector.title")}
+        @click=${() => this._deselectSlot()}
+      >
         <rect x="0" y="0" width=${width} height=${height} fill="var(--card-background-color)"></rect>
         ${yTicks.map((tick) => {
           const y = yForW(tick * 1000);
@@ -492,7 +497,7 @@ export class HelmanSolarInspector extends LitElement {
           stroke=${selected ? "var(--primary-text-color)" : "transparent"}
           stroke-width=${selected ? "2" : "0"}
           style="cursor: pointer;"
-          @click=${() => this._selectSlot(point.slot)}
+          @click=${(event: MouseEvent) => this._selectSlot(point.slot, event)}
         >
           <title>${point.slot} ${this._formatSignedWh(point.impactWh)}</title>
         </rect>
@@ -500,10 +505,21 @@ export class HelmanSolarInspector extends LitElement {
     });
   }
 
-  private _selectSlot(slot: string) {
+  private _selectSlot(slot: string, event?: Event) {
+    event?.stopPropagation();
     const previous = this._selectedSlot;
     this._selectedSlot = slot;
     this._selectedTrainingDate = this._resolveSelectedTrainingDate(slot);
+    this.requestUpdate("_selectedSlot", previous);
+  }
+
+  private _deselectSlot() {
+    if (this._selectedSlot === null) {
+      return;
+    }
+    const previous = this._selectedSlot;
+    this._selectedSlot = null;
+    this._selectedTrainingDate = null;
     this.requestUpdate("_selectedSlot", previous);
   }
 

@@ -29,20 +29,6 @@ export type TrainingExplainability = {
   slots: Record<string, TrainingSlotExplainability>;
 };
 
-export function chooseDefaultImpactSlot(impacts: ImpactPoint[]): string | null {
-  let selected: ImpactPoint | null = null;
-  for (const point of impacts) {
-    if (point.impactWh === null || !Number.isFinite(point.impactWh)) continue;
-    if (
-      selected === null ||
-      Math.abs(point.impactWh) > Math.abs(selected.impactWh ?? 0)
-    ) {
-      selected = point;
-    }
-  }
-  return selected?.slot ?? null;
-}
-
 export function resolveSelectedImpactSlot(
   impacts: ImpactPoint[],
   selectedSlot: string | null,
@@ -53,7 +39,7 @@ export function resolveSelectedImpactSlot(
   ) {
     return selectedSlot;
   }
-  return chooseDefaultImpactSlot(impacts);
+  return null;
 }
 
 export function findImpactForSlot(
