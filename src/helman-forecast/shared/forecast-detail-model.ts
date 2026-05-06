@@ -1,4 +1,5 @@
 import type { ForecastPointDTO, SolarForecastDTO } from "../../helman-api";
+import { getEffectiveSolarForecastPoints } from "../../helman-api";
 import {
     buildLocalDayHourAxis,
     getLocalHourKey,
@@ -81,7 +82,7 @@ function _groupSolarHoursByDay(
 ): Map<string, ForecastSolarHourPoint[]> {
     const dayMap = new Map<string, ForecastSolarHourPoint[]>();
     const actualHistory = solarForecast?.actualHistory ?? [];
-    const forecastPoints = solarForecast?.adjustedPoints ?? solarForecast?.points ?? [];
+    const forecastPoints = getEffectiveSolarForecastPoints(solarForecast);
     const todayHours = _buildTodaySolarHours({
         actualHistory,
         forecastPoints,

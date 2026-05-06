@@ -1,4 +1,5 @@
 import type { ForecastPayload } from "../../helman-api";
+import { getEffectiveSolarForecastPoints } from "../../helman-api";
 import type {
     NormalizedScheduleModel,
     ScheduleDisplaySlot,
@@ -175,7 +176,7 @@ function _resolveForecastTimelineEndMs(
     const endCandidates = [
         _parseTimestamp(forecast.grid.coverageUntil),
         _parseTimestamp(forecast.battery_capacity.coverageUntil),
-        ...forecast.solar.points.map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
+        ...getEffectiveSolarForecastPoints(forecast.solar).map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
         ...forecast.grid.exportPricePoints.map((point) => _parseTimestamp(point.timestamp, slotDurationMs)),
         ...forecast.grid.series.map((point) => _parseTimestamp(point.timestamp, point.durationHours * 3_600_000)),
         ...forecast.battery_capacity.series.map((point) => _parseTimestamp(point.timestamp, point.durationHours * 3_600_000)),

@@ -7,6 +7,7 @@ import type {
     ScheduleSlotDTO,
     SolarForecastDTO,
 } from "../../helman-api";
+import { getEffectiveSolarForecastPoints } from "../../helman-api";
 import type { ScheduleDisplaySlot } from "../schedule-types";
 import { deriveScheduleGranularityMinutes } from "./schedule-time";
 
@@ -239,7 +240,7 @@ function _buildSolarTimeline(solar: SolarForecastDTO): Map<number, number> {
         }
     }
 
-    for (const entry of solar.points) {
+    for (const entry of getEffectiveSolarForecastPoints(solar)) {
         const ms = new Date(entry.timestamp).getTime();
         if (!Number.isNaN(ms)) {
             timeline.set(ms, entry.value);

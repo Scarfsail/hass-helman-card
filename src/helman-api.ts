@@ -111,6 +111,13 @@ export interface SolarForecastDTO {
     remainingTodayEnergyEntityId?: string | null;
     actualHistory: ForecastPointDTO[];
     points: ForecastPointDTO[]; // forecast points at the returned response granularity
+    adjustedPoints?: ForecastPointDTO[];
+}
+
+export function getEffectiveSolarForecastPoints(
+    solar: SolarForecastDTO | null | undefined,
+): ForecastPointDTO[] {
+    return solar?.adjustedPoints ?? solar?.points ?? [];
 }
 
 export interface GridForecastDTO {
