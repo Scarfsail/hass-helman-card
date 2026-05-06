@@ -154,18 +154,19 @@ export class HelmanSolarInspector extends LitElement {
       background: currentColor;
     }
 
-    .swatch.raw { color: #1565c0; }
-    .swatch.corrected { color: #2e7d32; }
+    .swatch.raw { color: #64748b; }
+    .swatch.corrected { color: #2563eb; }
 
     .dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #c62828;
+      background: #f59e0b;
     }
 
     .dot.invalidated {
       background: #9aa0a6;
+      opacity: 0.55;
     }
 
     .shade {
@@ -180,10 +181,11 @@ export class HelmanSolarInspector extends LitElement {
       height: 14px;
       border-radius: 2px;
       display: inline-block;
+      opacity: 0.4;
     }
 
-    .impact-swatch.positive { background: rgba(245, 127, 23, 0.85); }
-    .impact-swatch.negative { background: rgba(21, 101, 192, 0.75); }
+    .impact-swatch.positive { background: #16a34a; }
+    .impact-swatch.negative { background: #dc2626; }
 
     .chart-wrap {
       border: 1px solid var(--divider-color);
@@ -441,20 +443,20 @@ export class HelmanSolarInspector extends LitElement {
         <text x="12" y="16" fill="var(--secondary-text-color)" font-size="11">${this._t("bias_correction.inspector.power_axis_label")}</text>
         ${this._renderImpactColumns(payload.series.impact, margin.left, margin.top, plotWidth, plotHeight)}
         ${rawPoints.length > 1
-          ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#1565c0" stroke-width="2.4"></path>`
+          ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
           : rawPoints.length === 1
-            ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill="#1565c0"></circle>`
+            ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill="#64748b"></circle>`
             : ""}
         ${correctedPoints.length > 1
-          ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke="#2e7d32" stroke-width="2.4"></path>`
+          ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke="#2563eb" stroke-width="2.4"></path>`
           : correctedPoints.length === 1
-            ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill="#2e7d32"></circle>`
+            ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill="#2563eb"></circle>`
           : ""}
         ${actualPoints.map((entry) => svg`
-          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#c62828"></circle>
+          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#f59e0b"></circle>
         `)}
         ${invalidatedPoints.map((entry) => svg`
-          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9aa0a6">
+          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9ca3af" opacity="0.55">
             <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
           </circle>
         `)}
@@ -486,7 +488,7 @@ export class HelmanSolarInspector extends LitElement {
       const columnHeight = Math.max(2, (Math.abs(point.impactWh) / maxImpact) * plotHeight);
       const y = plotTop + plotHeight - columnHeight;
       const selected = selectedSlot === point.slot;
-      const fill = point.impactWh >= 0 ? "rgba(245, 127, 23, 0.72)" : "rgba(21, 101, 192, 0.62)";
+      const fill = point.impactWh >= 0 ? "#16a34a" : "#dc2626";
       return svg`
         <rect
           x=${x}
@@ -494,6 +496,7 @@ export class HelmanSolarInspector extends LitElement {
           width=${width}
           height=${columnHeight}
           fill=${fill}
+          fill-opacity="0.4"
           stroke=${selected ? "var(--primary-text-color)" : "transparent"}
           stroke-width=${selected ? "2" : "0"}
           style="cursor: pointer;"
