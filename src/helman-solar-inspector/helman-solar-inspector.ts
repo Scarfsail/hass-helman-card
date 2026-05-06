@@ -62,16 +62,26 @@ export class HelmanSolarInspector extends LitElement {
   @state() private _error = "";
   @state() private _selectedSlot: string | null = null;
   @state() private _selectedTrainingDate: string | null = null;
+  @state() private _chartWidth = 720;
 
   private _fallbackLocalize: LocalizeFunction = (key: string) => key;
   private _activeRequestId = 0;
   private _activeRequestDate: string | null = null;
   private _loadedConnection: unknown = null;
+  private _chartResizeObserver: ResizeObserver | null = null;
+  private _observedChartWrap: HTMLElement | null = null;
 
   static styles = css`
+    :host {
+      display: block;
+      width: 100%;
+    }
+
     .body {
       display: grid;
       gap: 12px;
+      min-width: 0;
+      width: 100%;
     }
 
     .nav {
@@ -185,8 +195,8 @@ export class HelmanSolarInspector extends LitElement {
 
     .chart-wrap svg {
       display: block;
-      width: 720px;
-      min-width: 720px;
+      width: 100%;
+      min-width: 360px;
       max-width: none;
       height: 260px;
     }
@@ -277,6 +287,11 @@ export class HelmanSolarInspector extends LitElement {
     }
   `;
 
+  protected disconnectedCallback() {
+    super.disconnectedCallback();
+    this._disconnectChartResizeObserver();
+  }
+
   protected updated(changed: Map<string, unknown>) {
     if (changed.has("hass") && this.hass) {
       if (!this._selectedDate) {
@@ -287,6 +302,7 @@ export class HelmanSolarInspector extends LitElement {
         this._load();
       }
     }
+    this._syncChartResizeObserver();
   }
 
   render() {
@@ -374,7 +390,7 @@ export class HelmanSolarInspector extends LitElement {
   }
 
   private _renderChart(payload: InspectorPayload) {
-    const width = 720;
+    const width = this._chartWidth;
     const height = 260;
     const margin = { top: 18, right: 24, bottom: 34, left: 48 };
     const plotWidth = width - margin.left - margin.right;
@@ -684,6 +700,35 @@ export class HelmanSolarInspector extends LitElement {
     }
     event.preventDefault();
     this._selectTrainingDate(date);
+  }
+
+  private _syncChartResizeObserver() {
+    const chartWrap = this.renderRoot.querySelector<HTMLElement>(".chart-wrap");
+    if (!chartWrap) {
+      this._disconnectChartResizeObserver();
+      return;
+    }
+    if (chartWrap === this._observedChartWrap) {
+      return;
+    }
+    this._disconnectChartResizeObserver();
+    this._observedChartWrap = chartWrap;
+    this._chartResizeObserver = new ResizeObserver(() => this._updateChartWidth(chartWrap));
+    this._chartResizeObserver.observe(chartWrap);
+    this._updateChartWidth(chartWrap);
+  }
+
+  private _disconnectChartResizeObserver() {
+    this._chartResizeObserver?.disconnect();
+    this._chartResizeObserver = null;
+    this._observedChartWrap = null;
+  }
+
+  private _updateChartWidth(chartWrap: HTMLElement) {
+    const width = Math.max(360, Math.round(chartWrap.clientWidth || chartWrap.getBoundingClientRect().width));
+    if (Math.abs(width - this._chartWidth) > 1) {
+      this._chartWidth = width;
+    }
   }
 
   private _resolveSelectedTrainingDate(
