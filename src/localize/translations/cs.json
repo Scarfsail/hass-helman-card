@@ -363,13 +363,20 @@
       "actual_wh": "Skutečnost Wh",
       "ratio": "Poměr",
       "status": "Stav",
+      "interpolated_label": "Interpolováno",
+      "untrained_label": "Bez korekce",
+      "interpolated_explanation": "Tento slot neměl dost validních dnů pro vlastní faktor. Hodnota je lineárně dopočítaná ze sousedních zdravých slotů.",
+      "interpolated_from": "Interpolováno z {left} → {right}",
+      "interpolated_meta": "Hodnota faktoru je lineárně dopočítaná ze sousedů ({left} → {right}).",
+      "interpolated_anchor_zero": "0",
       "contribution_status": {
         "included": "Zahrnuto",
         "trimmed": "Oříznuto",
         "invalidated": "Vyřazeno",
         "forecast_zero": "Nulová prognóza",
         "dropped_day": "Vynechaný den",
-        "omitted_slot": "Vynechaný slot"
+        "omitted_slot": "Vynechaný slot",
+        "interpolated": "Interpolováno"
       }
     }
   }

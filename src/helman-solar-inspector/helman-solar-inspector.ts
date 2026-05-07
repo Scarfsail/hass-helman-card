@@ -186,6 +186,44 @@ export class HelmanSolarInspector extends LitElement {
 
     .impact-swatch.positive { background: #16a34a; }
     .impact-swatch.negative { background: #dc2626; }
+    .impact-swatch.interpolated {
+      background: repeating-linear-gradient(
+        45deg,
+        var(--primary-text-color) 0 1.5px,
+        transparent 1.5px 4px
+      );
+      border: 1px dashed var(--primary-text-color);
+      opacity: 0.7;
+    }
+    .impact-swatch.untrained {
+      background: #9ca3af;
+      border: 1px dashed #9ca3af;
+      opacity: 0.6;
+    }
+
+    .interpolation-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+      padding: 1px 6px;
+      border: 1px dashed var(--primary-text-color);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--secondary-text-color);
+      background: var(--secondary-background-color);
+    }
+
+    .contribution-row.synthetic {
+      cursor: default;
+      font-style: italic;
+      color: var(--secondary-text-color);
+    }
+
+    .contribution-row.synthetic:hover td,
+    .contribution-row.synthetic:focus-within td {
+      background: transparent;
+    }
 
     .chart-wrap {
       border: 1px solid var(--divider-color);
@@ -379,6 +417,22 @@ export class HelmanSolarInspector extends LitElement {
                 <span class="impact-swatch negative"></span>
                 ${this._t("bias_correction.inspector.negative_impact")}
               </span>
+              ${this._hasInterpolatedSlots(payload)
+                ? html`
+                    <span class="legend-item">
+                      <span class="impact-swatch interpolated"></span>
+                      ${this._t("bias_correction.inspector.interpolated_label")}
+                    </span>
+                  `
+                : ""}
+              ${this._hasUntrainedSlots(payload)
+                ? html`
+                    <span class="legend-item">
+                      <span class="impact-swatch untrained"></span>
+                      ${this._t("bias_correction.inspector.untrained_label")}
+                    </span>
+                  `
+                : ""}
             `
           : ""}
       </div>
@@ -440,8 +494,18 @@ export class HelmanSolarInspector extends LitElement {
             <text x=${x} y=${height - 10} text-anchor="middle" fill="var(--secondary-text-color)" font-size="11">${String(hour).padStart(2, "0")}</text>
           `;
         })}
+        <defs>
+          <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+            <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
+          </pattern>
+          <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+            <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
+          </pattern>
+        </defs>
         <text x="12" y="16" fill="var(--secondary-text-color)" font-size="11">${this._t("bias_correction.inspector.power_axis_label")}</text>
-        ${this._renderImpactColumns(payload.series.impact, margin.left, margin.top, plotWidth, plotHeight)}
+        ${this._renderImpactColumns(payload.series.impact, payload.trainingExplainability, margin.left, margin.top, plotWidth, plotHeight)}
         ${rawPoints.length > 1
           ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
           : rawPoints.length === 1
@@ -466,6 +530,7 @@ export class HelmanSolarInspector extends LitElement {
 
   private _renderImpactColumns(
     impacts: ImpactPoint[],
+    explainability: TrainingExplainability | null,
     plotLeft: number,
     plotTop: number,
     plotWidth: number,
@@ -488,7 +553,36 @@ export class HelmanSolarInspector extends LitElement {
       const columnHeight = Math.max(2, (Math.abs(point.impactWh) / maxImpact) * plotHeight);
       const y = plotTop + plotHeight - columnHeight;
       const selected = selectedSlot === point.slot;
-      const fill = point.impactWh >= 0 ? "#16a34a" : "#dc2626";
+      const positive = point.impactWh >= 0;
+      const trainingSlot = explainability?.slots[point.slot] ?? null;
+      const interpolated = trainingSlot?.interpolated === true;
+      const untrained =
+        !interpolated &&
+        (trainingSlot === null || trainingSlot.factor === null);
+      const fill = untrained
+        ? "#9ca3af"
+        : interpolated
+          ? positive
+            ? "url(#impact-interpolated-positive)"
+            : "url(#impact-interpolated-negative)"
+          : positive
+            ? "#16a34a"
+            : "#dc2626";
+      const fillOpacity = untrained ? "0.45" : interpolated ? "1" : "0.4";
+      const strokeColor = selected
+        ? "var(--primary-text-color)"
+        : untrained
+          ? "#9ca3af"
+          : interpolated
+            ? positive ? "#16a34a" : "#dc2626"
+            : "transparent";
+      const strokeWidth = selected ? "2" : untrained || interpolated ? "1" : "0";
+      const strokeDasharray = !selected && (interpolated || untrained) ? "2 2" : "";
+      const titleSuffix = untrained
+        ? ` · ${this._t("bias_correction.inspector.untrained_label")}`
+        : interpolated
+          ? ` · ${this._t("bias_correction.inspector.interpolated_label")}`
+          : "";
       return svg`
         <rect
           x=${x}
@@ -496,13 +590,14 @@ export class HelmanSolarInspector extends LitElement {
           width=${width}
           height=${columnHeight}
           fill=${fill}
-          fill-opacity="0.4"
-          stroke=${selected ? "var(--primary-text-color)" : "transparent"}
-          stroke-width=${selected ? "2" : "0"}
+          fill-opacity=${fillOpacity}
+          stroke=${strokeColor}
+          stroke-width=${strokeWidth}
+          stroke-dasharray=${strokeDasharray}
           style="cursor: pointer;"
           @click=${(event: MouseEvent) => this._selectSlot(point.slot, event)}
         >
-          <title>${point.slot} ${this._formatSignedWh(point.impactWh)}</title>
+          <title>${point.slot} ${this._formatSignedWh(point.impactWh)}${titleSuffix}</title>
         </rect>
       `;
     });
@@ -561,9 +656,24 @@ export class HelmanSolarInspector extends LitElement {
     const corrected = findPointForSlot(payload.series.corrected, selectedSlot);
     const actual = findPointForSlot(payload.series.actual, selectedSlot);
     const trainingSlot = findTrainingSlot(payload.trainingExplainability, selectedSlot);
+    const interpolated = trainingSlot?.interpolated === true;
+    const anchors = trainingSlot?.interpolationAnchors ?? null;
     return html`
       <div class="metrics-section">
-        <strong>${this._tFormat("bias_correction.inspector.selected_slot", { slot: selectedSlot })}</strong>
+        <strong>
+          ${this._tFormat("bias_correction.inspector.selected_slot", { slot: selectedSlot })}
+          ${interpolated
+            ? html`<span class="interpolation-note" title=${this._t("bias_correction.inspector.interpolated_explanation")}>
+                ${this._tFormat("bias_correction.inspector.interpolated_from", {
+                  left: anchors?.left ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+                  right: anchors?.right ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+                })}
+              </span>`
+            : ""}
+        </strong>
+        ${interpolated
+          ? html`<div class="day-state">${this._t("bias_correction.inspector.interpolated_explanation")}</div>`
+          : ""}
         <div class="metric-grid">
           ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null))}
           ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null))}
@@ -604,6 +714,8 @@ export class HelmanSolarInspector extends LitElement {
       return html`<div class="note">${this._tFormat("bias_correction.inspector.no_slot_explainability", { slot: selectedSlot })}</div>`;
     }
     const selectedTrainingDate = this._resolveSelectedTrainingDate(selectedSlot);
+    const interpolated = trainingSlot.interpolated === true;
+    const anchors = trainingSlot.interpolationAnchors ?? null;
     return html`
       <div class="contribution-summary">
         <strong>${this._t("bias_correction.inspector.training_contribution")}</strong>
@@ -613,6 +725,14 @@ export class HelmanSolarInspector extends LitElement {
             factor: this._formatFactor(trainingSlot.factor),
           })}
         </div>
+        ${interpolated
+          ? html`<div class="day-state">
+              ${this._tFormat("bias_correction.inspector.interpolated_meta", {
+                left: anchors?.left ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+                right: anchors?.right ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+              })}
+            </div>`
+          : ""}
       </div>
       <div class="contribution-table-wrap">
         <table class="contribution-table">
@@ -627,6 +747,17 @@ export class HelmanSolarInspector extends LitElement {
           </thead>
           <tbody>
             ${trainingSlot.rows.map((row) => {
+              if (row.status === "interpolated") {
+                return html`
+                  <tr class="contribution-row synthetic" aria-disabled="true">
+                    <td>—</td>
+                    <td class="numeric">—</td>
+                    <td class="numeric">—</td>
+                    <td class="numeric">—</td>
+                    <td>${this._formatContributionStatus(row.status, row.reason)}</td>
+                  </tr>
+                `;
+              }
               const selected = row.date === selectedTrainingDate;
               return html`
               <tr
@@ -852,6 +983,23 @@ export class HelmanSolarInspector extends LitElement {
   private _formatFactor(value: number | null) {
     if (value === null || !Number.isFinite(value)) return "-";
     return value.toFixed(3);
+  }
+
+  private _hasInterpolatedSlots(payload: InspectorPayload): boolean {
+    const slots = payload.trainingExplainability?.slots;
+    if (!slots) return false;
+    return Object.values(slots).some((slot) => slot.interpolated === true);
+  }
+
+  private _hasUntrainedSlots(payload: InspectorPayload): boolean {
+    const slots = payload.trainingExplainability?.slots;
+    if (!slots) return false;
+    return payload.series.impact.some((point) => {
+      if (point.impactWh === null || !Number.isFinite(point.impactWh)) return false;
+      const slot = slots[point.slot];
+      if (!slot) return true;
+      return slot.factor === null && slot.interpolated !== true;
+    });
   }
 
   private _formatContributionStatus(status: string, reason: string | null) {

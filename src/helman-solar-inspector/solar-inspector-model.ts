@@ -15,6 +15,10 @@ export type ContributionRow = {
   status: string;
   reason: string | null;
 };
+export type InterpolationAnchors = {
+  left: string | null;
+  right: string | null;
+};
 export type TrainingSlotExplainability = {
   factor: number | null;
   rawRatio: number | null;
@@ -22,6 +26,8 @@ export type TrainingSlotExplainability = {
   forecastSumWh: number;
   actualSumWh: number;
   rows: ContributionRow[];
+  interpolated?: boolean;
+  interpolationAnchors?: InterpolationAnchors | null;
 };
 export type TrainingExplainability = {
   trainedAt: string;
