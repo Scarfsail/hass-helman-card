@@ -14,7 +14,10 @@ import {
   type InspectorPoint,
   type TrainingExplainability,
   type TrainingSlotExplainability,
+  type ContributionRow,
 } from "./solar-inspector-model.js";
+
+type RatioBounds = { min: number; max: number; maxAbsDeviation: number };
 
 type InspectorPayload = {
   date: string;
@@ -223,6 +226,99 @@ export class HelmanSolarInspector extends LitElement {
     .contribution-row.synthetic:hover td,
     .contribution-row.synthetic:focus-within td {
       background: transparent;
+    }
+
+    .contribution-row.muted td {
+      color: color-mix(in srgb, var(--secondary-text-color) 70%, transparent);
+    }
+
+    .contribution-row.selected.muted td {
+      color: color-mix(in srgb, var(--secondary-text-color) 90%, var(--primary-text-color));
+    }
+
+    .contribution-table td.ratio {
+      padding: 4px 6px;
+      width: 1%;
+      min-width: 140px;
+    }
+
+    .contribution-row.muted td.ratio {
+      padding: 8px 10px;
+      text-align: right;
+    }
+
+    .ratio-gauge {
+      box-sizing: border-box;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      width: 100%;
+      min-height: 18px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, #ef4444 8%, transparent),
+        color-mix(in srgb, var(--card-background-color) 90%, transparent),
+        color-mix(in srgb, #22c55e 8%, transparent)
+      );
+      box-shadow: inset 0 0 0 1px var(--divider-color);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ratio-gauge-center {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      left: 50%;
+      width: 1px;
+      z-index: 1;
+      background: color-mix(in srgb, var(--primary-text-color) 26%, transparent);
+      transform: translateX(-50%);
+    }
+
+    .ratio-gauge-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .ratio-gauge-fill.positive {
+      left: 50%;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, #22c55e 60%, transparent),
+        color-mix(in srgb, #22c55e 25%, transparent)
+      );
+      border-radius: 0 4px 4px 0;
+    }
+
+    .ratio-gauge-fill.negative {
+      right: 50%;
+      background: linear-gradient(
+        270deg,
+        color-mix(in srgb, #ef4444 60%, transparent),
+        color-mix(in srgb, #ef4444 25%, transparent)
+      );
+      border-radius: 4px 0 0 4px;
+    }
+
+    .ratio-gauge-text {
+      position: relative;
+      z-index: 2;
+      color: var(--primary-text-color);
+    }
+
+    .contribution-row.muted .ratio-gauge-text {
+      color: color-mix(in srgb, var(--secondary-text-color) 70%, transparent);
     }
 
     .chart-wrap {
@@ -716,6 +812,7 @@ export class HelmanSolarInspector extends LitElement {
     const selectedTrainingDate = this._resolveSelectedTrainingDate(selectedSlot);
     const interpolated = trainingSlot.interpolated === true;
     const anchors = trainingSlot.interpolationAnchors ?? null;
+    const ratioBounds = this._computeRatioBounds(trainingSlot.rows);
     return html`
       <div class="contribution-summary">
         <strong>${this._t("bias_correction.inspector.training_contribution")}</strong>
@@ -746,22 +843,28 @@ export class HelmanSolarInspector extends LitElement {
             </tr>
           </thead>
           <tbody>
-            ${trainingSlot.rows.map((row) => {
+            ${this._sortContributionRows(trainingSlot.rows).map((row) => {
               if (row.status === "interpolated") {
                 return html`
                   <tr class="contribution-row synthetic" aria-disabled="true">
                     <td>—</td>
                     <td class="numeric">—</td>
                     <td class="numeric">—</td>
-                    <td class="numeric">—</td>
+                    <td class="ratio">—</td>
                     <td>${this._formatContributionStatus(row.status, row.reason)}</td>
                   </tr>
                 `;
               }
               const selected = row.date === selectedTrainingDate;
+              const muted = row.status === "invalidated";
+              const classes = [
+                "contribution-row",
+                selected ? "selected" : "",
+                muted ? "muted" : "",
+              ].filter(Boolean).join(" ");
               return html`
               <tr
-                class=${selected ? "contribution-row selected" : "contribution-row"}
+                class=${classes}
                 aria-selected=${selected ? "true" : "false"}
                 tabindex="0"
                 @click=${() => this._selectTrainingDate(row.date)}
@@ -770,7 +873,7 @@ export class HelmanSolarInspector extends LitElement {
                 <td>${row.date || "-"}</td>
                 <td class="numeric">${this._formatWh(row.forecastWh)}</td>
                 <td class="numeric">${this._formatWh(row.actualWh)}</td>
-                <td class="numeric">${this._formatFactor(row.ratio)}</td>
+                <td class="ratio">${muted ? this._formatFactor(row.ratio) : this._renderRatioGauge(row.ratio, ratioBounds)}</td>
                 <td>${this._formatContributionStatus(row.status, row.reason)}</td>
               </tr>
             `;})}
@@ -1000,6 +1103,65 @@ export class HelmanSolarInspector extends LitElement {
       if (!slot) return true;
       return slot.factor === null && slot.interpolated !== true;
     });
+  }
+
+  private _sortContributionRows(rows: ContributionRow[]): ContributionRow[] {
+    const dated: ContributionRow[] = [];
+    const synthetic: ContributionRow[] = [];
+    for (const row of rows) {
+      if (row.status === "interpolated" || !row.date) {
+        synthetic.push(row);
+      } else {
+        dated.push(row);
+      }
+    }
+    dated.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return [...dated, ...synthetic];
+  }
+
+  private _computeRatioBounds(rows: ContributionRow[]): RatioBounds {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const row of rows) {
+      if (row.status === "interpolated") continue;
+      const r = row.ratio;
+      if (r === null || !Number.isFinite(r)) continue;
+      if (r < min) min = r;
+      if (r > max) max = r;
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { min: 1, max: 1, maxAbsDeviation: 0 };
+    }
+    const maxAbsDeviation = Math.max(Math.abs(max - 1), Math.abs(1 - min));
+    return { min, max, maxAbsDeviation };
+  }
+
+  private _renderRatioGauge(ratio: number | null, bounds: RatioBounds) {
+    const text = this._formatFactor(ratio);
+    if (ratio === null || !Number.isFinite(ratio) || bounds.maxAbsDeviation <= 0) {
+      return html`
+        <div class="ratio-gauge" role="img" aria-label=${text}>
+          <span class="ratio-gauge-center" aria-hidden="true"></span>
+          <span class="ratio-gauge-text">${text}</span>
+        </div>
+      `;
+    }
+    const deviation = ratio - 1;
+    const widthPct = Math.min((Math.abs(deviation) / bounds.maxAbsDeviation) * 50, 50);
+    const direction = deviation >= 0 ? "positive" : "negative";
+    return html`
+      <div class="ratio-gauge" role="img" aria-label=${text}>
+        <span class="ratio-gauge-center" aria-hidden="true"></span>
+        ${widthPct > 0
+          ? html`<span
+              class=${`ratio-gauge-fill ${direction}`}
+              style=${`width:${widthPct}%;`}
+              aria-hidden="true"
+            ></span>`
+          : ""}
+        <span class="ratio-gauge-text">${text}</span>
+      </div>
+    `;
   }
 
   private _formatContributionStatus(status: string, reason: string | null) {
