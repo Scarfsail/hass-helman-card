@@ -43,6 +43,36 @@ export function computeSourceColor(node: { sourcePowerHistory?: { [sourceId: str
     return entries.some(e => e.weight > 0) ? blendHex(entries) : undefined;
 }
 
+type CachingNode = {
+    sourcePowerHistory?: { [sourceId: string]: { power: number; color: string } }[];
+    _cachedDominantBucketRef?: object;
+    _cachedDominantColor?: string;
+    _cachedBlendedBucketRef?: object;
+    _cachedBlendedColor?: string;
+};
+
+export function computeDominantSourceColorCached(node: CachingNode): string | undefined {
+    const hist = node.sourcePowerHistory;
+    if (!hist?.length) return undefined;
+    const lastBucket = hist[hist.length - 1];
+    if (node._cachedDominantBucketRef === lastBucket) return node._cachedDominantColor;
+    const color = computeDominantSourceColor(node);
+    node._cachedDominantBucketRef = lastBucket;
+    node._cachedDominantColor = color;
+    return color;
+}
+
+export function computeSourceColorCached(node: CachingNode): string | undefined {
+    const hist = node.sourcePowerHistory;
+    if (!hist?.length) return undefined;
+    const lastBucket = hist[hist.length - 1];
+    if (node._cachedBlendedBucketRef === lastBucket) return node._cachedBlendedColor;
+    const color = computeSourceColor(node);
+    node._cachedBlendedBucketRef = lastBucket;
+    node._cachedBlendedColor = color;
+    return color;
+}
+
 /** Weighted RGB average of hex color values. Returns gray if no active inputs. */
 export function blendHex(colors: { hex: string; weight: number }[]): string {
     const active = colors.filter(c => c.weight > 0);

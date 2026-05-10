@@ -19,7 +19,7 @@ import "./simple-card-solar";
 import "./simple-card-battery";
 import "./simple-card-grid";
 import "./simple-card-house";
-import { computeDominantSourceColor } from "../color-utils";
+import { computeDominantSourceColorCached } from "../color-utils";
 import { getFlowColor, getFlowGlow } from "./flow-colors";
 
 // ──────────────────────────────── Internal model ──────────────────────────────
@@ -293,8 +293,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battSourceColor  = battCharge
             ? (solarToBattPower >= gridToBattPower ? solarFlowColor : gridFlowColor)
             : undefined;
-        const gridSourceColor  = this._gridConsumerNode    ? computeDominantSourceColor(this._gridConsumerNode)    : undefined;
-        const houseSourceColor = this._houseNode           ? computeDominantSourceColor(this._houseNode)           : undefined;
+        const gridSourceColor  = this._gridConsumerNode    ? computeDominantSourceColorCached(this._gridConsumerNode)    : undefined;
+        const houseSourceColor = this._houseNode           ? computeDominantSourceColorCached(this._houseNode)           : undefined;
 
         const gridStyle = this._buildGridStyle();
 

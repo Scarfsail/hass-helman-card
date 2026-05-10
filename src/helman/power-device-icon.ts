@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../../hass-frontend/src/types";
 import { DeviceNode } from "./DeviceNode";
 import { BatteryDeviceConfig } from "./DeviceConfig";
 import { sharedStyles } from "./shared-styles";
-import { computeDominantSourceColor } from "../color-utils";
+import { computeDominantSourceColorCached } from "../color-utils";
 import type { NodeType } from "../node-detail/node-detail-types";
 import "../helman-simple/simple-card-solar";
 import "../helman-simple/simple-card-battery";
@@ -117,7 +117,7 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'grid') {
             // isSource=true → importing (positive); isSource=false → exporting (negative)
             const signedPower = device.isSource ? power : -power;
-            const sourceColor = device.isSource ? undefined : computeDominantSourceColor(this.device);
+            const sourceColor = device.isSource ? undefined : computeDominantSourceColorCached(this.device);
             const clickHandler = this.openNodeDetailOnClick
                 ? () => this._fireShowNodeDetail("grid")
                 : this._fireToggleChildren;
@@ -135,7 +135,7 @@ export class PowerDeviceIcon extends LitElement {
         if (device.sourceType === 'battery') {
             // isSource=true → discharging (negative in simple-card convention); isSource=false → charging (positive)
             const signedPower = device.isSource ? -power : power;
-            const sourceColor = device.isSource ? undefined : computeDominantSourceColor(this.device);
+            const sourceColor = device.isSource ? undefined : computeDominantSourceColorCached(this.device);
             const battConfig = device.deviceConfig as BatteryDeviceConfig;
             const soc = battConfig?.entities?.capacity
                 ? parseFloat(this.hass.states[battConfig.entities.capacity]?.state ?? '0') || 0
@@ -162,7 +162,7 @@ export class PowerDeviceIcon extends LitElement {
         }
 
         if (device.sourceType === 'house') {
-            const sourceColor = computeDominantSourceColor(this.device);
+            const sourceColor = computeDominantSourceColorCached(this.device);
             const clickHandler = this.openNodeDetailOnClick
                 ? () => this._fireShowNodeDetail("house")
                 : this._fireToggleChildren;
