@@ -3,6 +3,10 @@ import { customElement, property } from "lit/decorators.js";
 import { DeviceNode } from "./DeviceNode";
 import { nothing } from "lit-html";
 
+const STRIPS = html`
+    ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => html`<div class="strip" style="--index: ${i}"></div>`)}
+`;
+
 @customElement("power-flow-arrows")
 export class PowerFlowArrows extends LitElement {
     @property({ type: Array }) devices: (DeviceNode | undefined)[] = [];
@@ -78,7 +82,7 @@ export class PowerFlowArrows extends LitElement {
                     return html`
                         <div class="item-container">
                             <div class="animated-arrow" style="width: ${widthPercentage}%">
-                                ${Array.from({ length: 10 }).map((_, i) => html`<div class="strip" style="--index: ${i}"></div>`)}
+                                ${STRIPS}
                             </div>
                         </div>
                     `;
