@@ -47,6 +47,8 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private _historyEngine?: HistoryEngine;
     private _localize?: LocalizeFunction;
     private _sourceNodes: DeviceNode[] = [];
+    private _watchedEntityIds: Set<string> = new Set();
+    private _latestHass?: HomeAssistant;
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
@@ -64,8 +66,26 @@ export class HelmanCard extends LitElement implements LovelaceCard {
 
     // 7. HA-specific setters
     public set hass(hass: HomeAssistant) {
-        this._hass = hass;
+        const previous = this._latestHass;
+        this._latestHass = hass;
         if (!this._localize) this._localize = getLocalizeFunction(hass);
+
+        if (!previous) {
+            this._hass = hass;
+            return;
+        }
+        if (this._watchedEntityIds.size === 0) {
+            // Tree not yet hydrated — keep the simple behavior so initial load still works.
+            this._hass = hass;
+            return;
+        }
+        for (const id of this._watchedEntityIds) {
+            if (previous.states[id] !== hass.states[id]) {
+                this._hass = hass;
+                return;
+            }
+        }
+        // No watched entity changed — skip the re-render entirely.
     }
 
     // 8. HA-specific methods
@@ -80,7 +100,7 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     // 9. Lifecycle methods
     async connectedCallback() {
         super.connectedCallback();
-        if (this._hass) {
+        if (this._latestHass) {
             await this._loadBackendData();
         }
     }
@@ -224,19 +244,20 @@ export class HelmanCard extends LitElement implements LovelaceCard {
     private async _loadBackendData(): Promise<void> {
         this._historyEngine?.stop();
         try {
-            const treePayload = await this._hass!.connection.sendMessagePromise<TreePayload>({
+            const treePayload = await this._latestHass!.connection.sendMessagePromise<TreePayload>({
                 type: "helman/get_device_tree",
             });
             this._uiConfig = treePayload.uiConfig;
             this._deviceTree = this._hydrateDeviceNodes(treePayload);
             this._sourceNodes = this._collectSourceNodes(this._deviceTree);
+            this._rebuildWatchedEntityIds();
 
-            const history = await this._hass!.connection.sendMessagePromise<HistoryPayload>({
+            const history = await this._latestHass!.connection.sendMessagePromise<HistoryPayload>({
                 type: 'helman/get_history',
             });
             const histBuckets = this._uiConfig.history_buckets;
             this._historyEngine = new HistoryEngine(
-                () => this._hass,
+                () => this._latestHass,
                 histBuckets,
                 () => this.requestUpdate(),
             );
@@ -302,6 +323,19 @@ export class HelmanCard extends LitElement implements LovelaceCard {
         }
 
         return roots;
+    }
+
+    private _rebuildWatchedEntityIds(): void {
+        const ids = new Set<string>();
+        const visit = (nodes: DeviceNode[]) => {
+            for (const n of nodes) {
+                if (n.powerSensorId) ids.add(n.powerSensorId);
+                if (n.ratioSensorId) ids.add(n.ratioSensorId);
+                visit(n.children);
+            }
+        };
+        visit(this._deviceTree);
+        this._watchedEntityIds = ids;
     }
 
     private _collectSourceNodes(nodes: DeviceNode[]): DeviceNode[] {
