@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit-element";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { formatPower } from "../power-format";
 import { BATT_COLOR, withAlpha } from "../color-utils";
 import { simpleCardSharedStyles } from "./simple-card-shared-styles";
@@ -9,6 +9,27 @@ const BODY_HEIGHT = 70;
 const BODY_X = 4;
 const BODY_WIDTH = 50;
 const INNER_PAD = 3;
+
+type BatteryView = {
+    coverClass: string;
+    fillClass: string;
+    powerClass: string;
+    pulseColor: string | null;
+    pulseColorSoft: string | null;
+    fillY: number;
+    fillHeight: number;
+    innerX: number;
+    innerWidth: number;
+    innerFillY: number;
+    innerFillHeight: number;
+    socClampedRounded: string;
+    formattedValue: string | number;
+    formattedUnit: string;
+    isCharging: boolean;
+    isDischarging: boolean;
+    svgSize: number;
+    socAnchorX: number;
+};
 
 @customElement("simple-card-battery")
 export class SimpleCardBattery extends LitElement {
@@ -124,8 +145,20 @@ export class SimpleCardBattery extends LitElement {
     /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
     @property({ type: Boolean }) public compact = false;
 
-    // Render method
-    render() {
+    // State properties
+    @state() private _view?: BatteryView;
+
+    // Lifecycle methods
+    willUpdate(changedProperties: Map<string, unknown>): void {
+        if (!changedProperties.has('power')
+            && !changedProperties.has('soc')
+            && !changedProperties.has('minSoc')
+            && !changedProperties.has('sourceColor')
+            && !changedProperties.has('compact')
+            && this._view !== undefined) {
+            return;
+        }
+
         const isCharging = this.power > 50;
         const isDischarging = this.power < -50;
 
@@ -133,17 +166,14 @@ export class SimpleCardBattery extends LitElement {
         const fillHeight = BODY_HEIGHT * socClamped / 100;
         const fillY = BODY_TOP + BODY_HEIGHT - fillHeight;
 
-        // Cover: charge/discharge state takes priority; SoC warning only when idle
         const coverClass = (isCharging || isDischarging) ? 'active'
             : socClamped < this.minSoc ? 'low'
             : socClamped < this.minSoc + 10 ? 'low-orange'
             : '';
 
-        // Glow color: charging uses sourceColor (e.g. solar yellow), discharging uses battery source green
         const pulseColor = isCharging ? (this.sourceColor ?? BATT_COLOR) : isDischarging ? BATT_COLOR : null;
         const pulseColorSoft = pulseColor ? withAlpha(pulseColor, '88') : null;
 
-        // Fill bar: dark gray when idle at normal SoC; SoC color when low or active
         const fillColorClass = socClamped < this.minSoc ? 'fill-red' : socClamped < this.minSoc + 10 ? 'fill-orange' : 'fill-green';
         const fillClass = (isCharging || isDischarging)
             ? `${fillColorClass} fill-active`
@@ -151,54 +181,69 @@ export class SimpleCardBattery extends LitElement {
 
         const powerClass = isCharging ? 'charge' : isDischarging ? 'discharge' : '';
 
-        const absPower = Math.abs(this.power);
-        const { value, unit } = formatPower(absPower);
-
         const innerX = BODY_X + INNER_PAD;
         const innerWidth = BODY_WIDTH - INNER_PAD * 2;
         const innerFillY = Math.max(fillY, BODY_TOP + INNER_PAD);
         const innerFillHeight = Math.max(0, fillY + fillHeight - innerFillY - INNER_PAD);
 
-        const svgSize = this.compact ? 40 : 50;
+        const { value, unit } = formatPower(Math.abs(this.power));
+
+        this._view = {
+            coverClass, fillClass, powerClass,
+            pulseColor, pulseColorSoft,
+            fillY, fillHeight,
+            innerX, innerWidth, innerFillY, innerFillHeight,
+            socClampedRounded: socClamped.toFixed(0),
+            formattedValue: value, formattedUnit: unit,
+            isCharging, isDischarging,
+            svgSize: this.compact ? 40 : 50,
+            socAnchorX: 2 + BODY_X + BODY_WIDTH / 2,
+        };
+    }
+
+    // Render method
+    render() {
+        if (!this._view) return html``;
+        const v = this._view;
         return html`
             <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
                 <svg viewBox="-10 -15 77 112"
-                     width="${svgSize}" height="${svgSize}"
+                     width="${v.svgSize}" height="${v.svgSize}"
                      xmlns="http://www.w3.org/2000/svg">
                     <!-- Terminal cap -->
-                    <rect class="battery-terminal ${coverClass}"
+                    <rect class="battery-terminal ${v.coverClass}"
                         x="${BODY_X + BODY_WIDTH / 2 - 8}" y="2" width="16" height="7" rx="3"
-                        style="${pulseColor ? `fill: ${pulseColor};` : ''}"/>
+                        style="${v.pulseColor ? `fill: ${v.pulseColor};` : ''}"/>
 
                     <!-- Battery body outline -->
-                    <rect class="battery-body ${coverClass}"
+                    <rect class="battery-body ${v.coverClass}"
                         x="${BODY_X}" y="${BODY_TOP}"
                         width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="5"
-                        style="${pulseColor ? `stroke: ${pulseColor}; --pulse-color: ${pulseColor}; --pulse-color-soft: ${pulseColorSoft};` : ''}"/>
+                        style="${v.pulseColor ? `stroke: ${v.pulseColor}; --pulse-color: ${v.pulseColor}; --pulse-color-soft: ${v.pulseColorSoft};` : ''}"/>
 
                     <!-- Fill level -->
                     <clipPath id="${this._clipId}">
-                        <rect x="${innerX}" y="${BODY_TOP + INNER_PAD}"
-                              width="${innerWidth}" height="${BODY_HEIGHT - INNER_PAD * 2}" rx="3"/>
+                        <rect x="${v.innerX}" y="${BODY_TOP + INNER_PAD}"
+                              width="${v.innerWidth}" height="${BODY_HEIGHT - INNER_PAD * 2}" rx="3"/>
                     </clipPath>
-                    <rect class="${fillClass}"
-                        x="${innerX}" y="${innerFillY}"
-                        width="${innerWidth}" height="${innerFillHeight}" rx="2"
+                    <rect class="${v.fillClass}"
+                        x="${v.innerX}" y="${v.innerFillY}"
+                        width="${v.innerWidth}" height="${v.innerFillHeight}" rx="2"
                         clip-path="url(#${this._clipId})"/>
 
                     <!-- SoC percentage inside -->
                     <text class="soc-label"
                         dominant-baseline="middle">
-                        <tspan x="${2+ BODY_X + BODY_WIDTH / 2}" y="43">${socClamped.toFixed(0)}</tspan>
-                        <tspan x="${2+BODY_X + BODY_WIDTH / 2}" y="64" class="soc-percent">%</tspan>
+                        <tspan x="${v.socAnchorX}" y="43">${v.socClampedRounded}</tspan>
+                        <tspan x="${v.socAnchorX}" y="64" class="soc-percent">%</tspan>
                     </text>
                 </svg>
             </div>
             ${this.compact ? '' : html`
-            <div class="power-label ${powerClass}">
-                ${isCharging ? html`↑ ${value} <span class="unit">${unit}</span>`
-                    : isDischarging ? html`↓ ${value} <span class="unit">${unit}</span>`
-                    : html`${value} <span class="unit">${unit}</span>`}
+            <div class="power-label ${v.powerClass}">
+                ${v.isCharging ? html`↑ ${v.formattedValue} <span class="unit">${v.formattedUnit}</span>`
+                    : v.isDischarging ? html`↓ ${v.formattedValue} <span class="unit">${v.formattedUnit}</span>`
+                    : html`${v.formattedValue} <span class="unit">${v.formattedUnit}</span>`}
             </div>`}
         `;
     }
