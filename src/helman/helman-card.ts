@@ -335,6 +335,16 @@ export class HelmanCard extends LitElement implements LovelaceCard {
             }
         };
         visit(this._deviceTree);
+
+        // Also watch battery SOC/remaining-energy entities so the dialog
+        // reflects live values even when no power/ratio entity changed.
+        const { sourcesChildren, consumersChildren } = this._computedNodes ?? {};
+        const batteryProducerNode = sourcesChildren?.find((n) => n.sourceType === "battery");
+        const batteryConsumerNode = consumersChildren?.find((n) => n.sourceType === "battery");
+        const batteryConfig = (batteryProducerNode?.deviceConfig ?? batteryConsumerNode?.deviceConfig) as import("./DeviceConfig").BatteryDeviceConfig | undefined;
+        if (batteryConfig?.entities.capacity) ids.add(batteryConfig.entities.capacity);
+        if (batteryConfig?.entities.remaining_energy) ids.add(batteryConfig.entities.remaining_energy);
+
         this._watchedEntityIds = ids;
     }
 
