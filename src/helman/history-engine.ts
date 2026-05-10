@@ -5,6 +5,7 @@ import { canonicalSourceColor } from "../color-utils";
 
 export class HistoryEngine {
     private _interval?: number;
+    private _rafHandle?: number;
 
     constructor(
         private _getHass: () => HomeAssistant | undefined,
@@ -57,11 +58,11 @@ export class HistoryEngine {
         }
     }
 
-    /** Push one live bucket per node and notify the card to re-render. */
+    /** Push one live bucket per node and notify the card to re-render (coalesced to next animation frame). */
     advanceBuckets(nodes: DeviceNode[], sourceNodes: DeviceNode[]): void {
         if (!this._getHass()) return;
         this._advanceTree(nodes, sourceNodes);
-        this._onTick();
+        this._scheduleTick();
     }
 
     /** Start the periodic bucket advance. Stops any existing timer first. */
@@ -72,9 +73,24 @@ export class HistoryEngine {
         }, bucketDuration * 1000);
     }
 
-    /** Stop the periodic timer. */
+    /** Stop the periodic timer and cancel any pending render frame. */
     stop(): void {
-        clearInterval(this._interval);
+        if (this._interval !== undefined) {
+            clearInterval(this._interval);
+            this._interval = undefined;
+        }
+        if (this._rafHandle !== undefined) {
+            cancelAnimationFrame(this._rafHandle);
+            this._rafHandle = undefined;
+        }
+    }
+
+    private _scheduleTick(): void {
+        if (this._rafHandle !== undefined) return;
+        this._rafHandle = requestAnimationFrame(() => {
+            this._rafHandle = undefined;
+            this._onTick();
+        });
     }
 
     private _advanceTree(nodes: DeviceNode[], sourceNodes: DeviceNode[]): void {
