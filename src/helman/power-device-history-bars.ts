@@ -1,14 +1,12 @@
 import { LitElement, TemplateResult, css, html } from "lit-element";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { DeviceNode } from "./DeviceNode";
+
+type BarSegment = { heightPct: number; color: string };
+type Bar = { heightPct: number; segments: BarSegment[] };
 
 @customElement("power-device-history-bars")
 export class PowerDeviceHistoryBars extends LitElement {
-    @property({ attribute: false }) public device!: DeviceNode;
-    @property({ attribute: false }) public historyToRender!: number[];
-    @property({ type: Number }) public maxHistoryPower!: number;
-    @property({ type: String }) public historyBarColor!: string;
-
     static get styles() {
         return css`
             .historyContainer {
@@ -36,25 +34,59 @@ export class PowerDeviceHistoryBars extends LitElement {
         `;
     }
 
+    @property({ attribute: false }) public device!: DeviceNode;
+    @property({ attribute: false }) public historyToRender!: number[];
+    @property({ type: Number }) public maxHistoryPower!: number;
+    @property({ type: String }) public historyBarColor!: string;
+
+    @state() private _bars: Bar[] = [];
+
+    willUpdate(changedProperties: Map<string, unknown>): void {
+        if (!changedProperties.has('historyToRender')
+            && !changedProperties.has('maxHistoryPower')
+            && !changedProperties.has('device')
+            && !changedProperties.has('historyBarColor')) {
+            return;
+        }
+
+        const hist = this.historyToRender ?? [];
+        const max = this.maxHistoryPower;
+        const sourcePerBucket = this.device.sourcePowerHistory;
+        const isSource = this.device.isSource;
+        const fallbackColor = this.historyBarColor;
+
+        const bars: Bar[] = new Array(hist.length);
+        for (let i = 0; i < hist.length; i++) {
+            const p = hist[i];
+            const heightPct = max > 0 ? Math.min(100, (p / max) * 100) : 0;
+            const sourceHistory = !isSource ? sourcePerBucket?.[i] : undefined;
+            const segments: BarSegment[] = [];
+            if (sourceHistory) {
+                for (const s of Object.values(sourceHistory)) {
+                    if (p > 0) {
+                        segments.push({ heightPct: (s.power / p) * 100, color: s.color });
+                    }
+                }
+            }
+            if (segments.length === 0) {
+                segments.push({ heightPct: 100, color: fallbackColor });
+            }
+            bars[i] = { heightPct, segments };
+        }
+        this._bars = bars;
+    }
+
     render(): TemplateResult {
         return html`
             <div class="historyContainer">
-                ${this.historyToRender.map((p, i) => {
-                    const hPercentage = this.maxHistoryPower > 0 ? (p / this.maxHistoryPower) * 100 : 0;
-                    const sourceHistory = this.device.sourcePowerHistory?.[i];
-                    const hasSourceHistory = !this.device.isSource && sourceHistory && Object.keys(sourceHistory).length > 0;
-
-                    return html`
-                        <div class="historyBarContainer" style="height: ${Math.min(100, hPercentage)}%;">
-                            ${hasSourceHistory
-                                ? Object.values(sourceHistory).map(s => {
-                                    const segmentPercentage = p > 0 ? (s.power / p) * 100 : 0;
-                                    return html`<div class="historyBarSegment" style="height: ${segmentPercentage}%; background-color: ${s.color};"></div>`;
-                                })
-                                : html`<div class="historyBarSegment" style="height: 100%; background-color: ${this.historyBarColor};"></div>`
-                            }
-                        </div>`;
-                })}
+                ${this._bars.map(bar => html`
+                    <div class="historyBarContainer" style="height: ${bar.heightPct}%;">
+                        ${bar.segments.map(s => html`
+                            <div class="historyBarSegment"
+                                 style="height: ${s.heightPct}%; background-color: ${s.color};"></div>
+                        `)}
+                    </div>
+                `)}
             </div>
         `;
     }
