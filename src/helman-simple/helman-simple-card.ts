@@ -152,6 +152,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _config!: HelmanSimpleCardConfig;
     private _entityMap: EnergyEntityMap | null = null;
     private _localize?: LocalizeFunction;
+    private _latestHass?: HomeAssistant;
+    private _watchedEntityIds: Set<string> = new Set();
     private _solarDTO:           DeviceNodeDTO | null = null;
     private _gridDTO:            DeviceNodeDTO | null = null;
     private _batteryDTO:         DeviceNodeDTO | null = null;
@@ -177,11 +179,22 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     @state() private _houseDevices: DeviceNode[] = [];
 
     // 7. HA-specific property setter
-    public set hass(value: HomeAssistant) {
-        this._hass = value;
-        if (!this._localize) this._localize = getLocalizeFunction(value);
-        if (this._entityMap) {
-            this._energy = this._readEnergyValues(value, this._entityMap);
+    public set hass(hass: HomeAssistant) {
+        const previous = this._latestHass;
+        this._latestHass = hass;
+        if (!this._localize) this._localize = getLocalizeFunction(hass);
+
+        if (!previous || this._watchedEntityIds.size === 0) {
+            this._hass = hass;
+            if (this._entityMap) this._energy = this._readEnergyValues(hass, this._entityMap);
+            return;
+        }
+        for (const id of this._watchedEntityIds) {
+            if (previous.states[id] !== hass.states[id]) {
+                this._hass = hass;
+                if (this._entityMap) this._energy = this._readEnergyValues(hass, this._entityMap);
+                return;
+            }
         }
     }
 
@@ -195,7 +208,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     // 9. Lifecycle methods
     async connectedCallback() {
         super.connectedCallback();
-        if (this._hass) {
+        if (this._latestHass) {
             await this._loadFromBackend();
         }
     }
@@ -344,6 +357,28 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
     // 12. Private helper methods
 
+    private _rebuildWatchedEntityIds(): void {
+        const ids = new Set<string>();
+        if (this._entityMap) {
+            for (const v of Object.values(this._entityMap)) {
+                if (typeof v === 'string' && v.length > 0) ids.add(v);
+            }
+        }
+        const addNode = (n: DeviceNode | null | undefined) => {
+            if (!n) return;
+            if (n.powerSensorId) ids.add(n.powerSensorId);
+            if (n.ratioSensorId) ids.add(n.ratioSensorId);
+            for (const c of n.children) addNode(c);
+        };
+        addNode(this._solarNode);
+        addNode(this._gridProducerNode);
+        addNode(this._batteryProducerNode);
+        addNode(this._batteryConsumerNode);
+        addNode(this._gridConsumerNode);
+        addNode(this._houseNode);
+        this._watchedEntityIds = ids;
+    }
+
     private _buildGridStyle(): string {
         const w = this._config?.width;
         const h = this._config?.height;
@@ -356,12 +391,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private async _loadFromBackend(): Promise<boolean> {
         this._historyEngine?.stop();
         try {
-            const payload = await this._hass!.connection.sendMessagePromise<TreePayload>({
+            const payload = await this._latestHass!.connection.sendMessagePromise<TreePayload>({
                 type: "helman/get_device_tree",
             });
             this._uiConfig = payload.uiConfig;
             this._entityMap = this._buildEntityMap(payload);
-            this._energy = this._readEnergyValues(this._hass!, this._entityMap);
+            this._energy = this._readEnergyValues(this._latestHass!, this._entityMap);
 
             const histBuckets = payload.uiConfig.history_buckets;
             this._solarNode          = this._solarDTO          ? this._hydrateNode(this._solarDTO,          histBuckets) : null;
@@ -391,11 +426,11 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 : null;
             if (this._consumptionNode) this._consumptionNode.isSource = true;
 
-            const history = await this._hass!.connection.sendMessagePromise<HistoryPayload>({
+            const history = await this._latestHass!.connection.sendMessagePromise<HistoryPayload>({
                 type: 'helman/get_history',
             });
             this._historyEngine = new HistoryEngine(
-                () => this._hass,
+                () => this._latestHass,
                 histBuckets,
                 () => this.requestUpdate(),
             );
@@ -406,6 +441,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                 () => this._sourceNodes,
             );
             this._historyEngine.advanceBuckets(this._topLevelNodes(), this._sourceNodes);
+            this._rebuildWatchedEntityIds();
             return true;
         } catch (err) {
             console.error("helman-simple-card: failed to load backend data", err);
