@@ -1,11 +1,27 @@
 import { LitElement, css, html, svg } from "lit-element";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { formatPower } from "../power-format";
 import { withAlpha } from "../color-utils";
 import { SIMPLE_CARD_COLORS } from "./simple-card-colors";
 import { simpleCardSharedStyles } from "./simple-card-shared-styles";
 
-const { neutral, state } = SIMPLE_CARD_COLORS;
+const { neutral, state: colorState } = SIMPLE_CARD_COLORS;
+
+type HouseView = {
+    svgSize: number;
+    wrapperStyle: string;
+    windowColorStyle: string;
+    bodyStyle: string;
+    roofStyle: string;
+    doorStyle: string;
+    crossColor: string;
+    knobColor: string;
+    activeClass: string;
+    powerLabelClass: string;
+    showPowerLabel: boolean;
+    formattedValue: string | number;
+    formattedUnit: string;
+};
 
 @customElement("simple-card-house")
 export class SimpleCardHouse extends LitElement {
@@ -92,66 +108,95 @@ export class SimpleCardHouse extends LitElement {
     /** When true: renders SVG at 40px and suppresses the power label (for use as an icon). */
     @property({ type: Boolean }) public compact = false;
 
-    // Render method
-    render() {
+    // State properties
+    @state() private _view?: HouseView;
+
+    // Lifecycle methods
+    willUpdate(changedProperties: Map<string, unknown>): void {
+        if (!changedProperties.has('power')
+            && !changedProperties.has('sourceColor')
+            && !changedProperties.has('compact')
+            && this._view !== undefined) {
+            return;
+        }
+
         const active = this.power > 50;
-        const { value, unit } = formatPower(this.power);
         const borderColor = (active && this.sourceColor) ? this.sourceColor : undefined;
-        const svgSize = this.compact ? 40 : 50;
+        const { value, unit } = formatPower(this.power);
 
-        return html`
-            <div class="svg-wrapper" style="${this.compact ? 'width:40px;height:40px;' : ''}">
-                <svg viewBox="-15 -14 110 110" width="${svgSize}" height="${svgSize}" xmlns="http://www.w3.org/2000/svg"
-                     style="${borderColor ? `--window-color: ${borderColor}` : ''}">
-                    ${this._renderHouse(active, borderColor)}
-                </svg>
-            </div>
-            ${this.compact ? '' : html`
-            <div class="power-label ${active ? 'active' : ''}">
-                ${value} <span class="unit">${unit}</span>
-            </div>`}
-        `;
-    }
-
-    // Private helper methods
-    private _renderHouse(active: boolean, borderColor?: string) {
-        const a = active ? 'active' : '';
-        // Dynamic border styles when we have a source color
         const bodyStyle = (active && borderColor)
             ? `stroke: ${borderColor}; filter: drop-shadow(0 0 8px ${withAlpha(borderColor, '44')})`
             : '';
         const roofStyle = (active && borderColor) ? `stroke: ${borderColor}` : '';
         const doorStyle = (active && borderColor) ? `stroke: ${withAlpha(borderColor, '88')}` : '';
-        const crossColor = active ? (borderColor ? withAlpha(borderColor, '66') : withAlpha(state.warm, '66')) : neutral.surfaceMid;
-        const knobColor  = active ? (borderColor ? withAlpha(borderColor, '88') : withAlpha(state.warm, '88')) : neutral.strokeSoft;
+        const crossColor = active ? (borderColor ? withAlpha(borderColor, '66') : withAlpha(colorState.warm, '66')) : neutral.surfaceMid;
+        const knobColor  = active ? (borderColor ? withAlpha(borderColor, '88') : withAlpha(colorState.warm, '88')) : neutral.strokeSoft;
+
+        this._view = {
+            svgSize: this.compact ? 40 : 50,
+            wrapperStyle: this.compact ? 'width:40px;height:40px;' : '',
+            windowColorStyle: borderColor ? `--window-color: ${borderColor}` : '',
+            bodyStyle,
+            roofStyle,
+            doorStyle,
+            crossColor,
+            knobColor,
+            activeClass: active ? 'active' : '',
+            powerLabelClass: active ? 'active' : '',
+            showPowerLabel: !this.compact,
+            formattedValue: value,
+            formattedUnit: unit,
+        };
+    }
+
+    // Render method
+    render() {
+        if (!this._view) return html``;
+        const v = this._view;
+        return html`
+            <div class="svg-wrapper" style="${v.wrapperStyle}">
+                <svg viewBox="-15 -14 110 110" width="${v.svgSize}" height="${v.svgSize}" xmlns="http://www.w3.org/2000/svg"
+                     style="${v.windowColorStyle}">
+                    ${this._renderHouse(v)}
+                </svg>
+            </div>
+            ${v.showPowerLabel ? html`
+            <div class="power-label ${v.powerLabelClass}">
+                ${v.formattedValue} <span class="unit">${v.formattedUnit}</span>
+            </div>` : ''}
+        `;
+    }
+
+    // Private helper methods
+    private _renderHouse(v: HouseView) {
         return svg`
             <!-- Chimney -->
             <rect class="chimney" x="52" y="15" width="7" height="16" rx="1.5"/>
 
             <!-- Roof -->
-            <polygon class="roof ${a}" style="${roofStyle}" points="40,6 73,36 7,36"/>
+            <polygon class="roof ${v.activeClass}" style="${v.roofStyle}" points="40,6 73,36 7,36"/>
 
             <!-- House body -->
-            <rect class="house-body ${a}" style="${bodyStyle}" x="13" y="35" width="54" height="41" rx="2"/>
+            <rect class="house-body ${v.activeClass}" style="${v.bodyStyle}" x="13" y="35" width="54" height="41" rx="2"/>
 
             <!-- Left window -->
-            <rect class="window ${a}" x="19" y="42" width="15" height="13" rx="2"/>
-            <line stroke="${crossColor}" stroke-width="1"
+            <rect class="window ${v.activeClass}" x="19" y="42" width="15" height="13" rx="2"/>
+            <line stroke="${v.crossColor}" stroke-width="1"
                   x1="26" y1="42" x2="26" y2="55"/>
-            <line stroke="${crossColor}" stroke-width="1"
+            <line stroke="${v.crossColor}" stroke-width="1"
                   x1="19" y1="48" x2="34" y2="48"/>
 
             <!-- Right window -->
-            <rect class="window ${a}" x="46" y="42" width="15" height="13" rx="2"/>
-            <line stroke="${crossColor}" stroke-width="1"
+            <rect class="window ${v.activeClass}" x="46" y="42" width="15" height="13" rx="2"/>
+            <line stroke="${v.crossColor}" stroke-width="1"
                   x1="53" y1="42" x2="53" y2="55"/>
-            <line stroke="${crossColor}" stroke-width="1"
+            <line stroke="${v.crossColor}" stroke-width="1"
                   x1="46" y1="48" x2="61" y2="48"/>
 
             <!-- Door -->
-            <rect class="door ${a}" style="${doorStyle}" x="32" y="54" width="16" height="22" rx="2"/>
+            <rect class="door ${v.activeClass}" style="${v.doorStyle}" x="32" y="54" width="16" height="22" rx="2"/>
             <!-- Door knob -->
-            <circle fill="${knobColor}" cx="45" cy="65" r="1.5"/>
+            <circle fill="${v.knobColor}" cx="45" cy="65" r="1.5"/>
         `;
     }
 }
