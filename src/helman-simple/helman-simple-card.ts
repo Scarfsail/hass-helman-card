@@ -170,6 +170,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     private _consumptionNode:    DeviceNode | null = null;
     private _historyEngine?: HistoryEngine;
     private _uiConfig?: HelmanUiConfig;
+    private _flowColors?: { solar: string; grid: string; battery: string };
+    private _flowGlows?:  { solar: string; grid: string; battery: string };
 
     // 5. State properties
     @state() private _hass?: HomeAssistant;
@@ -216,6 +218,21 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
     disconnectedCallback(): void {
         super.disconnectedCallback();
         this._historyEngine?.stop();
+    }
+
+    willUpdate(changedProperties: Map<string | symbol, unknown>) {
+        super.willUpdate(changedProperties);
+        if (!this._flowColors || changedProperties.has('_uiConfig') || changedProperties.has('_config')) {
+            const solar   = getFlowColor("solar");
+            const grid    = getFlowColor("grid");
+            const battery = getFlowColor("battery");
+            this._flowColors = { solar, grid, battery };
+            this._flowGlows  = {
+                solar:   getFlowGlow(solar),
+                grid:    getFlowGlow(grid),
+                battery: getFlowGlow(battery),
+            };
+        }
     }
 
     // 10. Render method
@@ -284,9 +301,9 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
         const battToHouseT  = thick(battToHouseI);
         const battToGridT   = thick(battToGridI);
 
-        const solarFlowColor = getFlowColor("solar");
-        const gridFlowColor = getFlowColor("grid");
-        const batteryFlowColor = getFlowColor("battery");
+        const solarFlowColor   = this._flowColors!.solar;
+        const gridFlowColor    = this._flowColors!.grid;
+        const batteryFlowColor = this._flowColors!.battery;
 
         // ── Source colors for consumer components ──────────────────────────────
         // Battery charge color: derived from live power flows to avoid backend color discrepancies
@@ -308,7 +325,7 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
                             <simple-card-solar .power=${solarPower}></simple-card-solar>
                         </div>
                         <div class="connector-h">
-                            ${solarExportingToGrid ? this._flowH(solarFlowColor, false, solarToGridT, 22.5, 33) : ""}
+                            ${solarExportingToGrid ? this._flowH(solarFlowColor, this._flowGlows!.solar, false, solarToGridT, 22.5, 33) : ""}
                         </div>
                         <div class="node-cell" @click=${() => this._dialogNodeType = 'grid'}>
                             <simple-card-grid .power=${effectiveGridPower} .sourceColor=${gridSourceColor}></simple-card-grid>
@@ -316,12 +333,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
                         <!-- ── Row 2: vertical connectors ── -->
                         <div class="connector-v">
-                            ${solarActive ? this._flowV(solarFlowColor, false, solarToHouseT) : ""}
+                            ${solarActive ? this._flowV(solarFlowColor, this._flowGlows!.solar, false, solarToHouseT) : ""}
                         </div>
                         <div></div>
                         <div class="connector-v">
-                            ${(gridImport && battCharge) ? this._flowV(gridFlowColor, false, gridToBattT) : ""}
-                            ${battToGridPower > 50 ? this._flowV(batteryFlowColor, true, battToGridT) : ""}
+                            ${(gridImport && battCharge) ? this._flowV(gridFlowColor, this._flowGlows!.grid, false, gridToBattT) : ""}
+                            ${battToGridPower > 50 ? this._flowV(batteryFlowColor, this._flowGlows!.battery, true, battToGridT) : ""}
                         </div>
 
                         <!-- ── Row 3: House ─── connector ─── Battery ── -->
@@ -551,12 +568,12 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
 
     private _renderFlowOverlay(solarToBatt: boolean, gridToHouse: boolean, battToHouse: boolean, solarToBattT: number, gridToHouseT: number, battToHouseT: number) {
         if (!solarToBatt && !gridToHouse && !battToHouse) return "";
-        const solarFlowColor = getFlowColor("solar");
-        const gridFlowColor = getFlowColor("grid");
-        const batteryFlowColor = getFlowColor("battery");
-        const solarFlowGlow = getFlowGlow(solarFlowColor);
-        const gridFlowGlow = getFlowGlow(gridFlowColor);
-        const batteryFlowGlow = getFlowGlow(batteryFlowColor);
+        const solarFlowColor   = this._flowColors!.solar;
+        const gridFlowColor    = this._flowColors!.grid;
+        const batteryFlowColor = this._flowColors!.battery;
+        const solarFlowGlow    = this._flowGlows!.solar;
+        const gridFlowGlow     = this._flowGlows!.grid;
+        const batteryFlowGlow  = this._flowGlows!.battery;
         // SVG overlays the full energy-grid (viewBox 0 0 200 168).
         // Column centers: House=45, Grid/Battery=155. Row centers: top≈35, bottom≈133.
         // vector-effect="non-scaling-stroke" keeps stroke-width in screen pixels,
@@ -598,9 +615,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             </svg>`;
     }
 
-    private _flowH(color: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
+    private _flowH(color: string, glow: string, reverse: boolean, strokeWidth: number, leftOverhang = 0, rightOverhang = 0) {
         const sw = strokeWidth;
-        const glow = getFlowGlow(color);
         // connectorW matches the 20px CSS grid connector column so absolute SVG
         // coordinates (no viewBox) map 1:1 to pixels, letting us reach actual
         // picture borders on both sides via overflow:visible.
@@ -617,9 +633,8 @@ export class HelmanSimpleCard extends LitElement implements LovelaceCard {
             </svg>`;
     }
 
-    private _flowV(color: string, reverse: boolean, strokeWidth: number) {
+    private _flowV(color: string, glow: string, reverse: boolean, strokeWidth: number) {
         const sw = strokeWidth;
-        const glow = getFlowGlow(color);
         const y1 = reverse ? "100%" : "0%";
         const y2 = reverse ? "0%" : "100%";
         return html`
