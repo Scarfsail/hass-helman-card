@@ -23,12 +23,38 @@ export class PowerHouseDevicesSection extends LitElement {
 
     @state() private _activeCategory?: string;
     @state() private _showAll: boolean = false;
+    @state() private _groupedDevices?: DeviceNode[];
     private _localize?: LocalizeFunction;
+    private _groupedKey?: string;
 
     willUpdate(changedProperties: Map<string, unknown>): void {
         if (!this._localize && changedProperties.has('hass') && this.hass) {
             this._localize = getLocalizeFunction(this.hass);
         }
+
+        const cat = this._activeCategory;
+        if (!cat) {
+            if (this._groupedDevices !== undefined) {
+                this._groupedDevices = undefined;
+                this._groupedKey = undefined;
+            }
+            return;
+        }
+
+        const devices = this.devices || [];
+        const ui = this.uiConfig;
+        const key = `${cat}|${devices.length}|${ui?.show_others_group ?? true}|${ui?.show_empty_groups ?? false}|${ui?.others_group_label ?? ''}`;
+
+        const inputsChanged =
+            changedProperties.has('devices') ||
+            changedProperties.has('_activeCategory') ||
+            changedProperties.has('uiConfig') ||
+            this._groupedKey !== key;
+
+        if (!inputsChanged) return;
+
+        this._groupedDevices = this._groupByCategory(devices, cat);
+        this._groupedKey = key;
     }
 
     static get styles() {
@@ -181,7 +207,7 @@ export class PowerHouseDevicesSection extends LitElement {
     const filtered = this.devices || [];
         const categories = this._getCategories();
         const activeCat = this._activeCategory;
-        const devicesToShow = activeCat ? this._groupByCategory(filtered, activeCat) : filtered;
+        const devicesToShow = activeCat ? (this._groupedDevices ?? filtered) : filtered;
     const showTop = activeCat ? 0 : (this._showAll ? 0 : this.initial_show_only_top_children);
 
         return html`
