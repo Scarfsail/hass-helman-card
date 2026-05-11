@@ -24,6 +24,18 @@ import {
 
 type RatioBounds = { min: number; max: number; maxAbsDeviation: number };
 
+type ChartLayout = {
+  width: number;
+  height: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+  plotWidth: number;
+  plotHeight: number;
+  maxKw: number;
+  yTicks: number[];
+  xForMinutes: (m: number) => number;
+  yForW: (w: number) => number;
+};
+
 type InspectorPayload = {
   date: string;
   timezone: string;
@@ -550,7 +562,7 @@ export class HelmanSolarInspector extends LitElement {
     `;
   }
 
-  private _renderChart(payload: InspectorPayload) {
+  private _computeChartLayout(payload: InspectorPayload): ChartLayout {
     const width = this._chartWidth;
     const height = 260;
     const margin = { top: 18, right: 24, bottom: 34, left: 48 };
@@ -562,18 +574,85 @@ export class HelmanSolarInspector extends LitElement {
     const actualPoints = toAveragePower(payload.series.actual, { bucketMinutes: 15 });
     const invalidatedPoints = toAveragePower(payload.series.invalidated, { bucketMinutes: 15 });
     const allPower = [
-      ...rawPoints.map((entry) => entry.powerW),
-      ...correctedPoints.map((entry) => entry.powerW),
-      ...actualPoints.map((entry) => entry.powerW),
-      ...invalidatedPoints.map((entry) => entry.powerW),
+      ...rawPoints.map((e) => e.powerW),
+      ...correctedPoints.map((e) => e.powerW),
+      ...actualPoints.map((e) => e.powerW),
+      ...invalidatedPoints.map((e) => e.powerW),
     ];
     const maxW = Math.max(1000, ...allPower);
     const maxKw = Math.ceil(maxW / 1000);
     const yTicks = this._buildYTicks(maxKw);
-
     const xForMinutes = (minutes: number) => margin.left + (minutes / 1440) * plotWidth;
     const yForW = (powerW: number) =>
       margin.top + plotHeight - (powerW / (maxKw * 1000)) * plotHeight;
+
+    return { width, height, margin, plotWidth, plotHeight, maxKw, yTicks, xForMinutes, yForW };
+  }
+
+  private _renderChart(payload: InspectorPayload) {
+    const layout = this._computeChartLayout(payload);
+    return svg`
+      <svg
+        viewBox="0 0 ${layout.width} ${layout.height}"
+        role="img"
+        aria-label=${this._t("bias_correction.inspector.title")}
+        @click=${() => this._deselectSlot()}
+      >
+        ${this._renderChartBackground(layout)}
+        ${this._renderLeftAxis(layout)}
+        ${this._renderXAxis(layout)}
+        ${this._renderSolarLayer(payload, layout)}
+      </svg>
+    `;
+  }
+
+  private _renderChartBackground(layout: ChartLayout) {
+    return svg`
+      <rect x="0" y="0" width=${layout.width} height=${layout.height} fill="var(--card-background-color)"></rect>
+      <defs>
+        <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+          <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
+        </pattern>
+        <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+          <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
+        </pattern>
+      </defs>
+    `;
+  }
+
+  private _renderLeftAxis(layout: ChartLayout) {
+    const { margin, width, yTicks, yForW } = layout;
+    return svg`
+      <text x="12" y="16" fill="var(--secondary-text-color)" font-size="11">${this._t("bias_correction.inspector.power_axis_label")}</text>
+      ${yTicks.map((tick) => {
+        const y = yForW(tick * 1000);
+        return svg`
+          <line x1=${margin.left} y1=${y} x2=${width - margin.right} y2=${y} stroke="var(--divider-color)" stroke-width="1"></line>
+          <text x=${margin.left - 8} y=${y + 4} text-anchor="end" fill="var(--secondary-text-color)" font-size="11">${tick.toFixed(1)}</text>
+        `;
+      })}
+    `;
+  }
+
+  private _renderXAxis(layout: ChartLayout) {
+    const { margin, height, xForMinutes } = layout;
+    return [0, 3, 6, 9, 12, 15, 18, 21, 24].map((hour) => {
+      const x = xForMinutes(hour * 60);
+      return svg`
+        <line x1=${x} y1=${margin.top} x2=${x} y2=${height - margin.bottom} stroke="var(--divider-color)" stroke-width="1" opacity="0.55"></line>
+        <text x=${x} y=${height - 10} text-anchor="middle" fill="var(--secondary-text-color)" font-size="11">${String(hour).padStart(2, "0")}</text>
+      `;
+    });
+  }
+
+  private _renderSolarLayer(payload: InspectorPayload, layout: ChartLayout) {
+    const { xForMinutes, yForW, margin, plotWidth, plotHeight } = layout;
+    const rawPoints = toAveragePower(payload.series.raw);
+    const correctedPoints = toAveragePower(payload.series.corrected);
+    const actualPoints = toAveragePower(payload.series.actual, { bucketMinutes: 15 });
+    const invalidatedPoints = toAveragePower(payload.series.invalidated, { bucketMinutes: 15 });
 
     const linePath = (points: ChartEntry[]) =>
       points
@@ -584,58 +663,25 @@ export class HelmanSolarInspector extends LitElement {
         .join(" ");
 
     return svg`
-      <svg
-        viewBox="0 0 ${width} ${height}"
-        role="img"
-        aria-label=${this._t("bias_correction.inspector.title")}
-        @click=${() => this._deselectSlot()}
-      >
-        <rect x="0" y="0" width=${width} height=${height} fill="var(--card-background-color)"></rect>
-        ${yTicks.map((tick) => {
-          const y = yForW(tick * 1000);
-          return svg`
-            <line x1=${margin.left} y1=${y} x2=${width - margin.right} y2=${y} stroke="var(--divider-color)" stroke-width="1"></line>
-            <text x=${margin.left - 8} y=${y + 4} text-anchor="end" fill="var(--secondary-text-color)" font-size="11">${tick.toFixed(1)}</text>
-          `;
-        })}
-        ${[0, 3, 6, 9, 12, 15, 18, 21, 24].map((hour) => {
-          const x = margin.left + (hour / 24) * plotWidth;
-          return svg`
-            <line x1=${x} y1=${margin.top} x2=${x} y2=${height - margin.bottom} stroke="var(--divider-color)" stroke-width="1" opacity="0.55"></line>
-            <text x=${x} y=${height - 10} text-anchor="middle" fill="var(--secondary-text-color)" font-size="11">${String(hour).padStart(2, "0")}</text>
-          `;
-        })}
-        <defs>
-          <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-            <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
-            <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
-          </pattern>
-          <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-            <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
-            <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
-          </pattern>
-        </defs>
-        <text x="12" y="16" fill="var(--secondary-text-color)" font-size="11">${this._t("bias_correction.inspector.power_axis_label")}</text>
-        ${this._renderImpactColumns(payload.series.impact, payload.trainingExplainability, margin.left, margin.top, plotWidth, plotHeight)}
-        ${rawPoints.length > 1
-          ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
-          : rawPoints.length === 1
-            ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill="#64748b"></circle>`
-            : ""}
-        ${correctedPoints.length > 1
-          ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke="#2563eb" stroke-width="2.4"></path>`
-          : correctedPoints.length === 1
-            ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill="#2563eb"></circle>`
+      ${this._renderImpactColumns(payload.series.impact, payload.trainingExplainability, margin.left, margin.top, plotWidth, plotHeight)}
+      ${rawPoints.length > 1
+        ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
+        : rawPoints.length === 1
+          ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill="#64748b"></circle>`
           : ""}
-        ${actualPoints.map((entry) => svg`
-          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#f59e0b"></circle>
-        `)}
-        ${invalidatedPoints.map((entry) => svg`
-          <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9ca3af" opacity="0.55">
-            <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
-          </circle>
-        `)}
-      </svg>
+      ${correctedPoints.length > 1
+        ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke="#2563eb" stroke-width="2.4"></path>`
+        : correctedPoints.length === 1
+          ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill="#2563eb"></circle>`
+        : ""}
+      ${actualPoints.map((entry) => svg`
+        <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#f59e0b"></circle>
+      `)}
+      ${invalidatedPoints.map((entry) => svg`
+        <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9ca3af" opacity="0.55">
+          <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
+        </circle>
+      `)}
     `;
   }
 
