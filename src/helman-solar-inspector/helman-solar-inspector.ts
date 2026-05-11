@@ -416,6 +416,14 @@ export class HelmanSolarInspector extends LitElement {
       min-width: 0;
     }
 
+    .metric-grid.wide {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    @media (max-width: 720px) {
+      .metric-grid.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
     .metric-card {
       border: 1px solid var(--divider-color);
       border-radius: 6px;
@@ -1000,6 +1008,10 @@ export class HelmanSolarInspector extends LitElement {
     const corrected = findPointForSlot(payload.series.corrected, selectedSlot);
     const actual = findPointForSlot(payload.series.actual, selectedSlot);
     const trainingSlot = findTrainingSlot(payload.trainingExplainability, selectedSlot);
+    const houseFc = findHouseForecastForSlot(payload.series.houseForecast, selectedSlot);
+    const houseAc = findHouseActualForSlot(payload.series.houseActual, selectedSlot);
+    const batterySocFc = findBatterySocForecastForSlot(payload.series.batterySocForecast, selectedSlot);
+    const batterySocAc = findBatterySocActualForSlot(payload.series.batterySocActual, selectedSlot);
     const interpolated = trainingSlot?.interpolated === true;
     const anchors = trainingSlot?.interpolationAnchors ?? null;
     return html`
@@ -1018,12 +1030,16 @@ export class HelmanSolarInspector extends LitElement {
         ${interpolated
           ? html`<div class="day-state">${this._t("bias_correction.inspector.interpolated_explanation")}</div>`
           : ""}
-        <div class="metric-grid">
+        <div class="metric-grid wide">
           ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null))}
           ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null))}
           ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(actual?.valueWh ?? null))}
           ${this._renderMetric(this._t("bias_correction.inspector.correction_impact"), this._formatSignedWh(impact?.impactWh ?? null))}
           ${this._renderMetric(this._t("bias_correction.inspector.factor"), this._formatFactor(impact?.factor ?? trainingSlot?.factor ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(houseFc?.valueWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_actual"), this._formatWh(houseAc?.valueWh ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.battery_soc_forecast"), this._formatPct(batterySocFc?.pct ?? null))}
+          ${this._renderMetric(this._t("bias_correction.inspector.battery_soc_actual"), this._formatPct(batterySocAc?.pct ?? null))}
         </div>
       </div>
       ${this._renderContributionTable(payload, selectedSlot, trainingSlot)}
@@ -1344,6 +1360,13 @@ export class HelmanSolarInspector extends LitElement {
   private _formatFactor(value: number | null) {
     if (value === null || !Number.isFinite(value)) return "-";
     return value.toFixed(3);
+  }
+
+  private _formatPct(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) {
+      return this._t("bias_correction.inspector.actual_not_available");
+    }
+    return `${value.toFixed(1)} %`;
   }
 
   private _hasInterpolatedSlots(payload: InspectorPayload): boolean {
