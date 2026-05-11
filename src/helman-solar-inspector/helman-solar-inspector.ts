@@ -174,6 +174,27 @@ export class HelmanSolarInspector extends LitElement {
       color: var(--secondary-text-color);
     }
 
+    .legend.grouped {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 6px 14px;
+      row-gap: 4px;
+    }
+
+    .legend-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-group-title {
+      font-weight: 600;
+      color: var(--primary-text-color);
+      font-size: 0.78rem;
+      margin-right: 4px;
+    }
+
     .legend-item {
       display: inline-flex;
       align-items: center;
@@ -189,6 +210,10 @@ export class HelmanSolarInspector extends LitElement {
 
     .swatch.raw { color: #64748b; }
     .swatch.corrected { color: #2563eb; }
+    .swatch.house-forecast { background: repeating-linear-gradient(90deg, #a855f7 0 4px, transparent 4px 7px); }
+    .swatch.house-actual { background: #a855f7; }
+    .swatch.battery-forecast { background: repeating-linear-gradient(90deg, #14b8a6 0 4px, transparent 4px 7px); }
+    .swatch.battery-actual { background: #14b8a6; }
 
     .dot {
       width: 8px;
@@ -541,39 +566,50 @@ export class HelmanSolarInspector extends LitElement {
 
   private _renderLegend(payload: InspectorPayload) {
     return html`
-      <div class="legend">
-        ${payload.availability.hasRawForecast ? html`<span class="legend-item"><span class="swatch raw"></span>${this._t("bias_correction.inspector.raw_forecast")}</span>` : ""}
-        ${payload.availability.hasCorrectedForecast ? html`<span class="legend-item"><span class="swatch corrected"></span>${this._t("bias_correction.inspector.corrected_forecast")}</span>` : ""}
-        ${payload.availability.hasActuals ? html`<span class="legend-item"><span class="dot"></span>${this._t("bias_correction.inspector.actual_production")}</span>` : ""}
-        ${payload.availability.hasInvalidated ? html`<span class="legend-item"><span class="dot invalidated"></span>${this._t("bias_correction.inspector.invalidated_production")}</span>` : ""}
+      <div class="legend grouped">
+        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.solar"), [
+          payload.availability.hasRawForecast
+            ? html`<span class="legend-item"><span class="swatch raw"></span>${this._t("bias_correction.inspector.raw_forecast")}</span>` : null,
+          payload.availability.hasCorrectedForecast
+            ? html`<span class="legend-item"><span class="swatch corrected"></span>${this._t("bias_correction.inspector.corrected_forecast")}</span>` : null,
+          payload.availability.hasActuals
+            ? html`<span class="legend-item"><span class="dot"></span>${this._t("bias_correction.inspector.actual_production")}</span>` : null,
+          payload.availability.hasInvalidated
+            ? html`<span class="legend-item"><span class="dot invalidated"></span>${this._t("bias_correction.inspector.invalidated_production")}</span>` : null,
+        ])}
+        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.house"), [
+          payload.availability.hasHouseForecast
+            ? html`<span class="legend-item"><span class="swatch house-forecast"></span>${this._t("bias_correction.inspector.house_forecast")}</span>` : null,
+          payload.availability.hasHouseActual
+            ? html`<span class="legend-item"><span class="swatch house-actual"></span>${this._t("bias_correction.inspector.house_actual")}</span>` : null,
+        ])}
+        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.battery"), [
+          payload.availability.hasBatterySocForecast
+            ? html`<span class="legend-item"><span class="swatch battery-forecast"></span>${this._t("bias_correction.inspector.battery_soc_forecast")}</span>` : null,
+          payload.availability.hasBatterySocActual
+            ? html`<span class="legend-item"><span class="swatch battery-actual"></span>${this._t("bias_correction.inspector.battery_soc_actual")}</span>` : null,
+        ])}
         ${payload.series.impact.length
-          ? html`
-              <span class="legend-item">
-                <span class="impact-swatch positive"></span>
-                ${this._t("bias_correction.inspector.positive_impact")}
-              </span>
-              <span class="legend-item">
-                <span class="impact-swatch negative"></span>
-                ${this._t("bias_correction.inspector.negative_impact")}
-              </span>
-              ${this._hasInterpolatedSlots(payload)
-                ? html`
-                    <span class="legend-item">
-                      <span class="impact-swatch interpolated"></span>
-                      ${this._t("bias_correction.inspector.interpolated_label")}
-                    </span>
-                  `
-                : ""}
-              ${this._hasUntrainedSlots(payload)
-                ? html`
-                    <span class="legend-item">
-                      <span class="impact-swatch untrained"></span>
-                      ${this._t("bias_correction.inspector.untrained_label")}
-                    </span>
-                  `
-                : ""}
-            `
+          ? this._renderLegendGroup(this._t("bias_correction.inspector.legend.correction"), [
+              html`<span class="legend-item"><span class="impact-swatch positive"></span>${this._t("bias_correction.inspector.positive_impact")}</span>`,
+              html`<span class="legend-item"><span class="impact-swatch negative"></span>${this._t("bias_correction.inspector.negative_impact")}</span>`,
+              this._hasInterpolatedSlots(payload)
+                ? html`<span class="legend-item"><span class="impact-swatch interpolated"></span>${this._t("bias_correction.inspector.interpolated_label")}</span>` : null,
+              this._hasUntrainedSlots(payload)
+                ? html`<span class="legend-item"><span class="impact-swatch untrained"></span>${this._t("bias_correction.inspector.untrained_label")}</span>` : null,
+            ])
           : ""}
+      </div>
+    `;
+  }
+
+  private _renderLegendGroup(title: string, items: Array<unknown>) {
+    const visible = items.filter((x) => x);
+    if (!visible.length) return "";
+    return html`
+      <div class="legend-group">
+        <span class="legend-group-title">${title}</span>
+        ${visible}
       </div>
     `;
   }
