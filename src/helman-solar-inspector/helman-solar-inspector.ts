@@ -915,6 +915,16 @@ export class HelmanSolarInspector extends LitElement {
         type: "helman/solar_bias/inspector",
         date: requestedDate,
       });
+      payload.series.houseForecast ??= [];
+      payload.series.houseActual ??= [];
+      payload.series.batterySocForecast ??= [];
+      payload.series.batterySocActual ??= [];
+      payload.totals.houseForecastWh ??= null;
+      payload.totals.houseActualWh ??= null;
+      payload.availability.hasHouseForecast ??= false;
+      payload.availability.hasHouseActual ??= false;
+      payload.availability.hasBatterySocForecast ??= false;
+      payload.availability.hasBatterySocActual ??= false;
       if (requestId === this._activeRequestId && requestedDate === this._selectedDate) {
         this._payload = payload;
         const resolvedSlot = resolveSelectedImpactSlot(
