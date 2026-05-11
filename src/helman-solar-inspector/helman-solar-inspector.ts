@@ -573,11 +573,15 @@ export class HelmanSolarInspector extends LitElement {
     const correctedPoints = toAveragePower(payload.series.corrected);
     const actualPoints = toAveragePower(payload.series.actual, { bucketMinutes: 15 });
     const invalidatedPoints = toAveragePower(payload.series.invalidated, { bucketMinutes: 15 });
+    const houseForecastPower = toAveragePower(payload.series.houseForecast, { bucketMinutes: 15 });
+    const houseActualPower = toAveragePower(payload.series.houseActual, { bucketMinutes: 15 });
     const allPower = [
       ...rawPoints.map((e) => e.powerW),
       ...correctedPoints.map((e) => e.powerW),
       ...actualPoints.map((e) => e.powerW),
       ...invalidatedPoints.map((e) => e.powerW),
+      ...houseForecastPower.map((e) => e.powerW),
+      ...houseActualPower.map((e) => e.powerW),
     ];
     const maxW = Math.max(1000, ...allPower);
     const maxKw = Math.ceil(maxW / 1000);
@@ -602,6 +606,7 @@ export class HelmanSolarInspector extends LitElement {
         ${this._renderLeftAxis(layout)}
         ${this._renderXAxis(layout)}
         ${this._renderSolarLayer(payload, layout)}
+        ${this._renderHouseLayer(payload, layout)}
       </svg>
     `;
   }
@@ -682,6 +687,23 @@ export class HelmanSolarInspector extends LitElement {
           <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
         </circle>
       `)}
+    `;
+  }
+
+  private _renderHouseLayer(payload: InspectorPayload, layout: ChartLayout) {
+    if (!payload.availability.hasHouseForecast && !payload.availability.hasHouseActual) {
+      return "";
+    }
+    const { xForMinutes, yForW } = layout;
+    const fc = toAveragePower(payload.series.houseForecast, { bucketMinutes: 15 });
+    const ac = toAveragePower(payload.series.houseActual, { bucketMinutes: 15 });
+    const path = (points: ChartEntry[]) =>
+      points.map((e, i) =>
+        `${i === 0 ? "M" : "L"}${xForMinutes(e.minutes).toFixed(1)},${yForW(e.powerW).toFixed(1)}`,
+      ).join(" ");
+    return svg`
+      ${fc.length > 1 ? svg`<path d=${path(fc)} fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#a855f7" stroke-width="2"></path>` : ""}
     `;
   }
 
