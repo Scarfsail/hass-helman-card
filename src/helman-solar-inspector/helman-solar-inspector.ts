@@ -97,6 +97,7 @@ export class HelmanSolarInspector extends LitElement {
   @state() private _chartWidth = 720;
 
   private _fallbackLocalize: LocalizeFunction = (key: string) => key;
+  private _lastLayoutForStrip: ChartLayout | null = null;
   private _activeRequestId = 0;
   private _activeRequestDate: string | null = null;
   private _loadedConnection: unknown = null;
@@ -366,6 +367,18 @@ export class HelmanSolarInspector extends LitElement {
       height: 260px;
     }
 
+    .impact-strip-wrap {
+      margin-top: 4px;
+      width: 100%;
+    }
+
+    .impact-strip-wrap svg {
+      display: block;
+      width: 100%;
+      min-width: 360px;
+      height: 24px;
+    }
+
     .metrics-section {
       display: grid;
       gap: 6px;
@@ -518,6 +531,7 @@ export class HelmanSolarInspector extends LitElement {
         ? html`
             ${this._renderLegend(payload)}
             <div class="chart-wrap">${this._renderChart(payload)}</div>
+            <div class="impact-strip-wrap">${this._lastLayoutForStrip ? this._renderImpactStrip(payload, this._lastLayoutForStrip) : ""}</div>
             ${this._renderTotals(payload)}
             ${this._renderSelectedSlotDetails(payload)}
           `
@@ -602,6 +616,7 @@ export class HelmanSolarInspector extends LitElement {
 
   private _renderChart(payload: InspectorPayload) {
     const layout = this._computeChartLayout(payload);
+    this._lastLayoutForStrip = layout;
     return svg`
       <svg
         viewBox="0 0 ${layout.width} ${layout.height}"
@@ -677,7 +692,6 @@ export class HelmanSolarInspector extends LitElement {
         .join(" ");
 
     return svg`
-      ${this._renderImpactColumns(payload.series.impact, payload.trainingExplainability, margin.left, margin.top, plotWidth, plotHeight)}
       ${rawPoints.length > 1
         ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
         : rawPoints.length === 1
@@ -753,6 +767,72 @@ export class HelmanSolarInspector extends LitElement {
     return svg`
       ${fc.length > 1 ? svg`<path d=${path(fc)} fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
       ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#a855f7" stroke-width="2"></path>` : ""}
+    `;
+  }
+
+  private _renderImpactStrip(payload: InspectorPayload, layout: ChartLayout) {
+    if (!payload.series.impact.length) return "";
+    const stripHeight = 24;
+    const stripWidth = layout.width;
+    const xLeft = layout.margin.left;
+    const xRight = layout.width - layout.margin.right;
+    const plotWidth = xRight - xLeft;
+    const values = payload.series.impact
+      .map((p) => Math.abs(p.impactWh ?? 0))
+      .filter((v) => Number.isFinite(v));
+    const maxImpact = Math.max(1, ...values);
+    const selectedSlot = resolveSelectedImpactSlot(payload.series.impact, this._selectedSlot);
+    const explainability = payload.trainingExplainability;
+    return svg`
+      <svg
+        viewBox="0 0 ${stripWidth} ${stripHeight}"
+        role="img"
+        aria-label=${this._t("bias_correction.inspector.correction_impact")}
+        @click=${() => this._deselectSlot()}
+      >
+        ${payload.series.impact.map((point) => {
+          if (point.impactWh === null || !Number.isFinite(point.impactWh)) return "";
+          const m = /^(\d{2}):(\d{2})$/.exec(point.slot);
+          if (!m) return "";
+          const minutes = Number(m[1]) * 60 + Number(m[2]);
+          const x = xLeft + (minutes / 1440) * plotWidth;
+          const w = Math.max(3, plotWidth / 96);
+          const h = Math.max(2, (Math.abs(point.impactWh) / maxImpact) * (stripHeight - 4));
+          const y = stripHeight - h - 2;
+          const trainingSlot = explainability?.slots[point.slot] ?? null;
+          const interpolated = trainingSlot?.interpolated === true;
+          const untrained = !interpolated && (trainingSlot === null || trainingSlot.factor === null);
+          const positive = point.impactWh >= 0;
+          const selected = selectedSlot === point.slot;
+          const fill = untrained
+            ? "#9ca3af"
+            : interpolated
+              ? positive ? "url(#impact-interpolated-positive)" : "url(#impact-interpolated-negative)"
+              : positive ? "#16a34a" : "#dc2626";
+          const fillOpacity = untrained ? "0.45" : interpolated ? "1" : "0.55";
+          const strokeColor = selected ? "var(--primary-text-color)" : "transparent";
+          const strokeWidth = selected ? "1.5" : "0";
+          return svg`
+            <rect x=${x} y=${y} width=${w} height=${h}
+                  fill=${fill} fill-opacity=${fillOpacity}
+                  stroke=${strokeColor} stroke-width=${strokeWidth}
+                  style="cursor: pointer;"
+                  @click=${(e: MouseEvent) => this._selectSlot(point.slot, e)}>
+              <title>${point.slot} ${this._formatSignedWh(point.impactWh)}</title>
+            </rect>
+          `;
+        })}
+        <defs>
+          <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+            <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
+          </pattern>
+          <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+            <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
+          </pattern>
+        </defs>
+      </svg>
     `;
   }
 
