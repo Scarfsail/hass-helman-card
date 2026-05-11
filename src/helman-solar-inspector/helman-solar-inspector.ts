@@ -985,8 +985,8 @@ export class HelmanSolarInspector extends LitElement {
           ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(payload.totals.rawWh))}
           ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(payload.totals.correctedWh))}
           ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(payload.totals.actualWh))}
-          ${this._renderMetricPlaceholder()}
-          ${this._renderMetricPlaceholder()}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(payload.totals.houseForecastWh))}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_actual"), this._formatWh(payload.totals.houseActualWh))}
         </div>
       </div>
     `;
