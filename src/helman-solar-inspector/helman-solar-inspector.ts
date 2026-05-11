@@ -34,6 +34,8 @@ type ChartLayout = {
   yTicks: number[];
   xForMinutes: (m: number) => number;
   yForW: (w: number) => number;
+  hasSocAxis: boolean;
+  yForPct: (pct: number) => number;
 };
 
 type InspectorPayload = {
@@ -565,7 +567,10 @@ export class HelmanSolarInspector extends LitElement {
   private _computeChartLayout(payload: InspectorPayload): ChartLayout {
     const width = this._chartWidth;
     const height = 260;
-    const margin = { top: 18, right: 24, bottom: 34, left: 48 };
+    const hasSocAxis =
+      payload.availability.hasBatterySocForecast ||
+      payload.availability.hasBatterySocActual;
+    const margin = { top: 18, right: hasSocAxis ? 40 : 24, bottom: 34, left: 48 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
 
@@ -589,8 +594,10 @@ export class HelmanSolarInspector extends LitElement {
     const xForMinutes = (minutes: number) => margin.left + (minutes / 1440) * plotWidth;
     const yForW = (powerW: number) =>
       margin.top + plotHeight - (powerW / (maxKw * 1000)) * plotHeight;
+    const yForPct = (pct: number) =>
+      margin.top + plotHeight - (Math.max(0, Math.min(100, pct)) / 100) * plotHeight;
 
-    return { width, height, margin, plotWidth, plotHeight, maxKw, yTicks, xForMinutes, yForW };
+    return { width, height, margin, plotWidth, plotHeight, maxKw, yTicks, xForMinutes, yForW, hasSocAxis, yForPct };
   }
 
   private _renderChart(payload: InspectorPayload) {
@@ -607,6 +614,8 @@ export class HelmanSolarInspector extends LitElement {
         ${this._renderXAxis(layout)}
         ${this._renderSolarLayer(payload, layout)}
         ${this._renderHouseLayer(payload, layout)}
+        ${this._renderRightAxis(layout)}
+        ${this._renderBatteryLayer(payload, layout)}
       </svg>
     `;
   }
@@ -687,6 +696,46 @@ export class HelmanSolarInspector extends LitElement {
           <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
         </circle>
       `)}
+    `;
+  }
+
+  private _renderRightAxis(layout: ChartLayout) {
+    if (!layout.hasSocAxis) return "";
+    const ticks = [0, 25, 50, 75, 100];
+    const xRight = layout.width - layout.margin.right;
+    return ticks.map((pct) => {
+      const y = layout.yForPct(pct);
+      return svg`
+        <text x=${xRight + 6} y=${y + 4} text-anchor="start"
+              fill="var(--secondary-text-color)" font-size="11"
+              opacity="0.75">${pct}%</text>
+      `;
+    });
+  }
+
+  private _renderBatteryLayer(payload: InspectorPayload, layout: ChartLayout) {
+    if (!layout.hasSocAxis) return "";
+    const { xForMinutes, yForPct } = layout;
+    const fc = payload.series.batterySocForecast;
+    const ac = payload.series.batterySocActual;
+    const slotToMinutes = (slot: string) => {
+      const m = /^(\d{2}):(\d{2})$/.exec(slot);
+      if (!m) return null;
+      return Number(m[1]) * 60 + Number(m[2]);
+    };
+    const path = (pts: BatterySocPoint[]) => {
+      const valid = pts
+        .map((p) => ({ m: slotToMinutes(p.slot), pct: p.pct }))
+        .filter((p): p is { m: number; pct: number } => p.m !== null);
+      return valid
+        .map((p, i) =>
+          `${i === 0 ? "M" : "L"}${xForMinutes(p.m).toFixed(1)},${yForPct(p.pct).toFixed(1)}`,
+        )
+        .join(" ");
+    };
+    return svg`
+      ${fc.length > 1 ? svg`<path d=${path(fc)} fill="none" stroke="#14b8a6" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#14b8a6" stroke-width="2"></path>` : ""}
     `;
   }
 
