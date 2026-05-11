@@ -9,6 +9,11 @@ import {
   findTrainingSlot,
   resolveSelectedTrainingDate,
   resolveSelectedImpactSlot,
+  findHouseForecastForSlot,
+  findHouseActualForSlot,
+  findBatterySocForecastForSlot,
+  findBatterySocActualForSlot,
+  type BatterySocPoint,
   type FactorPoint,
   type ImpactPoint,
   type InspectorPoint,
@@ -40,11 +45,17 @@ type InspectorPayload = {
     invalidated: InspectorPoint[];
     factors: FactorPoint[];
     impact: ImpactPoint[];
+    houseForecast: InspectorPoint[];
+    houseActual: InspectorPoint[];
+    batterySocForecast: BatterySocPoint[];
+    batterySocActual: BatterySocPoint[];
   };
   totals: {
     rawWh: number | null;
     correctedWh: number | null;
     actualWh: number | null;
+    houseForecastWh: number | null;
+    houseActualWh: number | null;
   };
   availability: {
     hasRawForecast: boolean;
@@ -52,6 +63,10 @@ type InspectorPayload = {
     hasActuals: boolean;
     hasInvalidated: boolean;
     hasProfile: boolean;
+    hasHouseForecast: boolean;
+    hasHouseActual: boolean;
+    hasBatterySocForecast: boolean;
+    hasBatterySocActual: boolean;
   };
   trainingExplainability: TrainingExplainability | null;
 };
