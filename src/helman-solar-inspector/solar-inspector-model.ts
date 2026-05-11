@@ -91,3 +91,35 @@ export function resolveSelectedTrainingDate(
   }
   return null;
 }
+
+export type BatterySocPoint = { slot: string; pct: number };
+
+export function findHouseForecastForSlot(
+  points: InspectorPoint[],
+  slot: string | null,
+): InspectorPoint | null {
+  return findPointForSlot(points, slot);
+}
+
+export function findHouseActualForSlot(
+  points: InspectorPoint[],
+  slot: string | null,
+): InspectorPoint | null {
+  return findPointForSlot(points, slot);
+}
+
+export function findBatterySocForecastForSlot(
+  points: BatterySocPoint[],
+  slot: string | null,
+): BatterySocPoint | null {
+  if (!slot) return null;
+  return points.find((p) => p.slot === slot) ?? null;
+}
+
+export function findBatterySocActualForSlot(
+  points: BatterySocPoint[],
+  slot: string | null,
+): BatterySocPoint | null {
+  if (!slot) return null;
+  return points.find((p) => p.slot === slot) ?? null;
+}
