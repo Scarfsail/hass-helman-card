@@ -104,6 +104,7 @@ export class HelmanSolarInspector extends LitElement {
   @state() private _error = "";
   @state() private _selectedSlot: string | null = null;
   @state() private _selectedTrainingDate: string | null = null;
+  @state() private _trainingTableCollapsed = true;
   @state() private _chartWidth = 720;
 
   private _fallbackLocalize: LocalizeFunction = (key: string) => key;
@@ -463,6 +464,32 @@ export class HelmanSolarInspector extends LitElement {
     .contribution-summary {
       display: grid;
       gap: 2px;
+    }
+
+    .contribution-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--primary-text-color);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0;
+      font: inherit;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .contribution-toggle-icon {
+      display: inline-block;
+      font-style: normal;
+      transition: transform 0.2s;
+      font-size: 0.7em;
+      opacity: 0.7;
+    }
+
+    .contribution-toggle-icon.expanded {
+      transform: rotate(90deg);
     }
 
     .contribution-table-wrap {
@@ -978,6 +1005,7 @@ export class HelmanSolarInspector extends LitElement {
     const previous = this._selectedSlot;
     this._selectedSlot = slot;
     this._selectedTrainingDate = this._resolveSelectedTrainingDate(slot);
+    this._trainingTableCollapsed = true;
     this.requestUpdate("_selectedSlot", previous);
   }
 
@@ -1100,7 +1128,14 @@ export class HelmanSolarInspector extends LitElement {
     const ratioBounds = this._computeRatioBounds(trainingSlot.rows);
     return html`
       <div class="contribution-summary">
-        <strong>${this._t("bias_correction.inspector.training_contribution")}</strong>
+        <button
+          class="contribution-toggle"
+          aria-expanded=${!this._trainingTableCollapsed}
+          @click=${() => { this._trainingTableCollapsed = !this._trainingTableCollapsed; }}
+        >
+          <span class="contribution-toggle-icon ${this._trainingTableCollapsed ? "" : "expanded"}">▶</span>
+          ${this._t("bias_correction.inspector.training_contribution")}
+        </button>
         <div class="day-state">
           ${this._tFormat("bias_correction.inspector.training_contribution_meta", {
             ratio: this._formatFactor(trainingSlot.rawRatio),
@@ -1116,55 +1151,57 @@ export class HelmanSolarInspector extends LitElement {
             </div>`
           : ""}
       </div>
-      <div class="contribution-table-wrap">
-        <table class="contribution-table">
-          <thead>
-            <tr>
-              <th>${this._t("bias_correction.inspector.date")}</th>
-              <th class="numeric">${this._t("bias_correction.inspector.forecast_wh")}</th>
-              <th class="numeric">${this._t("bias_correction.inspector.actual_wh")}</th>
-              <th class="numeric">${this._t("bias_correction.inspector.ratio")}</th>
-              <th>${this._t("bias_correction.inspector.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${this._sortContributionRows(trainingSlot.rows).map((row) => {
-              if (row.status === "interpolated") {
-                return html`
-                  <tr class="contribution-row synthetic" aria-disabled="true">
-                    <td>—</td>
-                    <td class="numeric">—</td>
-                    <td class="numeric">—</td>
-                    <td class="ratio">—</td>
-                    <td>${this._formatContributionStatus(row.status, row.reason)}</td>
-                  </tr>
-                `;
-              }
-              const selected = row.date === selectedTrainingDate;
-              const muted = row.status === "invalidated";
-              const classes = [
-                "contribution-row",
-                selected ? "selected" : "",
-                muted ? "muted" : "",
-              ].filter(Boolean).join(" ");
-              return html`
-              <tr
-                class=${classes}
-                aria-selected=${selected ? "true" : "false"}
-                tabindex="0"
-                @click=${() => this._selectTrainingDate(row.date)}
-                @keydown=${(event: KeyboardEvent) => this._handleContributionRowKeydown(event, row.date)}
-              >
-                <td>${row.date || "-"}</td>
-                <td class="numeric">${this._formatWh(row.forecastWh)}</td>
-                <td class="numeric">${this._formatWh(row.actualWh)}</td>
-                <td class="ratio">${muted ? this._formatFactor(row.ratio) : this._renderRatioGauge(row.ratio, ratioBounds)}</td>
-                <td>${this._formatContributionStatus(row.status, row.reason)}</td>
+      ${this._trainingTableCollapsed ? "" : html`
+        <div class="contribution-table-wrap">
+          <table class="contribution-table">
+            <thead>
+              <tr>
+                <th>${this._t("bias_correction.inspector.date")}</th>
+                <th class="numeric">${this._t("bias_correction.inspector.forecast_wh")}</th>
+                <th class="numeric">${this._t("bias_correction.inspector.actual_wh")}</th>
+                <th class="numeric">${this._t("bias_correction.inspector.ratio")}</th>
+                <th>${this._t("bias_correction.inspector.status")}</th>
               </tr>
-            `;})}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              ${this._sortContributionRows(trainingSlot.rows).map((row) => {
+                if (row.status === "interpolated") {
+                  return html`
+                    <tr class="contribution-row synthetic" aria-disabled="true">
+                      <td>—</td>
+                      <td class="numeric">—</td>
+                      <td class="numeric">—</td>
+                      <td class="ratio">—</td>
+                      <td>${this._formatContributionStatus(row.status, row.reason)}</td>
+                    </tr>
+                  `;
+                }
+                const selected = row.date === selectedTrainingDate;
+                const muted = row.status === "invalidated";
+                const classes = [
+                  "contribution-row",
+                  selected ? "selected" : "",
+                  muted ? "muted" : "",
+                ].filter(Boolean).join(" ");
+                return html`
+                <tr
+                  class=${classes}
+                  aria-selected=${selected ? "true" : "false"}
+                  tabindex="0"
+                  @click=${() => this._selectTrainingDate(row.date)}
+                  @keydown=${(event: KeyboardEvent) => this._handleContributionRowKeydown(event, row.date)}
+                >
+                  <td>${row.date || "-"}</td>
+                  <td class="numeric">${this._formatWh(row.forecastWh)}</td>
+                  <td class="numeric">${this._formatWh(row.actualWh)}</td>
+                  <td class="ratio">${muted ? this._formatFactor(row.ratio) : this._renderRatioGauge(row.ratio, ratioBounds)}</td>
+                  <td>${this._formatContributionStatus(row.status, row.reason)}</td>
+                </tr>
+              `;})}
+            </tbody>
+          </table>
+        </div>
+      `}
     `;
   }
 
