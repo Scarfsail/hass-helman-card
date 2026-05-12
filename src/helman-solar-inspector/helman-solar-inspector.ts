@@ -24,10 +24,10 @@ import {
 
 const CHART_COLORS = {
   raw:            '#64748b',
-  corrected:      '#2563eb',
-  actual:         '#f59e0b',
+  corrected:      '#facc15',
+  actual:         '#facc15',
   house:          '#a855f7',
-  battery:        '#14b8a6',
+  battery:        '#22c55e',
   impactPositive: '#16a34a',
   impactNegative: '#dc2626',
 } as const;
@@ -219,12 +219,13 @@ export class HelmanSolarInspector extends LitElement {
       background: currentColor;
     }
 
-    .swatch.raw { color: #64748b; }
-    .swatch.corrected { color: #2563eb; }
+    .swatch.raw { background: repeating-linear-gradient(90deg, #64748b 0 4px, transparent 4px 7px); }
+    .swatch.corrected { background: repeating-linear-gradient(90deg, #facc15 0 4px, transparent 4px 7px); }
+    .swatch.solar-actual { background: #facc15; }
     .swatch.house-forecast { background: repeating-linear-gradient(90deg, #a855f7 0 4px, transparent 4px 7px); }
     .swatch.house-actual { background: #a855f7; }
-    .swatch.battery-forecast { background: repeating-linear-gradient(90deg, #14b8a6 0 4px, transparent 4px 7px); }
-    .swatch.battery-actual { background: #14b8a6; }
+    .swatch.battery-forecast { background: repeating-linear-gradient(90deg, #22c55e 0 4px, transparent 4px 7px); }
+    .swatch.battery-actual { background: #22c55e; }
 
     .dot {
       width: 8px;
@@ -618,7 +619,7 @@ export class HelmanSolarInspector extends LitElement {
           payload.availability.hasCorrectedForecast
             ? html`<span class="legend-item"><span class="swatch corrected"></span>${this._t("bias_correction.inspector.corrected_forecast")}</span>` : null,
           payload.availability.hasActuals
-            ? html`<span class="legend-item"><span class="dot"></span>${this._t("bias_correction.inspector.actual_production")}</span>` : null,
+            ? html`<span class="legend-item"><span class="swatch solar-actual"></span>${this._t("bias_correction.inspector.actual_production")}</span>` : null,
           payload.availability.hasInvalidated
             ? html`<span class="legend-item"><span class="dot invalidated"></span>${this._t("bias_correction.inspector.invalidated_production")}</span>` : null,
         ])}
@@ -777,18 +778,20 @@ export class HelmanSolarInspector extends LitElement {
 
     return svg`
       ${rawPoints.length > 1
-        ? svg`<path d=${linePath(rawPoints)} fill="none" stroke=${CHART_COLORS.raw} stroke-width="2.4"></path>`
+        ? svg`<path d=${linePath(rawPoints)} fill="none" stroke=${CHART_COLORS.raw} stroke-width="2" stroke-dasharray="4 3"></path>`
         : rawPoints.length === 1
           ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill=${CHART_COLORS.raw}></circle>`
           : ""}
       ${correctedPoints.length > 1
-        ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke=${CHART_COLORS.corrected} stroke-width="2.4"></path>`
+        ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke=${CHART_COLORS.corrected} stroke-width="2" stroke-dasharray="4 3"></path>`
         : correctedPoints.length === 1
           ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill=${CHART_COLORS.corrected}></circle>`
         : ""}
-      ${actualPoints.map((entry) => svg`
-        <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill=${CHART_COLORS.actual}></circle>
-      `)}
+      ${actualPoints.length > 1
+        ? svg`<path d=${linePath(actualPoints)} fill="none" stroke=${CHART_COLORS.actual} stroke-width="2.4"></path>`
+        : actualPoints.length === 1
+          ? svg`<circle cx=${xForMinutes(actualPoints[0].minutes)} cy=${yForW(actualPoints[0].powerW)} r="3.5" fill=${CHART_COLORS.actual}></circle>`
+          : ""}
       ${invalidatedPoints.map((entry) => svg`
         <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9ca3af" opacity="0.55">
           <title>${this._t("bias_correction.inspector.invalidated_production")}</title>
