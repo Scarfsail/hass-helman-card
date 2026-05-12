@@ -177,100 +177,6 @@ export class HelmanSolarInspector extends LitElement {
       line-height: 1.35;
     }
 
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      font-size: 0.85rem;
-      color: var(--secondary-text-color);
-    }
-
-    .legend.grouped {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 6px 14px;
-      row-gap: 4px;
-    }
-
-    .legend-group {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .legend-group-title {
-      font-weight: 600;
-      color: var(--primary-text-color);
-      font-size: 0.78rem;
-      margin-right: 4px;
-    }
-
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .swatch {
-      width: 18px;
-      height: 3px;
-      border-radius: 2px;
-      background: currentColor;
-    }
-
-    .swatch.raw { background: repeating-linear-gradient(90deg, #64748b 0 4px, transparent 4px 7px); }
-    .swatch.corrected { background: repeating-linear-gradient(90deg, #facc15 0 4px, transparent 4px 7px); }
-    .swatch.solar-actual { background: #facc15; }
-    .swatch.house-forecast { background: repeating-linear-gradient(90deg, #a855f7 0 4px, transparent 4px 7px); }
-    .swatch.house-actual { background: #a855f7; }
-    .swatch.battery-forecast { background: repeating-linear-gradient(90deg, #22c55e 0 4px, transparent 4px 7px); }
-    .swatch.battery-actual { background: #22c55e; }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #f59e0b;
-    }
-
-    .dot.invalidated {
-      background: #9aa0a6;
-      opacity: 0.55;
-    }
-
-    .shade {
-      width: 18px;
-      height: 10px;
-      background: rgba(245, 127, 23, 0.24);
-      border: 1px solid rgba(245, 127, 23, 0.35);
-    }
-
-    .impact-swatch {
-      width: 10px;
-      height: 14px;
-      border-radius: 2px;
-      display: inline-block;
-      opacity: 0.4;
-    }
-
-    .impact-swatch.positive { background: #16a34a; }
-    .impact-swatch.negative { background: #dc2626; }
-    .impact-swatch.interpolated {
-      background: repeating-linear-gradient(
-        45deg,
-        var(--primary-text-color) 0 1.5px,
-        transparent 1.5px 4px
-      );
-      border: 1px dashed var(--primary-text-color);
-      opacity: 0.7;
-    }
-    .impact-swatch.untrained {
-      background: #9ca3af;
-      border: 1px dashed #9ca3af;
-      opacity: 0.6;
-    }
-
     .interpolation-note {
       display: inline-flex;
       align-items: center;
@@ -595,68 +501,14 @@ export class HelmanSolarInspector extends LitElement {
       ${!payload.availability.hasProfile
         ? html`<div class="note">${this._t("bias_correction.inspector.no_profile")}</div>`
         : ""}
-      ${payload.range.isToday
-        ? html`<div class="note">${this._t("bias_correction.inspector.today_training_note")}</div>`
-        : ""}
       ${hasAnySeries
         ? html`
-            ${this._renderLegend(payload)}
             <div class="chart-wrap">${this._renderChart(payload)}</div>
             <div class="impact-strip-wrap">${this._lastLayoutForStrip ? this._renderImpactStrip(payload, this._lastLayoutForStrip) : ""}</div>
             ${this._renderTotals(payload)}
             ${this._renderSelectedSlotDetails(payload)}
           `
         : html`<div class="note">${this._tFormat("bias_correction.inspector.no_data", { date: this._formatDay(payload.date) })}</div>`}
-    `;
-  }
-
-  private _renderLegend(payload: InspectorPayload) {
-    return html`
-      <div class="legend grouped">
-        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.solar"), [
-          payload.availability.hasRawForecast
-            ? html`<span class="legend-item"><span class="swatch raw"></span>${this._t("bias_correction.inspector.raw_forecast")}</span>` : null,
-          payload.availability.hasCorrectedForecast
-            ? html`<span class="legend-item"><span class="swatch corrected"></span>${this._t("bias_correction.inspector.corrected_forecast")}</span>` : null,
-          payload.availability.hasActuals
-            ? html`<span class="legend-item"><span class="swatch solar-actual"></span>${this._t("bias_correction.inspector.actual_production")}</span>` : null,
-          payload.availability.hasInvalidated
-            ? html`<span class="legend-item"><span class="dot invalidated"></span>${this._t("bias_correction.inspector.invalidated_production")}</span>` : null,
-        ])}
-        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.house"), [
-          payload.availability.hasHouseForecast
-            ? html`<span class="legend-item"><span class="swatch house-forecast"></span>${this._t("bias_correction.inspector.house_forecast")}</span>` : null,
-          payload.availability.hasHouseActual
-            ? html`<span class="legend-item"><span class="swatch house-actual"></span>${this._t("bias_correction.inspector.house_actual")}</span>` : null,
-        ])}
-        ${this._renderLegendGroup(this._t("bias_correction.inspector.legend.battery"), [
-          payload.availability.hasBatterySocForecast
-            ? html`<span class="legend-item"><span class="swatch battery-forecast"></span>${this._t("bias_correction.inspector.battery_soc_forecast")}</span>` : null,
-          payload.availability.hasBatterySocActual
-            ? html`<span class="legend-item"><span class="swatch battery-actual"></span>${this._t("bias_correction.inspector.battery_soc_actual")}</span>` : null,
-        ])}
-        ${payload.series.impact.length
-          ? this._renderLegendGroup(this._t("bias_correction.inspector.legend.correction"), [
-              html`<span class="legend-item"><span class="impact-swatch positive"></span>${this._t("bias_correction.inspector.positive_impact")}</span>`,
-              html`<span class="legend-item"><span class="impact-swatch negative"></span>${this._t("bias_correction.inspector.negative_impact")}</span>`,
-              this._hasInterpolatedSlots(payload)
-                ? html`<span class="legend-item"><span class="impact-swatch interpolated"></span>${this._t("bias_correction.inspector.interpolated_label")}</span>` : null,
-              this._hasUntrainedSlots(payload)
-                ? html`<span class="legend-item"><span class="impact-swatch untrained"></span>${this._t("bias_correction.inspector.untrained_label")}</span>` : null,
-            ])
-          : ""}
-      </div>
-    `;
-  }
-
-  private _renderLegendGroup(title: string, items: Array<unknown>) {
-    const visible = items.filter((x) => x);
-    if (!visible.length) return "";
-    return html`
-      <div class="legend-group">
-        <span class="legend-group-title">${title}</span>
-        ${visible}
-      </div>
     `;
   }
 
@@ -1159,6 +1011,9 @@ export class HelmanSolarInspector extends LitElement {
               })}
             </div>`
           : ""}
+        ${payload.range.isToday
+          ? html`<div class="day-state">${this._t("bias_correction.inspector.today_training_note")}</div>`
+          : ""}
       </div>
       ${this._trainingTableCollapsed ? "" : html`
         <div class="contribution-table-wrap">
@@ -1434,23 +1289,6 @@ export class HelmanSolarInspector extends LitElement {
       return this._t("bias_correction.inspector.actual_not_available");
     }
     return `${value.toFixed(1)} %`;
-  }
-
-  private _hasInterpolatedSlots(payload: InspectorPayload): boolean {
-    const slots = payload.trainingExplainability?.slots;
-    if (!slots) return false;
-    return Object.values(slots).some((slot) => slot.interpolated === true);
-  }
-
-  private _hasUntrainedSlots(payload: InspectorPayload): boolean {
-    const slots = payload.trainingExplainability?.slots;
-    if (!slots) return false;
-    return payload.series.impact.some((point) => {
-      if (point.impactWh === null || !Number.isFinite(point.impactWh)) return false;
-      const slot = slots[point.slot];
-      if (!slot) return true;
-      return slot.factor === null && slot.interpolated !== true;
-    });
   }
 
   private _sortContributionRows(rows: ContributionRow[]): ContributionRow[] {
