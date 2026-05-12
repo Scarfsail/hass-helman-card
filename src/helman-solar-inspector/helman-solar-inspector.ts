@@ -661,14 +661,17 @@ export class HelmanSolarInspector extends LitElement {
   private _renderChart(payload: InspectorPayload) {
     const layout = this._computeChartLayout(payload);
     this._lastLayoutForStrip = layout;
+    const selectedSlot = resolveSelectedImpactSlot(payload.series.impact, this._selectedSlot);
     return svg`
       <svg
         viewBox="0 0 ${layout.width} ${layout.height}"
         role="img"
         aria-label=${this._t("bias_correction.inspector.title")}
-        @click=${() => this._deselectSlot()}
+        style="cursor: pointer;"
+        @click=${(e: MouseEvent) => this._handleChartClick(e, payload)}
       >
         ${this._renderChartBackground(layout)}
+        ${this._renderSlotHighlight(layout, layout.margin.top, layout.plotHeight, selectedSlot)}
         ${this._renderLeftAxis(layout)}
         ${this._renderXAxis(layout)}
         ${this._renderSolarLayer(payload, layout)}
@@ -836,8 +839,10 @@ export class HelmanSolarInspector extends LitElement {
         viewBox="0 0 ${stripWidth} ${stripHeight}"
         role="img"
         aria-label=${this._t("bias_correction.inspector.correction_impact")}
-        @click=${() => this._deselectSlot()}
+        style="cursor: pointer;"
+        @click=${(e: MouseEvent) => this._handleChartClick(e, payload)}
       >
+        ${this._renderSlotHighlight(layout, 0, stripHeight, selectedSlot)}
         ${payload.series.impact.map((point) => {
           if (point.impactWh === null || !Number.isFinite(point.impactWh)) return "";
           const m = /^(\d{2}):(\d{2})$/.exec(point.slot);
@@ -864,8 +869,7 @@ export class HelmanSolarInspector extends LitElement {
             <rect x=${x} y=${y} width=${w} height=${h}
                   fill=${fill} fill-opacity=${fillOpacity}
                   stroke=${strokeColor} stroke-width=${strokeWidth}
-                  style="cursor: pointer;"
-                  @click=${(e: MouseEvent) => this._selectSlot(point.slot, e)}>
+                  style="pointer-events: none;">
               <title>${point.slot} ${this._formatSignedWh(point.impactWh)}</title>
             </rect>
           `;
@@ -1402,6 +1406,64 @@ export class HelmanSolarInspector extends LitElement {
     }
     dated.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     return [...dated, ...synthetic];
+  }
+
+  private _findClosestImpactSlot(minutes: number, impacts: ImpactPoint[]): string | null {
+    let best: string | null = null;
+    let bestDist = Infinity;
+    for (const point of impacts) {
+      const m = /^(\d{2}):(\d{2})$/.exec(point.slot);
+      if (!m) continue;
+      const slotMinutes = Number(m[1]) * 60 + Number(m[2]);
+      const dist = Math.abs(slotMinutes - minutes);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = point.slot;
+      }
+    }
+    return best;
+  }
+
+  private _handleChartClick(event: MouseEvent, payload: InspectorPayload) {
+    const layout = this._lastLayoutForStrip;
+    if (!layout) return;
+    const svgEl = event.currentTarget as SVGSVGElement;
+    const rect = svgEl.getBoundingClientRect();
+    const svgX = ((event.clientX - rect.left) / rect.width) * layout.width;
+    if (svgX < layout.margin.left || svgX > layout.width - layout.margin.right) {
+      this._deselectSlot();
+      return;
+    }
+    const minutes = ((svgX - layout.margin.left) / layout.plotWidth) * 1440;
+    const slot = this._findClosestImpactSlot(minutes, payload.series.impact);
+    if (slot) {
+      this._selectSlot(slot);
+    } else {
+      this._deselectSlot();
+    }
+  }
+
+  private _renderSlotHighlight(
+    layout: ChartLayout,
+    y: number,
+    height: number,
+    selectedSlot: string | null,
+  ) {
+    if (!selectedSlot) return "";
+    const m = /^(\d{2}):(\d{2})$/.exec(selectedSlot);
+    if (!m) return "";
+    const minutes = Number(m[1]) * 60 + Number(m[2]);
+    const x = layout.xForMinutes(minutes);
+    const w = Math.max(3, layout.plotWidth / 96);
+    return svg`
+      <rect
+        x=${x} y=${y} width=${w} height=${height}
+        fill="rgba(37,99,235,0.13)"
+        stroke="#2563eb" stroke-width="1" stroke-opacity="0.5"
+        rx="1"
+        pointer-events="none"
+      ></rect>
+    `;
   }
 
   private _computeRatioBounds(rows: ContributionRow[]): RatioBounds {
