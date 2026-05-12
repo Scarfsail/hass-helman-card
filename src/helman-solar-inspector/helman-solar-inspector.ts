@@ -997,25 +997,27 @@ export class HelmanSolarInspector extends LitElement {
           <span class="contribution-toggle-icon ${this._trainingTableCollapsed ? "" : "expanded"}">▶</span>
           ${this._t("bias_correction.inspector.training_contribution")}
         </button>
-        <div class="day-state">
-          ${this._tFormat("bias_correction.inspector.training_contribution_meta", {
-            ratio: this._formatFactor(trainingSlot.rawRatio),
-            factor: this._formatFactor(trainingSlot.factor),
-          })}
-        </div>
-        ${interpolated
-          ? html`<div class="day-state">
-              ${this._tFormat("bias_correction.inspector.interpolated_meta", {
-                left: anchors?.left ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
-                right: anchors?.right ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
-              })}
-            </div>`
-          : ""}
-        ${payload.range.isToday
-          ? html`<div class="day-state">${this._t("bias_correction.inspector.today_training_note")}</div>`
-          : ""}
       </div>
       ${this._trainingTableCollapsed ? "" : html`
+        <div class="contribution-summary">
+          <div class="day-state">
+            ${this._tFormat("bias_correction.inspector.training_contribution_meta", {
+              ratio: this._formatFactor(trainingSlot.rawRatio),
+              factor: this._formatFactor(trainingSlot.factor),
+            })}
+          </div>
+          ${interpolated
+            ? html`<div class="day-state">
+                ${this._tFormat("bias_correction.inspector.interpolated_meta", {
+                  left: anchors?.left ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+                  right: anchors?.right ?? this._t("bias_correction.inspector.interpolated_anchor_zero"),
+                })}
+              </div>`
+            : ""}
+          ${payload.range.isToday
+            ? html`<div class="day-state">${this._t("bias_correction.inspector.today_training_note")}</div>`
+            : ""}
+        </div>
         <div class="contribution-table-wrap">
           <table class="contribution-table">
             <thead>
