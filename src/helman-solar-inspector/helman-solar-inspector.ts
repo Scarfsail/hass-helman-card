@@ -1064,9 +1064,9 @@ export class HelmanSolarInspector extends LitElement {
     `;
   }
 
-  private _renderMetric(label: string, value: string) {
+  private _renderMetric(label: string, value: string, color?: string) {
     return html`
-      <div class="metric-card">
+      <div class="metric-card" style=${color ? `background: color-mix(in srgb, ${color} 15%, transparent);` : ""}>
         <div class="metric-label">${label}</div>
         <div class="metric-value">${value}</div>
       </div>
