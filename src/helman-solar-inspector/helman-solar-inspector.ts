@@ -776,6 +776,8 @@ export class HelmanSolarInspector extends LitElement {
     const { xForMinutes, yForPct } = layout;
     const fc = payload.series.batterySocForecast;
     const ac = payload.series.batterySocActual;
+    // Bridge: start forecast line from last actual point so both segments connect visually
+    const fcBridged: BatterySocPoint[] = ac.length > 0 && fc.length > 0 ? [ac[ac.length - 1], ...fc] : fc;
     const slotToMinutes = (slot: string) => {
       const m = /^(\d{2}):(\d{2})$/.exec(slot);
       if (!m) return null;
@@ -792,7 +794,7 @@ export class HelmanSolarInspector extends LitElement {
         .join(" ");
     };
     return svg`
-      ${fc.length > 1 ? svg`<path d=${path(fc)} fill="none" stroke="#14b8a6" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke="#14b8a6" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
       ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#14b8a6" stroke-width="2"></path>` : ""}
     `;
   }
@@ -804,12 +806,14 @@ export class HelmanSolarInspector extends LitElement {
     const { xForMinutes, yForW } = layout;
     const fc = toAveragePower(payload.series.houseForecast, { bucketMinutes: 15 });
     const ac = toAveragePower(payload.series.houseActual, { bucketMinutes: 15 });
+    // Bridge: start forecast line from last actual point so both segments connect visually
+    const fcBridged = ac.length > 0 && fc.length > 0 ? [ac[ac.length - 1], ...fc] : fc;
     const path = (points: ChartEntry[]) =>
       points.map((e, i) =>
         `${i === 0 ? "M" : "L"}${xForMinutes(e.minutes).toFixed(1)},${yForW(e.powerW).toFixed(1)}`,
       ).join(" ");
     return svg`
-      ${fc.length > 1 ? svg`<path d=${path(fc)} fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
       ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#a855f7" stroke-width="2"></path>` : ""}
     `;
   }
