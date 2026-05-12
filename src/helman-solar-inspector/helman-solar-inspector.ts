@@ -1099,12 +1099,14 @@ export class HelmanSolarInspector extends LitElement {
   }
 
   private _renderMetric(label: string, value: string, color?: string, dashed?: boolean) {
-    const style = [
-      color ? `background: color-mix(in srgb, ${color} 15%, transparent);` : "",
-      dashed ? "border-style: dashed;" : "",
-    ].filter(Boolean).join(" ");
+    let background = "";
+    if (color && dashed) {
+      background = `background: repeating-linear-gradient(-45deg, color-mix(in srgb, ${color} 18%, transparent) 0px, color-mix(in srgb, ${color} 18%, transparent) 3px, transparent 3px, transparent 8px);`;
+    } else if (color) {
+      background = `background: color-mix(in srgb, ${color} 15%, transparent);`;
+    }
     return html`
-      <div class="metric-card" style=${style}>
+      <div class="metric-card" style=${background}>
         <div class="metric-label">${label}</div>
         <div class="metric-value">${value}</div>
       </div>
