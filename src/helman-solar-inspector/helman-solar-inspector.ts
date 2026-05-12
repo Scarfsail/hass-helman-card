@@ -22,6 +22,16 @@ import {
   type ContributionRow,
 } from "./solar-inspector-model.js";
 
+const CHART_COLORS = {
+  raw:            '#64748b',
+  corrected:      '#2563eb',
+  actual:         '#f59e0b',
+  house:          '#a855f7',
+  battery:        '#14b8a6',
+  impactPositive: '#16a34a',
+  impactNegative: '#dc2626',
+} as const;
+
 type RatioBounds = { min: number; max: number; maxAbsDeviation: number };
 
 type ChartLayout = {
@@ -687,12 +697,12 @@ export class HelmanSolarInspector extends LitElement {
       <rect x="0" y="0" width=${layout.width} height=${layout.height} fill="var(--card-background-color)"></rect>
       <defs>
         <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-          <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
-          <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
+          <rect width="4" height="4" fill=${CHART_COLORS.impactPositive} fill-opacity="0.12"></rect>
+          <line x1="0" y1="0" x2="0" y2="4" stroke=${CHART_COLORS.impactPositive} stroke-width="1.6" stroke-opacity="0.85"></line>
         </pattern>
         <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-          <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
-          <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
+          <rect width="4" height="4" fill=${CHART_COLORS.impactNegative} fill-opacity="0.12"></rect>
+          <line x1="0" y1="0" x2="0" y2="4" stroke=${CHART_COLORS.impactNegative} stroke-width="1.6" stroke-opacity="0.85"></line>
         </pattern>
       </defs>
     `;
@@ -740,17 +750,17 @@ export class HelmanSolarInspector extends LitElement {
 
     return svg`
       ${rawPoints.length > 1
-        ? svg`<path d=${linePath(rawPoints)} fill="none" stroke="#64748b" stroke-width="2.4"></path>`
+        ? svg`<path d=${linePath(rawPoints)} fill="none" stroke=${CHART_COLORS.raw} stroke-width="2.4"></path>`
         : rawPoints.length === 1
-          ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill="#64748b"></circle>`
+          ? svg`<circle cx=${xForMinutes(rawPoints[0].minutes)} cy=${yForW(rawPoints[0].powerW)} r="3.5" fill=${CHART_COLORS.raw}></circle>`
           : ""}
       ${correctedPoints.length > 1
-        ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke="#2563eb" stroke-width="2.4"></path>`
+        ? svg`<path d=${linePath(correctedPoints)} fill="none" stroke=${CHART_COLORS.corrected} stroke-width="2.4"></path>`
         : correctedPoints.length === 1
-          ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill="#2563eb"></circle>`
+          ? svg`<circle cx=${xForMinutes(correctedPoints[0].minutes)} cy=${yForW(correctedPoints[0].powerW)} r="3.5" fill=${CHART_COLORS.corrected}></circle>`
         : ""}
       ${actualPoints.map((entry) => svg`
-        <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#f59e0b"></circle>
+        <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill=${CHART_COLORS.actual}></circle>
       `)}
       ${invalidatedPoints.map((entry) => svg`
         <circle cx=${xForMinutes(entry.minutes)} cy=${yForW(entry.powerW)} r="3.5" fill="#9ca3af" opacity="0.55">
@@ -797,8 +807,8 @@ export class HelmanSolarInspector extends LitElement {
         .join(" ");
     };
     return svg`
-      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke="#14b8a6" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
-      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#14b8a6" stroke-width="2"></path>` : ""}
+      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke=${CHART_COLORS.battery} stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke=${CHART_COLORS.battery} stroke-width="2"></path>` : ""}
     `;
   }
 
@@ -816,8 +826,8 @@ export class HelmanSolarInspector extends LitElement {
         `${i === 0 ? "M" : "L"}${xForMinutes(e.minutes).toFixed(1)},${yForW(e.powerW).toFixed(1)}`,
       ).join(" ");
     return svg`
-      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
-      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke="#a855f7" stroke-width="2"></path>` : ""}
+      ${fcBridged.length > 1 ? svg`<path d=${path(fcBridged)} fill="none" stroke=${CHART_COLORS.house} stroke-width="2" stroke-dasharray="4 3"></path>` : ""}
+      ${ac.length > 1 ? svg`<path d=${path(ac)} fill="none" stroke=${CHART_COLORS.house} stroke-width="2"></path>` : ""}
     `;
   }
 
@@ -861,7 +871,7 @@ export class HelmanSolarInspector extends LitElement {
             ? "#9ca3af"
             : interpolated
               ? positive ? "url(#impact-interpolated-positive)" : "url(#impact-interpolated-negative)"
-              : positive ? "#16a34a" : "#dc2626";
+              : positive ? CHART_COLORS.impactPositive : CHART_COLORS.impactNegative;
           const fillOpacity = untrained ? "0.45" : interpolated ? "1" : "0.55";
           const strokeColor = selected ? "var(--primary-text-color)" : "transparent";
           const strokeWidth = selected ? "1.5" : "0";
@@ -876,12 +886,12 @@ export class HelmanSolarInspector extends LitElement {
         })}
         <defs>
           <pattern id="impact-interpolated-positive" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-            <rect width="4" height="4" fill="#16a34a" fill-opacity="0.12"></rect>
-            <line x1="0" y1="0" x2="0" y2="4" stroke="#16a34a" stroke-width="1.6" stroke-opacity="0.85"></line>
+            <rect width="4" height="4" fill=${CHART_COLORS.impactPositive} fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke=${CHART_COLORS.impactPositive} stroke-width="1.6" stroke-opacity="0.85"></line>
           </pattern>
           <pattern id="impact-interpolated-negative" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-            <rect width="4" height="4" fill="#dc2626" fill-opacity="0.12"></rect>
-            <line x1="0" y1="0" x2="0" y2="4" stroke="#dc2626" stroke-width="1.6" stroke-opacity="0.85"></line>
+            <rect width="4" height="4" fill=${CHART_COLORS.impactNegative} fill-opacity="0.12"></rect>
+            <line x1="0" y1="0" x2="0" y2="4" stroke=${CHART_COLORS.impactNegative} stroke-width="1.6" stroke-opacity="0.85"></line>
           </pattern>
         </defs>
       </svg>
@@ -926,15 +936,15 @@ export class HelmanSolarInspector extends LitElement {
             ? "url(#impact-interpolated-positive)"
             : "url(#impact-interpolated-negative)"
           : positive
-            ? "#16a34a"
-            : "#dc2626";
+            ? CHART_COLORS.impactPositive
+            : CHART_COLORS.impactNegative;
       const fillOpacity = untrained ? "0.45" : interpolated ? "1" : "0.4";
       const strokeColor = selected
         ? "var(--primary-text-color)"
         : untrained
           ? "#9ca3af"
           : interpolated
-            ? positive ? "#16a34a" : "#dc2626"
+            ? positive ? CHART_COLORS.impactPositive : CHART_COLORS.impactNegative
             : "transparent";
       const strokeWidth = selected ? "2" : untrained || interpolated ? "1" : "0";
       const strokeDasharray = !selected && (interpolated || untrained) ? "2 2" : "";
