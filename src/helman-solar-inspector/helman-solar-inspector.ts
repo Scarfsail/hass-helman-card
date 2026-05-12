@@ -1039,10 +1039,10 @@ export class HelmanSolarInspector extends LitElement {
       <div class="metrics-section">
         <strong>${this._t("bias_correction.inspector.daily_totals")}</strong>
         <div class="metric-grid">
-          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(payload.totals.rawWh), CHART_COLORS.raw)}
-          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(payload.totals.correctedWh), CHART_COLORS.corrected)}
+          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(payload.totals.rawWh), CHART_COLORS.raw, true)}
+          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(payload.totals.correctedWh), CHART_COLORS.corrected, true)}
           ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(payload.totals.actualWh), CHART_COLORS.actual)}
-          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(payload.totals.houseForecastWh), CHART_COLORS.house)}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(payload.totals.houseForecastWh), CHART_COLORS.house, true)}
           ${this._renderMetric(this._t("bias_correction.inspector.house_actual"), this._formatWh(payload.totals.houseActualWh), CHART_COLORS.house)}
         </div>
       </div>
@@ -1083,14 +1083,14 @@ export class HelmanSolarInspector extends LitElement {
           ? html`<div class="day-state">${this._t("bias_correction.inspector.interpolated_explanation")}</div>`
           : ""}
         <div class="metric-grid wide">
-          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null), CHART_COLORS.raw)}
-          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null), CHART_COLORS.corrected)}
+          ${this._renderMetric(this._t("bias_correction.inspector.raw_forecast"), this._formatWh(raw?.valueWh ?? impact?.rawWh ?? null), CHART_COLORS.raw, true)}
+          ${this._renderMetric(this._t("bias_correction.inspector.corrected_forecast"), this._formatWh(corrected?.valueWh ?? impact?.correctedWh ?? null), CHART_COLORS.corrected, true)}
           ${this._renderMetric(this._t("bias_correction.inspector.actual_production"), this._formatWh(actual?.valueWh ?? null), CHART_COLORS.actual)}
           ${this._renderMetric(this._t("bias_correction.inspector.correction_impact"), this._formatSignedWh(impact?.impactWh ?? null), impactColor)}
           ${this._renderMetric(this._t("bias_correction.inspector.factor"), this._formatFactor(impact?.factor ?? trainingSlot?.factor ?? null), impactColor)}
-          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(houseFc?.valueWh ?? null), CHART_COLORS.house)}
+          ${this._renderMetric(this._t("bias_correction.inspector.house_forecast"), this._formatWh(houseFc?.valueWh ?? null), CHART_COLORS.house, true)}
           ${this._renderMetric(this._t("bias_correction.inspector.house_actual"), this._formatWh(houseAc?.valueWh ?? null), CHART_COLORS.house)}
-          ${this._renderMetric(this._t("bias_correction.inspector.battery_soc_forecast"), this._formatPct(batterySocFc?.pct ?? null), CHART_COLORS.battery)}
+          ${this._renderMetric(this._t("bias_correction.inspector.battery_soc_forecast"), this._formatPct(batterySocFc?.pct ?? null), CHART_COLORS.battery, true)}
           ${this._renderMetric(this._t("bias_correction.inspector.battery_soc_actual"), this._formatPct(batterySocAc?.pct ?? null), CHART_COLORS.battery)}
         </div>
       </div>
@@ -1098,9 +1098,13 @@ export class HelmanSolarInspector extends LitElement {
     `;
   }
 
-  private _renderMetric(label: string, value: string, color?: string) {
+  private _renderMetric(label: string, value: string, color?: string, dashed?: boolean) {
+    const style = [
+      color ? `background: color-mix(in srgb, ${color} 15%, transparent);` : "",
+      dashed ? "border-style: dashed;" : "",
+    ].filter(Boolean).join(" ");
     return html`
-      <div class="metric-card" style=${color ? `background: color-mix(in srgb, ${color} 15%, transparent);` : ""}>
+      <div class="metric-card" style=${style}>
         <div class="metric-label">${label}</div>
         <div class="metric-value">${value}</div>
       </div>
