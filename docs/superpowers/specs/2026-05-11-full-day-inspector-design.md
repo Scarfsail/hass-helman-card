@@ -24,16 +24,16 @@ The endpoint name `helman/solar_bias/inspector` and the component name stay as-i
 
 ## BE design (hass-helman)
 
-### New sensor: house consumption forecast (per-day)
+### New sensor: house consumption forecast (current value)
 
-Mirror the existing solar pattern (`HelmanSolarForecastEnergySensor` + `daily_energy_entity_ids` list):
+Add **one** sensor that publishes the *current* forecasted house consumption — no attributes, just a numeric state updated by the coordinator on every forecast refresh. Reading past values comes for free from HA recorder: querying the sensor's state changes during `target_date` yields a time series of "what we forecasted at each moment of that day".
 
-- Add a list of daily house-consumption-forecast sensors, one per offset 0..N-1 where N matches `len(daily_energy_entity_ids)` (i.e. same horizon as solar).
-- Each sensor exposes a per-slot 15-minute `wh_period` attribute (`"HH:MM": wh`), built from `ConsumptionForecastBuilder`'s output. Builder already emits per-slot Wh; the sensor just publishes the slot-keyed dict.
-- State value: daily total Wh (energy device class) — keeps the attribute load reasonable for recorder.
-- Updated by the coordinator on each forecast refresh cycle, like solar.
+- Single entity, e.g. `sensor.helman_house_consumption_forecast_current`.
+- **State value semantics:** the forecasted energy for the **current 15-min slot**, expressed in *Wh-per-hour* (W) units. The published number is the slot's Wh stated as a per-hour rate — *not* divided by anything at read time. Concretely: a slot forecast of 250 Wh is published as `1000` (because that 250 Wh corresponds to 1000 Wh/h, i.e. 1000 W). When the active slot rolls over, the state steps to the new slot's value, producing a stair-step history.
+- Unit: `W` (1 Wh/h ≡ 1 W). Device class / state class: `POWER` / `MEASUREMENT`. This keeps the value directly comparable to live power sensors and aligns visually with how the inspector renders kW lines.
+- Updated on every coordinator tick from `ConsumptionForecastBuilder`'s current-slot Wh forecast.
 
-Reading back past days uses the same `_read_historical_forecast_state` pattern as `solar_bias_correction/forecast_history.py`: query recorder for the sensor state at the appropriate timestamp, parse `wh_period`.
+Reconstructing a past day's per-15-min house forecast: read the sensor's recorder state changes during `target_date`, group each state value into the 15-min slot it falls in (each slot will typically have one stable state value reflecting the forecast active at that wall-clock time). The slot value in Wh-per-hour is the rendered y-value as-is; if a Wh number is needed (e.g. for daily totals), multiply by `0.25 h`.
 
 **Caveat:** HA recorder default retention is 10 days. Users wanting the full `usable_days` range must configure recorder retention upward. Document in README; no code workaround.
 
@@ -65,7 +65,7 @@ Existing fields (raw/corrected/actual solar, impact, training explainability, to
 | Solar raw fc          | recorder replay of solar daily sensor (existing)            | current solar forecast snapshot (existing)             |
 | Solar corrected fc    | adjusted via stored profile (existing)                      | from coordinator's canonical corrected points          |
 | Solar actual          | `load_actuals_for_day` (existing)                           | partial today via same loader                          |
-| House forecast        | recorder replay of new house forecast sensor                | current state of new sensor (offset 0..N-1)            |
+| House forecast        | recorder state changes of new sensor, bucketed to 15-min slots | current state of new sensor (and recent history)    |
 | House actual          | `ConsumptionForecastBuilder` actual history at 15-min slots | partial today via same path                            |
 | Battery SoC actual    | `build_battery_actual_history(interval_minutes=15)`         | partial today via same                                 |
 | Battery SoC forecast  | not emitted                                                 | filtered to slots `>= now` from current battery snapshot |
@@ -77,7 +77,7 @@ Existing fields (raw/corrected/actual solar, impact, training explainability, to
 In `solar_bias_correction/service.py::async_get_inspector_day`:
 
 - After existing solar/actuals/factors/impact assembly, gather:
-  - `house_forecast_points` via a new `load_house_forecast_points_for_day(hass, target_date, local_now)` (mirrors `load_forecast_points_for_day` from `forecast_history.py`, parameterized for the new sensor).
+  - `house_forecast_points` via a new `load_house_forecast_points_for_day(hass, target_date, local_now)` — query recorder for state changes of the new house forecast sensor during `target_date`, bucket into 15-min slots (avg power → Wh).
   - `house_actual_points` via `ConsumptionForecastBuilder` 15-min actual history for `target_date`.
   - `battery_soc_actual` via `build_battery_actual_history(interval_minutes=15)` constrained to `target_date`.
   - `battery_soc_forecast` only when `target_date >= today`: filter coordinator's current battery capacity forecast to slots `>= local_now`, project to {slot, pct}.
@@ -87,7 +87,7 @@ No changes to the websocket schema or auth; the response just grows.
 
 ### New helpers (BE)
 
-- `solar_bias_correction/house_forecast_history.py` (or a more neutral module path) — load the house forecast sensor state for `target_date` and parse to 15-min slot points.
+- `solar_bias_correction/house_forecast_history.py` (or a more neutral module path) — query recorder for the new house forecast sensor's state changes during `target_date` and bucket into 15-min slot points.
 - Slot-projection helper for battery forecast → SoC points.
 
 ## FE design (hass-helman-card)
@@ -173,7 +173,7 @@ Add two metrics: house forecast Wh, house actual Wh.
 
 ```
 HA recorder ─┬─> solar daily sensors  ──┐
-             └─> NEW house fc sensors ──┤
+             └─> NEW house fc sensor  ──┤
                                         ├──> service.async_get_inspector_day
 ConsumptionForecastBuilder.actuals  ────┤        │
 build_battery_actual_history(15min) ────┤        │
@@ -190,7 +190,7 @@ coordinator current battery snapshot ───┘        ▼
 ## Test plan
 
 BE:
-- Unit test `load_house_forecast_points_for_day` parses recorder state attribute correctly (past day, today, missing day).
+- Unit test `load_house_forecast_points_for_day` buckets recorder state changes correctly into 15-min slots (past day, today partial, day with no states, day with sparse states).
 - Service test: `async_get_inspector_day` populates all new series fields and availability flags for: past day with full data, past day missing house forecast, today with future battery forecast, future-only day.
 - 15-min battery actual: `build_battery_actual_history(interval_minutes=15)` returns 96 slot boundaries for a complete past day.
 
